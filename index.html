@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+  <meta name="theme-color" content="#3DB88A">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="에이브릴팜">
+  <title>에이브릴팜 공방관리</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.0.0/tabler-icons.min.css">
+</head>
+<body>
+<div class="app">
+  <div class="topbar">
+    <button class="back-btn" aria-label="뒤로"><i class="ti ti-chevron-left"></i></button>
+    <div class="tabs-wrap">
+      <div class="tabs">
+        <button class="tab-btn" data-tab="stock">재료·포장재 재고</button>
+        <button class="tab-btn" data-tab="manufacture">제품 제조</button>
+        <button class="tab-btn" data-tab="mfcheck">제조 점검<span class="tab-dot" style="display:none"></span></button>
+        <button class="tab-btn active" data-tab="hygiene">위생 점검<span id="badge-hygiene" class="tab-dot"></span></button>
+        <button class="tab-btn" data-tab="output">문서 출력</button>
+        <button class="tab-btn" data-tab="notify">🔔 알림설정</button>
+      </div>
+    </div>
+    <button class="topbar-action" aria-label="출력"><i class="ti ti-printer"></i></button>
+  </div>
+  <div id="page-content"></div>
+</div>
+
+<div id="sheet-overlay" class="hide" onclick="closeSheet()"></div>
+<div id="sheet" class="hide"><div id="sheet-body"></div></div>
+
+<script src="js/db.js"></script>
+<script src="js/notify.js"></script>
+<script src="js/pdf.js"></script>
+<script src="js/app.js"></script>
+<script>
+  if('serviceWorker' in navigator){
+    navigator.serviceWorker.register('sw.js').catch(()=>{});
+  }
+</script>
+</body>
+</html>

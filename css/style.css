@@ -1,0 +1,200 @@
+:root{
+  --green:#3DB88A;--green-bg:#EAF7F1;--green-text:#0F6E56;
+  --orange:#F5A623;--orange-bg:#FEF3E2;--orange-text:#854F0B;
+  --red:#E24B4A;--red-bg:#FEECEC;--red-text:#A32D2D;
+  --blue-bg:#EAF3FD;--blue-text:#185FA5;
+  --gray-bg:#F4F4F2;--gray-text:#888;
+  --text:#111;--text2:#666;--text3:#999;
+  --border:#E8E8E4;--bg:#F7F7F5;--white:#fff;
+  --r:12px;--r-sm:8px;
+}
+@media(prefers-color-scheme:dark){
+  :root{--text:#f0ece6;--text2:#a09990;--text3:#707070;--border:#333;--bg:#1a1918;--white:#262422;--green-bg:#0a2e22;--orange-bg:#2e1a04;--red-bg:#2e0a0a;--blue-bg:#0a1e2e;--gray-bg:#2a2826;}
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+html,body{height:100%;font-family:-apple-system,'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:var(--bg);color:var(--text);font-size:14px;line-height:1.4;}
+
+/* ── 앱 레이아웃 ── */
+.app{display:flex;flex-direction:column;height:100%;max-width:480px;margin:0 auto;background:var(--bg);}
+
+/* ── 상단바 ── */
+.topbar{background:var(--white);border-bottom:0.5px solid var(--border);padding:0 16px;display:flex;align-items:center;height:48px;position:sticky;top:0;z-index:20;}
+.back-btn{background:none;border:none;color:var(--text2);font-size:20px;padding:0 12px 0 0;cursor:pointer;display:flex;align-items:center;}
+.tabs-wrap{flex:1;overflow-x:auto;scrollbar-width:none;}
+.tabs-wrap::-webkit-scrollbar{display:none;}
+.tabs{display:flex;gap:2px;padding:8px 0;}
+.tab-btn{flex-shrink:0;padding:5px 12px;border-radius:20px;border:none;background:none;color:var(--text2);font-size:13px;cursor:pointer;white-space:nowrap;position:relative;}
+.tab-btn.active{background:var(--white);color:var(--green-text);font-weight:600;box-shadow:0 1px 4px rgba(0,0,0,.1);}
+.tab-dot{width:6px;height:6px;border-radius:50%;background:var(--red);position:absolute;top:3px;right:6px;}
+.topbar-action{background:none;border:none;color:var(--text2);font-size:15px;padding:4px 0 4px 12px;cursor:pointer;}
+
+/* ── 페이지 콘텐츠 ── */
+#page-content{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:0 0 80px;}
+
+/* ── 페이지 헤더 ── */
+.page-header{display:flex;align-items:center;justify-content:space-between;padding:16px 16px 8px;}
+.page-title{font-size:18px;font-weight:700;color:var(--text);}
+.header-action{background:none;border:0.5px solid var(--border);border-radius:8px;padding:6px 10px;color:var(--text2);font-size:16px;cursor:pointer;}
+
+/* ── 요약 칩 ── */
+.summary-row{display:flex;gap:6px;padding:4px 16px 12px;flex-wrap:wrap;}
+.sum-chip{font-size:12px;font-weight:600;padding:4px 10px;border-radius:12px;}
+.sum-blue{background:var(--blue-bg);color:var(--blue-text);}
+.sum-green{background:var(--green-bg);color:var(--green-text);}
+.sum-orange{background:var(--orange-bg);color:var(--orange-text);}
+
+/* ── 그룹 헤더 ── */
+.group-header{font-size:11px;font-weight:700;color:var(--text3);letter-spacing:.5px;text-transform:uppercase;padding:12px 16px 6px;}
+
+/* ── 리스트 아이템 ── */
+.list-item{background:var(--white);padding:12px 16px;border-bottom:0.5px solid var(--border);display:flex;align-items:center;justify-content:space-between;cursor:pointer;}
+.list-item:active{background:var(--gray-bg);}
+.item-left{flex:1;min-width:0;}
+.item-title{font-size:14px;font-weight:500;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.item-sub{font-size:12px;color:var(--text2);margin-top:2px;}
+.item-right{display:flex;align-items:center;flex-shrink:0;margin-left:8px;}
+.ml4{margin-left:4px;}
+
+/* ── 배지 ── */
+.badge{font-size:11px;font-weight:600;padding:2px 8px;border-radius:10px;}
+.badge-green{background:var(--green-bg);color:var(--green-text);}
+.badge-orange{background:var(--orange-bg);color:var(--orange-text);}
+.badge-red{background:var(--red-bg);color:var(--red-text);}
+.badge-gray{background:var(--gray-bg);color:var(--gray-text);}
+
+/* ── 카드 블록 (제조) ── */
+.card-block{background:var(--white);border-bottom:0.5px solid var(--border);cursor:pointer;}
+.card-top{padding:14px 16px;display:flex;justify-content:space-between;align-items:flex-start;}
+.card-left{flex:1;}
+.card-title{font-size:14px;font-weight:600;color:var(--text);}
+.card-sub{font-size:11px;color:var(--text2);margin-top:2px;}
+.card-right{display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0;margin-left:12px;}
+.icon-btn{background:none;border:0.5px solid var(--border);border-radius:6px;padding:5px 7px;color:var(--text2);font-size:14px;cursor:pointer;}
+.mt8{margin-top:8px;}
+.card-detail{border-top:0.5px solid var(--border);padding:10px 16px 14px;}
+.card-detail.hide{display:none;}
+.drow{display:flex;justify-content:space-between;padding:5px 0;font-size:12px;border-bottom:0.5px solid var(--border);}
+.drow:last-child{border-bottom:none;}
+.drow-l{color:var(--text2);}
+.drow-r{color:var(--text);font-weight:500;text-align:right;max-width:65%;}
+
+/* ── 정보 배너 ── */
+.info-banner{background:var(--blue-bg);border-left:3px solid #378ADD;padding:10px 16px;display:flex;align-items:center;gap:8px;font-size:12px;color:var(--blue-text);}
+
+/* ── 체크리스트 ── */
+.check-item{background:var(--white);border-bottom:0.5px solid var(--border);padding:12px 16px;display:flex;align-items:center;gap:12px;cursor:pointer;}
+.check-item:active{background:var(--gray-bg);}
+.check-item.checked{background:var(--green-bg);}
+.check-circle{width:22px;height:22px;border-radius:50%;border:1.5px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--white);flex-shrink:0;}
+.check-item.checked .check-circle{background:var(--green);border-color:var(--green);}
+.check-label{font-size:13px;color:var(--text);}
+.save-btn{display:block;width:calc(100% - 32px);margin:0 16px;padding:14px;background:var(--green);color:#fff;border:none;border-radius:var(--r);font-size:15px;font-weight:600;cursor:pointer;}
+.mt16{margin-top:16px;}
+.mt20{margin-top:20px;}
+
+/* ── 위생 캘린더 ── */
+.warn-banner{background:var(--orange-bg);padding:12px 16px;display:flex;align-items:center;gap:10px;cursor:pointer;border-bottom:0.5px solid var(--border);}
+.warn-banner i{font-size:18px;color:var(--orange-text);flex-shrink:0;}
+.warn-title{font-size:13px;font-weight:600;color:var(--orange-text);}
+.warn-sub{font-size:11px;color:var(--orange-text);margin-top:1px;}
+.ml-auto{margin-left:auto;}
+.cal-nav{display:flex;align-items:center;justify-content:space-between;padding:14px 20px 8px;}
+.cal-title{font-size:15px;font-weight:700;color:var(--text);}
+.cal-arrow{background:none;border:none;color:var(--text2);font-size:18px;cursor:pointer;padding:4px 8px;}
+.calendar{padding:0 8px;}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;}
+.cal-dow{text-align:center;font-size:11px;color:var(--text3);font-weight:600;padding:4px 0 6px;}
+.cal-day{position:relative;display:flex;flex-direction:column;align-items:center;padding:6px 2px;border-radius:8px;cursor:pointer;min-height:38px;}
+.cal-day:active{background:var(--gray-bg);}
+.cal-day.today .cal-num{background:var(--green);color:#fff;border-radius:50%;width:24px;height:24px;display:flex;align-items:center;justify-content:center;}
+.cal-day.empty{pointer-events:none;}
+.cal-num{font-size:13px;color:var(--text);}
+.cal-dot{width:5px;height:5px;border-radius:50%;margin-top:2px;}
+.dot-green{background:var(--green);}
+.dot-red{background:var(--red);}
+.cal-footer{display:flex;gap:8px;padding:10px 16px;border-top:0.5px solid var(--border);}
+.cal-foot-btn{font-size:12px;color:var(--text2);background:none;border:0.5px solid var(--border);border-radius:12px;padding:4px 12px;cursor:pointer;}
+.cal-foot-btn.active{color:var(--green-text);border-color:var(--green);}
+.records-section{padding:4px 0 0;}
+.records-month{font-size:15px;font-weight:700;padding:12px 16px 6px;color:var(--text);}
+.records-date{font-size:12px;color:var(--text3);padding:4px 16px 8px;}
+.record-row{background:var(--white);padding:12px 16px;border-bottom:0.5px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
+.record-left{flex:1;}
+.record-title{font-size:13px;font-weight:500;color:var(--text);}
+.record-sub{font-size:11px;color:var(--text2);margin-top:2px;}
+.record-right{display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0;margin-left:8px;}
+.record-type-label{font-size:10px;color:var(--text3);}
+.empty-hint{padding:24px;text-align:center;color:var(--text3);font-size:13px;}
+
+/* ── FAB ── */
+.fab{position:fixed;bottom:24px;right:calc(50% - 240px + 16px);width:52px;height:52px;border-radius:50%;background:var(--green);color:#fff;border:none;font-size:22px;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 12px rgba(61,184,138,.4);cursor:pointer;z-index:30;}
+@media(max-width:480px){.fab{right:16px;}}
+
+/* ── 출력 탭 ── */
+.section-label{font-size:12px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;padding:16px 16px 6px;}
+.setting-row{background:var(--white);padding:14px 16px;border-top:0.5px solid var(--border);border-bottom:0.5px solid var(--border);display:flex;align-items:center;cursor:pointer;}
+.setting-title{font-size:14px;font-weight:500;color:var(--text);flex:1;}
+.setting-sub{font-size:12px;color:var(--text2);margin-right:8px;}
+.month-selector{background:var(--white);padding:14px 16px;border-top:0.5px solid var(--border);border-bottom:0.5px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
+.month-label{font-size:14px;font-weight:500;color:var(--text);}
+.month-inputs{display:flex;align-items:center;gap:6px;font-size:14px;color:var(--text);}
+.month-inputs input{border:0.5px solid var(--border);border-radius:6px;padding:4px 8px;font-size:14px;background:var(--bg);color:var(--text);text-align:center;}
+.output-desc{padding:12px 16px;font-size:12px;color:var(--text2);line-height:1.8;background:var(--white);border-bottom:0.5px solid var(--border);}
+.output-desc p{margin-bottom:2px;}
+.output-btn{display:block;width:calc(100% - 32px);margin:16px;padding:14px;background:var(--green);color:#fff;border:none;border-radius:var(--r);font-size:15px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;}
+.doc-row{background:var(--white);padding:14px 16px;border-bottom:0.5px solid var(--border);display:flex;align-items:center;gap:12px;cursor:pointer;}
+.doc-row:active{background:var(--gray-bg);}
+.doc-icon{width:40px;height:40px;background:var(--green-bg);border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--green-text);font-size:20px;}
+.doc-info{flex:1;}
+.doc-name{font-size:14px;font-weight:600;color:var(--text);}
+.doc-sub{font-size:11px;color:var(--text2);margin-top:2px;}
+.doc-arrow{color:var(--text3);font-size:16px;}
+
+/* ── 서브탭 (원료/포장재) ── */
+.subtab-row{display:flex;gap:0;border-bottom:0.5px solid var(--border);background:var(--white);padding:0 16px;}
+.subtab{flex:1;padding:11px 0;font-size:14px;font-weight:500;color:var(--text2);background:none;border:none;border-bottom:2px solid transparent;cursor:pointer;text-align:center;}
+.subtab.on{color:var(--green-text);font-weight:700;border-bottom-color:var(--green);}
+.subtab-cnt{font-size:11px;background:var(--gray-bg);color:var(--gray-text);border-radius:10px;padding:1px 6px;margin-left:4px;font-weight:600;}
+#sheet-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:40;}
+#sheet-overlay.hide{display:none;}
+#sheet{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:480px;background:var(--white);border-radius:20px 20px 0 0;padding:20px 16px 40px;max-height:88vh;overflow-y:auto;z-index:50;}
+#sheet.hide{display:none;}
+.sheet-title{font-size:17px;font-weight:700;margin-bottom:18px;color:var(--text);}
+label{display:block;font-size:12px;color:var(--text2);margin-bottom:14px;}
+label input,label select{display:block;width:100%;margin-top:5px;padding:11px 12px;border:0.5px solid var(--border);border-radius:var(--r-sm);background:var(--bg);color:var(--text);font-size:14px;outline:none;-webkit-appearance:none;}
+label input:focus,label select:focus{border-color:var(--green);}
+.sheet-btns{display:flex;gap:8px;margin-top:20px;}
+.sheet-btns button{flex:1;padding:13px;border-radius:var(--r-sm);border:0.5px solid var(--border);background:var(--bg);color:var(--text);font-size:14px;cursor:pointer;}
+.btn-save{background:var(--green)!important;color:#fff!important;border-color:var(--green)!important;font-weight:600;}
+.btn-del{background:var(--red-bg)!important;color:var(--red-text)!important;border-color:var(--red)!important;flex:0.7!important;}
+
+/* ── 출력 범위 선택 ── */
+.output-range-card{background:var(--white);border:0.5px solid var(--border);border-radius:var(--r);padding:14px 16px;margin:0 0 4px;}
+.range-row{display:flex;align-items:center;justify-content:space-between;}
+.range-label{font-size:13px;font-weight:500;color:var(--text);}
+.range-inputs{display:flex;align-items:center;gap:5px;font-size:13px;color:var(--text);}
+.range-inputs input{border:0.5px solid var(--border);border-radius:6px;padding:5px 6px;font-size:13px;background:var(--bg);color:var(--text);text-align:center;}
+.range-divider{text-align:center;color:var(--text3);padding:6px 0;font-size:18px;}
+
+/* ── 과거 이력 ── */
+.history-month-row{background:var(--white);border-bottom:0.5px solid var(--border);padding:12px 16px;display:flex;align-items:center;gap:10px;cursor:pointer;}
+.history-month-row:active{background:var(--gray-bg);}
+.history-month-title{font-size:14px;font-weight:600;color:var(--text);}
+.history-month-cnt{display:flex;gap:4px;}
+.history-detail{background:var(--gray-bg);border-bottom:0.5px solid var(--border);}
+.history-detail.hide{display:none;}
+.history-item{display:flex;align-items:center;gap:8px;padding:8px 16px;border-bottom:0.5px solid var(--border);font-size:12px;}
+.history-item:last-child{border-bottom:none;}
+.history-date{color:var(--text3);min-width:76px;}
+.history-type{flex:1;color:var(--text);}
+.badge-blue{background:var(--blue-bg);color:var(--blue-text);}
+
+/* ── 토글 스위치 ── */
+.toggle{position:relative;display:inline-block;width:44px;height:24px;flex-shrink:0;}
+.toggle input{opacity:0;width:0;height:0;}
+.slider{position:absolute;cursor:pointer;inset:0;background:#ccc;border-radius:24px;transition:.2s;}
+.slider:before{position:absolute;content:"";height:18px;width:18px;left:3px;bottom:3px;background:#fff;border-radius:50%;transition:.2s;}
+.toggle input:checked+.slider{background:var(--green);}
+.toggle input:checked+.slider:before{transform:translateX(20px);}
+
+/* ── 알림 탭 ── */
