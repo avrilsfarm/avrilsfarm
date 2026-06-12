@@ -277,20 +277,32 @@ function recordItem(r) {
 async function renderOutput(el) {
   const now = new Date();
   const y = now.getFullYear(), m = now.getMonth() + 1;
-  const hyg = await DB.getAll('hygiene');
-  const batches = await DB.getAll('batches');
-  const allDates = [...hyg.map(h => h.date), ...batches.map(b => b.date)].filter(Boolean).sort();
+  const [hyg, batches] = await Promise.all([DB.getAll('hygiene'), DB.getAll('batches')]);
+  const allDates = [...hyg.map(h=>h.date),...batches.map(b=>b.date)].filter(Boolean).sort();
   const earliest = allDates[0] || `${y}-01`;
-  const ey = +earliest.slice(0, 4), em = +earliest.slice(5, 7);
+  const ey = +earliest.slice(0,4), em = +earliest.slice(5,7);
+
+  const periodDocs = [
+    {key:'cover', icon:'ti-id-badge',       name:'정기감시 제출용 표지', sub:'업체·기간 자동 기재',           def:true},
+    {key:'mh',    icon:'ti-clipboard-check', name:'위생점검기록서',       sub:'R-MH-01 청소 · R-MH-02 방충방서', def:true},
+    {key:'mms',   icon:'ti-package',         name:'원료입고기록서',        sub:'R-MMS-01 · 전체 원료',           def:true},
+    {key:'qcm',   icon:'ti-check',           name:'완제품출하검사기록서',  sub:'R-QCM-01/02 · 보관검체 포함',    def:true},
+  ];
+  const batchDocs = [
+    {key:'mi', icon:'ti-file-description', name:'제조지시서',  sub:'EF-MI'},
+    {key:'tr', icon:'ti-microscope',       name:'시험성적서',   sub:'EF-TR · KCL + 자사 육안검사'},
+    {key:'ps', icon:'ti-book',             name:'제품표준서',   sub:'EF-PS · 전성분 포함'},
+  ];
 
   el.innerHTML = `
     <div class="page-header"><h2 class="page-title">출력</h2></div>
-    <div class="section-label">정기감시 제출용 — 기간 설정</div>
+
+    <div class="section-label">출력 기간 설정</div>
     <div class="output-range-card">
       <div class="range-row">
         <span class="range-label">시작</span>
         <div class="range-inputs">
-          <input type="number" id="s-year" value="${ey}" min="2024" max="${y + 1}" style="width:68px">년
+          <input type="number" id="s-year"  value="${ey}" min="2024" max="${y+1}" style="width:68px">년
           <input type="number" id="s-month" value="${em}" min="1" max="12" style="width:46px">월
         </div>
       </div>
@@ -298,60 +310,65 @@ async function renderOutput(el) {
       <div class="range-row">
         <span class="range-label">종료</span>
         <div class="range-inputs">
-          <input type="number" id="e-year" value="${y}" min="2024" max="${y + 1}" style="width:68px">년
+          <input type="number" id="e-year"  value="${y}" min="2024" max="${y+1}" style="width:68px">년
           <input type="number" id="e-month" value="${m}" min="1" max="12" style="width:46px">월
         </div>
       </div>
     </div>
-    <div class="output-desc">
-      <p>선택한 문서만 골라서 PDF로 생성합니다.</p>
-      <p>화장품 정기감시 제출용 표지가 자동으로 추가됩니다.</p>
-    </div>
+
+    <div class="section-label mt16">기간별 문서 <span style="font-weight:400;color:#999">(품목 무관)</span></div>
     <div class="doc-select-list">
-      ${[
-        {key:'cover', label:'📋 정기감시 제출용 표지', checked:true},
-        {key:'mh',    label:'✅ 위생점검기록서 (R-MH-01/02)', checked:true},
-        {key:'mms',   label:'📦 원료입고기록서 (R-MMS-01)', checked:true},
-        {key:'qcm',   label:'🔍 완제품출하검사기록서 (R-QCM-01/02)', checked:true},
-        {key:'mi',    label:'🧴 제조지시서 (EF-MI)', checked:false},
-        {key:'tr',    label:'🔬 시험성적서 (EF-TR)', checked:false},
-        {key:'ps',    label:'📖 제품표준서 (EF-PS)', checked:false}
-      ].map(d => `
+      ${periodDocs.map(d=>`
         <label class="doc-check-row">
-          <input type="checkbox" id="chk-${d.key}" ${d.checked ? 'checked' : ''}>
-          <span>${d.label}</span>
+          <input type="checkbox" id="chk-${d.key}" ${d.def?'checked':''}>
+          <div class="doc-check-info">
+            <div class="doc-check-name"><i class="ti ${d.icon}" style="margin-right:6px;color:#3DB88A"></i>${d.name}</div>
+            <div class="doc-check-sub">${d.sub}</div>
+          </div>
         </label>`).join('')}
     </div>
-    <button class="output-btn" onclick="generatePDF()">
-      <i class="ti ti-files"></i> 선택한 문서 PDF 묶음 생성
-    </button>
-    <div class="section-label mt20">개별 문서 — 기준 월 지정</div>
-    <div class="output-range-card" style="margin-bottom:10px">
-      <div class="range-row">
-        <span class="range-label">기준 월</span>
-        <div class="range-inputs">
-          <input type="number" id="out-year" value="${y}" min="2024" max="${y + 1}" style="width:68px">년
-          <input type="number" id="out-month" value="${m}" min="1" max="12" style="width:46px">월
-        </div>
-      </div>
+
+    <div class="section-label mt16">품목별 문서 <span style="font-weight:400;color:#999">(제품 선택 후 출력)</span></div>
+    <div class="doc-select-list" style="margin-bottom:8px">
+      ${batchDocs.map(d=>`
+        <label class="doc-check-row">
+          <input type="checkbox" id="chk-${d.key}" checked>
+          <div class="doc-check-info">
+            <div class="doc-check-name"><i class="ti ${d.icon}" style="margin-right:6px;color:#3DB88A"></i>${d.name} <span style="color:#aaa;font-size:11px">${d.sub}</span></div>
+          </div>
+        </label>`).join('')}
     </div>
-    ${[
-      {icon:'ti-file-description', name:'제조지시서', sub:'EF-MI · 제품별 전체', key:'mi'},
-      {icon:'ti-microscope', name:'시험성적서', sub:'EF-TR · KCL + 자사 육안검사', key:'tr'},
-      {icon:'ti-book', name:'제품표준서', sub:'EF-PS · 전성분 포함', key:'ps'},
-      {icon:'ti-clipboard-check', name:'위생점검기록서', sub:'R-MH-01 청소 · R-MH-02 방충방서', key:'mh'},
-      {icon:'ti-package', name:'원료입고기록서', sub:'R-MMS-01 · 전체 원료', key:'mms'},
-      {icon:'ti-check', name:'완제품출하검사기록서', sub:'R-QCM-01/02 · 보관검체 포함', key:'qcm'}
-    ].map(d => `
-      <div class="doc-row" onclick="printDoc('${d.key}')">
-        <div class="doc-icon"><i class="ti ${d.icon}"></i></div>
-        <div class="doc-info"><div class="doc-name">${d.name}</div><div class="doc-sub">${d.sub}</div></div>
-        <i class="ti ti-chevron-right doc-arrow"></i>
-      </div>`).join('')}
+
+    <div class="section-label">출력할 제품 선택</div>
+    <div class="doc-select-list" style="margin-bottom:6px">
+      ${batches.length===0
+        ? `<div class="empty-hint" style="padding:14px">등록된 제품이 없습니다</div>`
+        : batches.map(b=>`
+          <label class="doc-check-row">
+            <input type="checkbox" class="batch-chk" data-id="${b.id}" checked>
+            <div class="doc-check-info">
+              <div class="doc-check-name">${b.제품명||''}</div>
+              <div class="doc-check-sub">${b.문서번호||''} · ${b.date||''} · <span class="badge ${badgeClass(b.상태)}" style="font-size:10px">${b.상태||''}</span></div>
+            </div>
+          </label>`).join('')}
+    </div>
+    <div style="display:flex;gap:8px;padding:0 0 14px">
+      <button class="btn-sm" onclick="toggleAllBatches(true)">전체 선택</button>
+      <button class="btn-sm" onclick="toggleAllBatches(false)">전체 해제</button>
+    </div>
+
+    <button class="output-btn" onclick="generatePDF()">
+      <i class="ti ti-printer"></i> 선택한 문서 PDF 생성
+    </button>
+
     <div class="section-label mt20">과거 이력 조회</div>
     <div id="history-section"></div>`;
 
   renderHistory(document.getElementById('history-section'), hyg, batches);
+}
+
+function toggleAllBatches(val) {
+  document.querySelectorAll('.batch-chk').forEach(c => c.checked = val);
 }
 
 function renderHistory(el, hyg, batches) {
