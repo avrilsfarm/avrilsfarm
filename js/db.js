@@ -1,18 +1,22 @@
-const DB_NAME='AvrilFarmDB',DB_VER=3;let _db;
+const DB_NAME='AvrilFarmDB',DB_VER=4;let _db;
 function openDB(){
   return new Promise((res,rej)=>{
     if(_db)return res(_db);
     const r=indexedDB.open(DB_NAME,DB_VER);
     r.onupgradeneeded=e=>{
       const d=e.target.result;
-      ['ingredients','batches','hygiene','manufacture','equipment'].forEach(s=>{
-        if(!d.objectStoreNames.contains(s)){
-          const st=d.createObjectStore(s,{keyPath:'id',autoIncrement:true});
-          if(s==='hygiene'){st.createIndex('date','date');st.createIndex('type','type');}
-          if(s==='batches'){st.createIndex('status','status');}
-          if(s==='manufacture'){st.createIndex('date','date');}
-          if(s==='equipment'){st.createIndex('year','year');}
-        }
+      // 버전 업 시 기존 스토어 전부 삭제 후 재생성 (데이터 초기화)
+      Array.from(d.objectStoreNames).forEach(s=>d.deleteObjectStore(s));
+      const stores={
+        ingredients:[],
+        batches:[{name:'status',keyPath:'status'}],
+        hygiene:[{name:'date',keyPath:'date'},{name:'type',keyPath:'type'}],
+        manufacture:[{name:'date',keyPath:'date'}],
+        equipment:[{name:'year',keyPath:'year'}]
+      };
+      Object.entries(stores).forEach(([s,idxs])=>{
+        const st=d.createObjectStore(s,{keyPath:'id',autoIncrement:true});
+        idxs.forEach(({name,keyPath})=>st.createIndex(name,keyPath));
       });
     };
     r.onsuccess=e=>{_db=e.target.result;res(_db);};
@@ -28,8 +32,9 @@ async function remove(s,id){await openDB();return new Promise((res,rej)=>{const 
 
 async function seedIfEmpty(){
   await openDB();
-  const ex=await getAll('ingredients');
-  if(ex.length>0)return;
+  const exBat=await getAll('batches');
+  const exIng=await getAll('ingredients');
+  if(exBat.length>0 && exIng.length>0)return;
   const ing=[
     {원료명:'올리브오일',제조처:'Ziani',수량:'16kg',category:'베이스오일',CoA:'수취',판정:'적합'},
     {원료명:'코코넛야자오일',제조처:'오뚜기',수량:'15kg',category:'베이스오일',CoA:'수취',판정:'적합'},
