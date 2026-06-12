@@ -572,39 +572,37 @@ async function generatePDF(){
   const ey = +document.getElementById('e-year').value;
   const em = +document.getElementById('e-month').value;
 
-  const checked = key => {
-    const el = document.getElementById('chk-' + key);
-    return el ? el.checked : false;
-  };
+  // 선택된 배치 ID 수집
+  const selectedIds = [...document.querySelectorAll('.batch-chk:checked')].map(c=>+c.dataset.id);
 
-  const [hyg, ing, batches] = await Promise.all([
+  const chk = key => { const el=document.getElementById('chk-'+key); return el&&el.checked; };
+
+  const [hyg, ing, allBatches] = await Promise.all([
     DB.getAll('hygiene'), DB.getAll('ingredients'), DB.getAll('batches')
   ]);
+  const batches = allBatches.filter(b => selectedIds.includes(b.id));
 
   const startYM = `${sy}-${String(sm).padStart(2,'0')}`;
   const endYM   = `${ey}-${String(em).padStart(2,'0')}`;
-  const filteredHyg = hyg.filter(h => {
-    const ym = h.date && h.date.slice(0,7);
-    return ym >= startYM && ym <= endYM;
-  });
+  const filtHyg = hyg.filter(h=>{ const ym=h.date&&h.date.slice(0,7); return ym>=startYM&&ym<=endYM; });
 
-  const months = [];
-  let cy = sy, cm = sm;
-  while(`${cy}-${String(cm).padStart(2,'0')}` <= endYM){
-    months.push({y:cy, m:cm});
-    cm++; if(cm>12){cm=1;cy++;}
+  // 기간 내 월 목록
+  const months=[];
+  let cy=sy,cm=sm;
+  while(`${cy}-${String(cm).padStart(2,'0')}`<=endYM){
+    months.push({y:cy,m:cm}); cm++; if(cm>12){cm=1;cy++;}
   }
 
-  const sep = '<div class="page-break"></div>';
-  const pages = [];
+  const sep='<div class="page-break"></div>';
+  const pages=[];
 
-  if(checked('cover')) pages.push(buildCover(sy,sm,ey,em));
-  if(checked('mh'))    pages.push(...months.map(({y,m}) => buildMH(filteredHyg, y, m)));
-  if(checked('mms'))   pages.push(buildMMS(ing));
-  if(checked('qcm'))   pages.push(buildQCM(batches));
-  if(checked('mi') && batches.length) pages.push(...batches.map(b => buildMI(b)));
-  if(checked('tr') && batches.length) pages.push(...batches.map(b => buildTR(b, ing)));
-  if(checked('ps') && batches.length) pages.push(...batches.map(b => buildPS(b, ing)));
+  if(chk('cover'))                          pages.push(buildCover(sy,sm,ey,em));
+  if(chk('mh'))                             pages.push(...months.map(({y,m})=>buildMH(filtHyg,y,m)));
+  if(chk('mms'))                            pages.push(buildMMS(ing));
+  if(chk('qcm'))                            pages.push(buildQCM(allBatches));
+  if(chk('mi')&&batches.length)             pages.push(...batches.map(b=>buildMI(b)));
+  if(chk('tr')&&batches.length)             pages.push(...batches.map(b=>buildTR(b,ing)));
+  if(chk('ps')&&batches.length)             pages.push(...batches.map(b=>buildPS(b,ing)));
 
   if(!pages.length){ alert('출력할 문서를 하나 이상 선택하세요.'); return; }
   openPrint(pages.join(sep));
