@@ -55,13 +55,8 @@ function pBtn(){
   </div>`;
 }
 
-// 팝업 차단을 방지하고 app.js와 연결하기 위해 openPrint로 이름 변경
-function openPrint(html){
-  const w = window.open('','_blank');
-  if(!w) {
-    alert('⚠️ 팝업이 차단되었습니다! 브라우저 주소창 우측에서 팝업을 허용해주세요.');
-    return;
-  }
+function open$(html){
+  const w=window.open('','_blank');
   w.document.write(`<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><title>에이브릴팜</title><style>${CSS}</style></head><body>${pBtn()}${html}${pBtn()}</body></html>`);
   w.document.close();
 }
@@ -90,11 +85,17 @@ function chk(val, trueLabel, falseLabel){
 
 /* ─────────────────────────────────────
    시험성적서 (EF-TR)
+   원본 5개 섹션 그대로:
+   ① 원자재 시험성적서
+   ② 완제품 시험성적서 CT (내용량 단독, 참고용) — 해당시
+   ③ 완제품 시험성적서 SC (KCL 공식)
+   ④ 자사 완제품 육안검사
+   ⑤ 종합 판정 및 성적서 첨부
 ───────────────────────────────────── */
 function buildTR(batch, allIng){
   const ing = allIng.filter(i => i.stockType !== '포장재');
   const docNo = batch.문서번호 ? batch.문서번호.replace('EF-MI','EF-TR') : 'EF-TR-00X';
-  const expiry = batch.date ? (parseInt(batch.date.substring(0,4)) + 2) + batch.date.substring(4) : '';
+  const expiry = batch.date ? batch.date.slice(0,4)*1+2 + batch.date.slice(4) : '';
 
   // ① 원자재 행
   const ingRows = ing.map((i,n) => `<tr>
@@ -107,7 +108,7 @@ function buildTR(batch, allIng){
     <td class="c">${CO.owner}</td>
   </tr>`).join('');
 
-  // CT 성적서 섹션
+  // CT 성적서 섹션 (batch.CT 있을 때만)
   const ctSection = batch.CT ? `
   <div class="sec">▶ ② 완제품 시험성적서 — ${batch.CT} (내용량 단독, 참고용)</div>
   <table>
@@ -331,6 +332,7 @@ function buildMH(hyg, year, month){
 
 /* ─────────────────────────────────────
    완제품 출하검사기록서 (R-QCM-01 + R-QCM-02)
+   중량 직접 기입 포함
 ───────────────────────────────────── */
 function buildQCM(batches){
   const rows = batches.map(b=>`<tr>
@@ -350,13 +352,13 @@ function buildQCM(batches){
     .fill(`<tr><td></td><td></td><td>□확인 □미확인</td><td>□이상없음 □이상있음</td><td>□이상없음 □이상있음</td><td>□없음 □있음</td><td></td><td>□확인 □미확인</td><td>□적합 □부적합</td><td>${CO.owner}</td></tr>`).join('');
 
   const specimenRows = batches.map(b=>{
-    const exp = b.date ? (parseInt(b.date.substring(0,4)) + 2).toString().slice(-2) + b.date.substring(4) : '';
+    const exp = b.date ? (parseInt(b.date)+2).toString().slice(-2)+b.date.slice(4) : '';
     return `<tr>
       <td class="c"></td>
       <td>${b.제품명}</td>
       <td class="c">${b.제조번호||''}</td>
       <td class="c">${b.date||''}</td>
-      <td class="c">${exp}</td>
+      <td class="c">${b.date ? b.date.slice(0,4)-(-2)+b.date.slice(4) : ''}</td>
       <td class="c">1~2ea</td>
       <td class="c"></td>
       <td></td>
@@ -459,7 +461,7 @@ function buildMI(batch){
 }
 
 /* ─────────────────────────────────────
-   제품표준서 (EF-PS)
+   제품표준서 (EF-PS)  ← 앱 내 신규 작성 가능
 ───────────────────────────────────── */
 function buildPS(batch, allIng){
   const ing = allIng.filter(i=>i.stockType!=='포장재');
@@ -615,24 +617,22 @@ async function printDoc(key){
   const sep='<div class="page-break"></div>';
   if(key==='mi'){
     if(!batches.length){alert('등록된 배치가 없습니다.');return;}
-    openPrint(batches.map(b=>buildMI(b)).join(sep));
+    open$(batches.map(b=>buildMI(b)).join(sep));
   } else if(key==='tr'){
     if(!batches.length){alert('등록된 배치가 없습니다.');return;}
-    openPrint(batches.map(b=>buildTR(b,ing)).join(sep));
+    open$(batches.map(b=>buildTR(b,ing)).join(sep));
   } else if(key==='ps'){
     if(!batches.length){alert('등록된 배치가 없습니다.');return;}
-    openPrint(batches.map(b=>buildPS(b,ing)).join(sep));
+    open$(batches.map(b=>buildPS(b,ing)).join(sep));
   } else if(key==='mms'){
-    openPrint(buildMMS(ing));
+    open$(buildMMS(ing));
   } else if(key==='mh'){
-    openPrint(buildMH(hyg,year,month));
+    open$(buildMH(hyg,year,month));
   } else if(key==='qcm'){
-    openPrint(buildQCM(batches));
+    open$(buildQCM(batches));
   }
 }
 
-// ✅ 누락되었던 필수 연결(Export) 코드 - 이 부분이 있어야 app.js가 이 파일을 찾을 수 있습니다.
 window.printDoc = printDoc;
 window.generatePDF = generatePDF;
 window.buildCover = buildCover;
-window.openPrint = openPrint;
