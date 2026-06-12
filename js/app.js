@@ -176,13 +176,19 @@ async function renderMfCheck(el) {
 }
 
 /* ═══ 위생 점검 (캘린더) ═══ */
+let selectedDate = null;
+
 async function renderHygiene(el) {
   const hyg = await DB.getAll('hygiene');
   const ym = `${calYear}-${String(calMonth + 1).padStart(2, '0')}`;
   const monthRecords = hyg.filter(h => h.date && h.date.startsWith(ym));
   const datesWithIssue = new Set(hyg.filter(h => h.status === '문제임박' && h.date && h.date.startsWith(ym)).map(h => h.date));
   const datesWithRecord = new Set(monthRecords.map(h => h.date));
-  const todayStr = today.toISOString().split('T')[0];
+
+  // 선택된 날짜 기록 필터
+  const displayRecords = selectedDate && selectedDate.startsWith(ym)
+    ? monthRecords.filter(r => r.date === selectedDate)
+    : monthRecords;
 
   el.innerHTML = `
     <div class="page-header">
@@ -203,10 +209,16 @@ async function renderHygiene(el) {
     </div>
     <div class="calendar">${buildCalendar(calYear, calMonth, datesWithRecord, datesWithIssue)}</div>
     <div class="records-section">
-      <div class="records-month">${calYear}년 ${calMonth + 1}월</div>
-      ${monthRecords.length > 0
-        ? monthRecords.map(r => recordItem(r)).join('')
-        : `<div class="empty-hint">이번 달 기록이 없습니다</div>`}
+      <div class="records-month" style="display:flex;align-items:center;justify-content:space-between">
+        <span>${selectedDate && selectedDate.startsWith(ym) ? selectedDate + ' 기록' : calYear + '년 ' + (calMonth + 1) + '월 전체'}</span>
+        ${selectedDate && selectedDate.startsWith(ym) ? `
+          <button class="btn-sm" onclick="clearDateFilter()" style="font-size:11px">전체 보기</button>
+          <button class="btn-sm" onclick="openHygieneForm('${selectedDate}')" style="margin-left:4px;background:#3DB88A;color:#fff;border-color:#3DB88A">+ 이날 기록</button>
+        ` : ''}
+      </div>
+      ${displayRecords.length > 0
+        ? displayRecords.map(r => recordItem(r)).join('')
+        : `<div class="empty-hint">${selectedDate && selectedDate.startsWith(ym) ? '이 날 기록이 없습니다' : '이번 달 기록이 없습니다'}</div>`}
     </div>
     <button class="fab" onclick="openHygieneForm()"><i class="ti ti-plus"></i></button>`;
 }
@@ -222,15 +234,26 @@ function buildCalendar(year, month, hasRecord, hasIssue) {
   for (let d = 1; d <= days; d++) {
     const ds = `${year}-${String(month + 1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
     const isToday = ds === today.toISOString().split('T')[0];
+    const isSelected = ds === selectedDate;
     const hasRec = hasRecord.has(ds);
     const hasIss = hasIssue.has(ds);
-    html += `<div class="cal-day${isToday ? ' today' : ''}">
+    html += `<div class="cal-day${isToday ? ' today' : ''}${isSelected ? ' selected' : ''}" onclick="selectDate('${ds}')">
       <span class="cal-num">${d}</span>
       ${hasIss ? '<span class="cal-dot dot-red"></span>' : hasRec ? '<span class="cal-dot dot-green"></span>' : ''}
     </div>`;
   }
   html += `</div>`;
   return html;
+}
+
+function selectDate(ds) {
+  selectedDate = (selectedDate === ds) ? null : ds;
+  renderTab('hygiene');
+}
+
+function clearDateFilter() {
+  selectedDate = null;
+  renderTab('hygiene');
 }
 
 function recordItem(r) {
@@ -281,11 +304,26 @@ async function renderOutput(el) {
       </div>
     </div>
     <div class="output-desc">
-      <p>선택한 기간의 모든 기록을 묶어 PDF로 생성합니다.</p>
+      <p>선택한 문서만 골라서 PDF로 생성합니다.</p>
       <p>화장품 정기감시 제출용 표지가 자동으로 추가됩니다.</p>
     </div>
+    <div class="doc-select-list">
+      ${[
+        {key:'cover', label:'📋 정기감시 제출용 표지', checked:true},
+        {key:'mh',    label:'✅ 위생점검기록서 (R-MH-01/02)', checked:true},
+        {key:'mms',   label:'📦 원료입고기록서 (R-MMS-01)', checked:true},
+        {key:'qcm',   label:'🔍 완제품출하검사기록서 (R-QCM-01/02)', checked:true},
+        {key:'mi',    label:'🧴 제조지시서 (EF-MI)', checked:false},
+        {key:'tr',    label:'🔬 시험성적서 (EF-TR)', checked:false},
+        {key:'ps',    label:'📖 제품표준서 (EF-PS)', checked:false}
+      ].map(d => `
+        <label class="doc-check-row">
+          <input type="checkbox" id="chk-${d.key}" ${d.checked ? 'checked' : ''}>
+          <span>${d.label}</span>
+        </label>`).join('')}
+    </div>
     <button class="output-btn" onclick="generatePDF()">
-      <i class="ti ti-files"></i> 정기감시 제출용 PDF 묶음 생성
+      <i class="ti ti-files"></i> 선택한 문서 PDF 묶음 생성
     </button>
     <div class="section-label mt20">개별 문서 — 기준 월 지정</div>
     <div class="output-range-card" style="margin-bottom:10px">
@@ -495,8 +533,8 @@ async function saveBatch(id) {
 }
 
 /* ═══ 위생 폼 ═══ */
-function openHygieneForm() {
-  const todayStr = today.toISOString().split('T')[0];
+function openHygieneForm(preDate) {
+  const todayStr = preDate || today.toISOString().split('T')[0];
   showSheet(`
     <div class="sheet-title">위생 점검 기록</div>
     <label>점검일<input type="date" id="h1" value="${todayStr}"></label>
@@ -631,6 +669,8 @@ window.toggleCard = toggleCard;
 window.toggleCheck = toggleCheck;
 window.saveChecklist = saveChecklist;
 window.changeMonth = changeMonth;
+window.selectDate = selectDate;
+window.clearDateFilter = clearDateFilter;
 window.toggleHistory = toggleHistory;
 window.printRangeMonth = printRangeMonth;
 
