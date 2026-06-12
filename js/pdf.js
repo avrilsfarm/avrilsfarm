@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════
-   에이브릴팜 PDF 출력 모듈 v2
+   에이브릴팜 PDF 출력 모듈 v2 (오류 수정본)
    4대 기준서 양식 그대로 재현
    화장품제조업 등록번호 제6494호
    책임판매업 등록번호 제18216호
@@ -55,19 +55,25 @@ function pBtn(){
   </div>`;
 }
 
-function open$(html){
-  const w=window.open('','_blank');
-  w.document.write(`<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><title>에이브릴팜</title><style>${CSS}</style></head><body>${pBtn()}${html}${pBtn()}</body></html>`);
+// 팝업 차단을 예방하고 이름 불일치를 해결하기 위해 openPrint로 통일 변경
+function openPrint(html){
+  const w = window.open('', '_blank');
+  if (!w) {
+    alert("팝업이 차단되었습니다. 브라우저 주소창 우측에서 팝업 허용을 설정해주세요.");
+    return;
+  }
+  w.document.write(`<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><title>에이브릴팜 서류 출력</title><style>${CSS}</style></head><body>${pBtn()}${html}${pBtn()}</body></html>`);
   w.document.close();
 }
 
 function hd(title,sub,docNo,revNo,date){
+  const formattedDate = date ? date.replace(/-/g, '.') : '2026.05.27';
   return `<div class="doc">
   <div class="doc-title">${CO.name}</div>
   <div class="doc-sub">${title} &nbsp;·&nbsp; ${sub}</div>
   <div class="doc-meta">
     <span><b>문서번호</b> ${docNo}</span>
-    <span><b>제정일자</b> ${date||'2026.05.27'}</span>
+    <span><b>제정일자</b> ${formattedDate}</span>
     <span><b>개정번호</b> ${revNo||'Rev.00'}</span>
     <span><b>작성/확인</b> ${CO.owner} (인)</span>
     <span><b>관리구분</b> ■ 관리본 □ 비관리본</span>
@@ -85,19 +91,19 @@ function chk(val, trueLabel, falseLabel){
 
 /* ─────────────────────────────────────
    시험성적서 (EF-TR)
-   원본 5개 섹션 그대로:
-   ① 원자재 시험성적서
-   ② 완제품 시험성적서 CT (내용량 단독, 참고용) — 해당시
-   ③ 완제품 시험성적서 SC (KCL 공식)
-   ④ 자사 완제품 육안검사
-   ⑤ 종합 판정 및 성적서 첨부
 ───────────────────────────────────── */
 function buildTR(batch, allIng){
   const ing = allIng.filter(i => i.stockType !== '포장재');
   const docNo = batch.문서번호 ? batch.문서번호.replace('EF-MI','EF-TR') : 'EF-TR-00X';
-  const expiry = batch.date ? batch.date.slice(0,4)*1+2 + batch.date.slice(4) : '';
+  
+  let expiry = '';
+  if (batch.date) {
+    const parts = batch.date.split('-');
+    if (parts.length === 3) {
+      expiry = `${parseInt(parts[0]) + 2}.${parts[1Format] || parts[1]}.${parts[2]}`;
+    }
+  }
 
-  // ① 원자재 행
   const ingRows = ing.map((i,n) => `<tr>
     <td class="c">${n+1}</td>
     <td>${i.원료명}</td>
@@ -108,7 +114,6 @@ function buildTR(batch, allIng){
     <td class="c">${CO.owner}</td>
   </tr>`).join('');
 
-  // CT 성적서 섹션 (batch.CT 있을 때만)
   const ctSection = batch.CT ? `
   <div class="sec">▶ ② 완제품 시험성적서 — ${batch.CT} (내용량 단독, 참고용)</div>
   <table>
@@ -153,7 +158,7 @@ function buildTR(batch, allIng){
       <td class="h">제조번호</td><td>${batch.제조번호||''}</td>
     </tr>
     <tr>
-      <td class="h">제조일자</td><td>${batch.date||''}</td>
+      <td class="h">제조일자</td><td>${batch.date ? batch.date.replace(/-/g, '.') : ''}</td>
       <td class="h">사용기한</td><td>${expiry} (2년)</td>
     </tr>
     <tr>
@@ -161,8 +166,8 @@ function buildTR(batch, allIng){
       <td class="h">발행번호</td><td>${batch.KCL발행번호||''}</td>
     </tr>
     <tr>
-      <td class="h">접수일</td><td>${batch.KCL접수일||''}</td>
-      <td class="h">발행일</td><td>${batch.KCL발행일||''}</td>
+      <td class="h">접수일</td><td>${batch.KCL접수일 ? batch.KCL접수일.replace(/-/g, '.') : ''}</td>
+      <td class="h">발행일</td><td>${batch.KCL발행일 ? batch.KCL발행일.replace(/-/g, '.') : ''}</td>
     </tr>
     <tr>
       <td class="h">시험기관</td>
@@ -233,7 +238,7 @@ function buildTR(batch, allIng){
 ───────────────────────────────────── */
 function buildMMS(ing){
   const rows = ing.filter(i=>i.stockType!=='포장재').map((i,n)=>`<tr>
-    <td class="c">${i.입고일||''}</td>
+    <td class="c">${i.입고일 ? i.입고일.replace(/-/g, '.') : ''}</td>
     <td>${i.원료명}</td>
     <td>${i.제조처||''}</td>
     <td class="c">${i.수량||''}</td>
@@ -277,11 +282,11 @@ function buildMMS(ing){
 ───────────────────────────────────── */
 function buildMH(hyg, year, month){
   const ym = `${year}-${String(month).padStart(2,'0')}`;
-  const clean = hyg.filter(h=>h.type==='청소점검'&&h.date?.startsWith(ym));
+  const clean = hyg.filter(h=>h.type==='청소점검' && h.date && h.date.startsWith(ym));
   const pest  = hyg.filter(h=>h.type==='방충방서');
 
   const cleanRows = clean.map(r=>`<tr>
-    <td class="c">${r.date?.slice(5).replace('-','.')}</td>
+    <td class="c">${r.date ? r.date.slice(5).replace('-','.') : ''}</td>
     <td class="c">${CO.owner}</td>
     <td class="c ${r.items?.원료보관==='청결'?'green':''}">${r.items?.원료보관==='청결'?'■청결 □불량':'□청결 ■불량'}</td>
     <td class="c ${r.items?.부자재==='청결'?'green':''}">${r.items?.부자재==='청결'?'■청결 □불량':'□청결 ■불량'}</td>
@@ -297,7 +302,7 @@ function buildMH(hyg, year, month){
 
   const months=['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'];
   const pestRows = months.map((m,i)=>{
-    const r = pest.find(p=>p.date?.startsWith(`${year}-${String(i+1).padStart(2,'0')}`));
+    const r = pest.find(p=>p.date && p.date.startsWith(`${year}-${String(i+1).padStart(2,'0')}`));
     return `<tr>
       <td class="c">${m}</td>
       <td class="c">${CO.owner}</td>
@@ -332,11 +337,10 @@ function buildMH(hyg, year, month){
 
 /* ─────────────────────────────────────
    완제품 출하검사기록서 (R-QCM-01 + R-QCM-02)
-   중량 직접 기입 포함
 ───────────────────────────────────── */
 function buildQCM(batches){
   const rows = batches.map(b=>`<tr>
-    <td class="c">${b.검사일||b.date||''}</td>
+    <td class="c">${b.검사일 || b.date ? (b.검사일||b.date).replace(/-/g, '.') : ''}</td>
     <td>${b.제품명} / ${b.제조번호||''}</td>
     <td class="c">${b.KCL?'■확인 □미확인':'□확인 □미확인'}</td>
     <td class="c green">■이상없음 □이상있음</td>
@@ -344,7 +348,7 @@ function buildQCM(batches){
     <td class="c green">■없음 □있음</td>
     <td class="c"><b>${b.실측중량||''}</b></td>
     <td class="c green">■확인 □미확인</td>
-    <td class="c ${b.이상==='이상없음'?'green':'red'}">${b.이상==='이상없음'?'■적합 □부적합':'□적합 ■부적합'}</td>
+    <td class="c ${b.이상==='이상없음'?'green':b.이상==='이상있음'?'red':'gray'}">${b.이상==='이상없음'?'■적합 □부적합':b.이상==='이상있음'?'□적합 ■부적합':'□적합 □부적합'}</td>
     <td class="c">${CO.owner}</td>
   </tr>`).join('');
 
@@ -352,13 +356,16 @@ function buildQCM(batches){
     .fill(`<tr><td></td><td></td><td>□확인 □미확인</td><td>□이상없음 □이상있음</td><td>□이상없음 □이상있음</td><td>□없음 □있음</td><td></td><td>□확인 □미확인</td><td>□적합 □부적합</td><td>${CO.owner}</td></tr>`).join('');
 
   const specimenRows = batches.map(b=>{
-    const exp = b.date ? (parseInt(b.date)+2).toString().slice(-2)+b.date.slice(4) : '';
+    let expYear = '';
+    if (b.date) {
+      expYear = (parseInt(b.date.slice(0,4)) + 2) + b.date.slice(4);
+    }
     return `<tr>
       <td class="c"></td>
       <td>${b.제품명}</td>
       <td class="c">${b.제조번호||''}</td>
-      <td class="c">${b.date||''}</td>
-      <td class="c">${b.date ? b.date.slice(0,4)-(-2)+b.date.slice(4) : ''}</td>
+      <td class="c">${b.date ? b.date.replace(/-/g, '.') : ''}</td>
+      <td class="c">${expYear ? expYear.replace(/-/g, '.') : ''}</td>
       <td class="c">1~2ea</td>
       <td class="c"></td>
       <td></td>
@@ -404,7 +411,7 @@ function buildMI(batch){
   <div class="sec">▶ 가. 기본 정보</div>
   <table>
     <tr><td class="h">제 품 명</td><td><b>${batch.제품명}</b></td><td class="h">제조번호</td><td>${batch.제조번호||''}</td></tr>
-    <tr><td class="h">바코드 번호</td><td>${batch.바코드||''}</td><td class="h">제조연월일</td><td>${batch.date||''}</td></tr>
+    <tr><td class="h">바코드 번호</td><td>${batch.바코드||''}</td><td class="h">제조연월일</td><td>${batch.date ? batch.date.replace(/-/g, '.') : ''}</td></tr>
     <tr><td class="h">제조단위</td><td>${batch.투입량||''}g (800g 오일 배치)</td><td class="h">사용기한</td><td>제조일로부터 2년</td></tr>
     <tr><td class="h">이론수량</td><td>1kg 몰드 기준 ${batch.이론수량||11}개 / 배치 약 ${batch.이론수량||''}ea</td><td class="h">제조지시자</td><td>${CO.owner} (인)</td></tr>
   </table>
@@ -461,7 +468,7 @@ function buildMI(batch){
 }
 
 /* ─────────────────────────────────────
-   제품표준서 (EF-PS)  ← 앱 내 신규 작성 가능
+   제품표준서 (EF-PS)
 ───────────────────────────────────── */
 function buildPS(batch, allIng){
   const ing = allIng.filter(i=>i.stockType!=='포장재');
@@ -472,7 +479,7 @@ function buildPS(batch, allIng){
 
   <div class="sec">▶ 1. 기본 정보</div>
   <table>
-    <tr><td class="h">표준서 번호</td><td>${psNo}</td><td class="h">제정일자</td><td>${batch.date||''}</td></tr>
+    <tr><td class="h">표준서 번호</td><td>${psNo}</td><td class="h">제정일자</td><td>${batch.date ? batch.date.replace(/-/g, '.') : ''}</td></tr>
     <tr><td class="h">제 품 명</td><td><b>${batch.제품명}</b></td><td class="h">내 용 량</td><td>${batch.목표중량||'90g'} (건조 기준)</td></tr>
     <tr><td class="h">제품 코드</td><td>${batch.제조번호?.split('-')[0]||''}</td><td class="h">바코드 번호</td><td>${batch.바코드||''}</td></tr>
     <tr><td class="h">유형 및 성상</td><td>인체 세정용 제품류 / 화장비누(고형) / ${batch.색상기준||''}</td><td class="h">제조방법</td><td>${batch.제조방법||'CP법'} (Cold Process, Water:Lye = 1.7:1)</td></tr>
@@ -564,7 +571,7 @@ function buildCover(sy, sm, ey, em){
 }
 
 /* ─────────────────────────────────────
-   월간/범위 PDF 묶음 생성
+   월간/범위 PDF 묶음 생성 (메인 기능)
 ───────────────────────────────────── */
 async function generatePDF(){
   const sy = +document.getElementById('s-year').value;
@@ -572,9 +579,7 @@ async function generatePDF(){
   const ey = +document.getElementById('e-year').value;
   const em = +document.getElementById('e-month').value;
 
-  // 선택된 배치 ID 수집
   const selectedIds = [...document.querySelectorAll('.batch-chk:checked')].map(c=>+c.dataset.id);
-
   const chk = key => { const el=document.getElementById('chk-'+key); return el&&el.checked; };
 
   const [hyg, ing, allBatches] = await Promise.all([
@@ -584,13 +589,15 @@ async function generatePDF(){
 
   const startYM = `${sy}-${String(sm).padStart(2,'0')}`;
   const endYM   = `${ey}-${String(em).padStart(2,'0')}`;
-  const filtHyg = hyg.filter(h=>{ const ym=h.date&&h.date.slice(0,7); return ym>=startYM&&ym<=endYM; });
+  const filtHyg = hyg.filter(h=>{ 
+    const ym = h.date && h.date.slice(0,7); 
+    return ym && ym >= startYM && ym <= endYM; 
+  });
 
-  // 기간 내 월 목록
   const months=[];
-  let cy=sy,cm=sm;
+  let cy=sy, cm=sm;
   while(`${cy}-${String(cm).padStart(2,'0')}`<=endYM){
-    months.push({y:cy,m:cm}); cm++; if(cm>12){cm=1;cy++;}
+    months.push({y:cy, m:cm}); cm++; if(cm>12){cm=1; cy++;}
   }
 
   const sep='<div class="page-break"></div>';
@@ -610,29 +617,28 @@ async function generatePDF(){
 
 async function printDoc(key){
   const [batches, hyg, ing] = await Promise.all([DB.getAll('batches'),DB.getAll('hygiene'),DB.getAll('ingredients')]);
-  const yEl=document.getElementById('out-year');
-  const mEl=document.getElementById('out-month');
-  const year  = yEl ? +yEl.value  : new Date().getFullYear();
-  const month = mEl ? +mEl.value  : new Date().getMonth()+1;
   const sep='<div class="page-break"></div>';
+  
   if(key==='mi'){
     if(!batches.length){alert('등록된 배치가 없습니다.');return;}
-    open$(batches.map(b=>buildMI(b)).join(sep));
+    openPrint(batches.map(b=>buildMI(b)).join(sep));
   } else if(key==='tr'){
     if(!batches.length){alert('등록된 배치가 없습니다.');return;}
-    open$(batches.map(b=>buildTR(b,ing)).join(sep));
+    openPrint(batches.map(b=>buildTR(b,ing)).join(sep));
   } else if(key==='ps'){
     if(!batches.length){alert('등록된 배치가 없습니다.');return;}
-    open$(batches.map(b=>buildPS(b,ing)).join(sep));
+    openPrint(batches.map(b=>buildPS(b,ing)).join(sep));
   } else if(key==='mms'){
-    open$(buildMMS(ing));
+    openPrint(buildMMS(ing));
   } else if(key==='mh'){
-    open$(buildMH(hyg,year,month));
+    const now = new Date();
+    openPrint(buildMH(hyg, now.getFullYear(), now.getMonth()+1));
   } else if(key==='qcm'){
-    open$(buildQCM(batches));
+    openPrint(buildQCM(batches));
   }
 }
 
 window.printDoc = printDoc;
 window.generatePDF = generatePDF;
 window.buildCover = buildCover;
+window.openPrint = openPrint;
