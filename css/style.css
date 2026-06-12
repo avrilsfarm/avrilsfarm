@@ -211,3 +211,8 @@ label input:focus,label select:focus{border-color:var(--green);}
 .doc-check-row:last-child{border-bottom:none;}
 .doc-check-row input[type=checkbox]{width:18px;height:18px;accent-color:var(--green);cursor:pointer;flex-shrink:0;}
 .doc-check-row span{flex:1;}
+
+/* ── 문서 선택 체크박스 개선 ── */
+.doc-check-info { flex: 1; min-width: 0; }
+.doc-check-name { font-size: 13px; font-weight: 500; color: var(--text); }
+.doc-check-sub  { font-size: 11px; color: var(--text-sub, #888); margin-top: 1px; }
