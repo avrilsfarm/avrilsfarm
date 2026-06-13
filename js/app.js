@@ -67,6 +67,7 @@ function switchTab(tab){
   const renders = {
     stock:       renderStock,
     manufacture: renderManufacture,
+    mfcheck:     renderMfCheck,
     sales:       renderSales,
     hygiene:     renderHygiene,
     output:      renderOutput,
@@ -1391,4 +1392,94 @@ async function resetData(){
   await DB.clearAll();
   alert('초기화 완료! 앱을 새로고침합니다.');
   location.reload();
+}
+
+/* ============================================================
+   제조 점검 탭 (mfcheck) — 이전 버전 복원
+   ============================================================ */
+async function renderMfCheck(){
+  const batches = await DB.getAll('batches');
+
+  const checks = [
+    { id:'c1', label:'원료 계량 완료 (±1% 이내)', group:'작업 전 필수' },
+    { id:'c2', label:'소다수 제조 완료 (장갑·고글·마스크 착용)', group:'작업 전 필수' },
+    { id:'c3', label:'오일류 온도 확인 (27~30°C)', group:'작업 전 필수' },
+    { id:'c4', label:'작업대·도구 에탄올 소독 완료', group:'작업 전 필수' },
+    { id:'c5', label:'스틱블렌더 작동 이상 없음', group:'설비 확인' },
+    { id:'c6', label:'전자저울 영점 확인', group:'설비 확인' },
+    { id:'c7', label:'온도계 정상 작동', group:'설비 확인' },
+    { id:'c8', label:'트레이스 상태 정상 (분리·변색 없음)', group:'공정 확인' },
+    { id:'c9', label:'첨가물 투입 완료', group:'공정 확인' },
+    { id:'c10', label:'몰드 투입 완료 · 보온 시작', group:'공정 확인' },
+    { id:'c11', label:'외관 검사 완료 (성상·색상·이물)', group:'완제품 출하 전' },
+    { id:'c12', label:'중량 확인 완료', group:'완제품 출하 전' },
+    { id:'c13', label:'표시사항 확인 완료 (전성분·사용기한)', group:'완제품 출하 전' },
+    { id:'c14', label:'출하기록 작성 완료', group:'완제품 출하 전' },
+  ];
+
+  const groups = [...new Set(checks.map(c=>c.group))];
+
+  const groupHtml = groups.map(g=>{
+    const items = checks.filter(c=>c.group===g);
+    return `<div class="card full-width" style="margin-bottom:10px">
+      <div class="card-title mb12" style="color:var(--mauve)">${g}</div>
+      ${items.map(c=>`
+        <div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border)">
+          <input type="checkbox" id="${c.id}" style="width:17px;height:17px;accent-color:var(--teal);flex-shrink:0">
+          <label for="${c.id}" style="font-size:13px;cursor:pointer;flex:1">${c.label}</label>
+        </div>`).join('')}
+    </div>`;
+  }).join('');
+
+  const batchOpts = batches.map(b=>`<option value="${b.id}">${b.제품명}</option>`).join('');
+
+  setContent(`
+    <div class="alert-banner info full-width">
+      <i class="ti ti-clipboard-check"></i>
+      <div>제조 전·중·후 필수 점검 항목입니다. 완료 시 체크하세요.</div>
+    </div>
+    <div class="card full-width">
+      <div class="form-group" style="margin-bottom:0">
+        <label class="form-label">관련 제품 (선택)</label>
+        <select class="form-input" id="mfc-product">
+          <option value="">-- 선택 --</option>
+          ${batchOpts}
+        </select>
+      </div>
+    </div>
+    ${groupHtml}
+    <div class="card full-width">
+      <div class="form-group">
+        <label class="form-label">이상 발생 내용</label>
+        <textarea class="form-input" id="mfc-issue" rows="3" placeholder="이상 없음 또는 이상 내용 기재"></textarea>
+      </div>
+      <button class="btn btn-primary btn-block" onclick="saveMfCheck()">
+        <i class="ti ti-device-floppy"></i> 점검 기록 저장
+      </button>
+    </div>
+    <div style="height:16px"></div>
+  `);
+}
+
+async function saveMfCheck(){
+  const all = document.querySelectorAll('#page-content input[type=checkbox]');
+  const checked = [...all].filter(cb=>cb.checked).map(cb=>cb.id);
+  const total = all.length;
+  const issue = document.getElementById('mfc-issue').value.trim();
+  const productEl = document.getElementById('mfc-product');
+  const productId = parseInt(productEl.value||'0');
+
+  const data = {
+    type: '제조점검',
+    date: new Date().toISOString().slice(0,10),
+    체크항목: checked,
+    전체항목수: total,
+    이상내용: issue||'이상 없음',
+    productId,
+    확인자: '변민정',
+    status: issue && issue!=='이상 없음' ? '이슈있음' : '완료',
+  };
+  await DB.add('hygiene', data);
+  alert(`제조 점검 기록이 저장되었습니다. (${checked.length}/${total} 항목 완료)`);
+  renderMfCheck();
 }

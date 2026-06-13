@@ -19,9 +19,12 @@
 <!-- 인트로 화면 -->
 <div id="intro-screen" class="intro-screen">
   <div class="intro-inner">
-    <img src="icons/logo-full.png" alt="AVRIL'S FARM" class="intro-logo-img" onerror="this.style.display='none';document.getElementById('intro-fallback').style.display='block'">
-    <div id="intro-fallback" style="display:none;color:#fff;font-size:28px;font-weight:700;letter-spacing:.05em;margin-bottom:8px;">AVRIL'S FARM</div>
-    <img src="icons/soap-icon.png" alt="" class="intro-soap-icon" onerror="this.style.display='none'">
+    <!-- 로고: 컬러(핑크+그린)이므로 어두운 배경 위에서 밝게 보이도록 흰색 처리 -->
+    <img src="icons/logo-full.png" alt="AVRIL'S FARM" class="intro-logo-img"
+         onerror="this.style.display='none';document.getElementById('intro-fallback').style.display='block'">
+    <div id="intro-fallback" style="display:none;color:#fff;font-size:26px;font-weight:700;letter-spacing:.05em;margin-bottom:12px;">AVRIL'S FARM</div>
+    <!-- 심볼: 투명 배경에 노란색 비누 아이콘 — 원본 그대로 -->
+    <img src="icons/symbol.png" alt="" class="intro-soap-icon">
     <div class="intro-tagline">손바닥 위의 봄</div>
     <div class="intro-desc">
       사라지는 것들에 정성을 다하는 마음<br>
@@ -46,13 +49,14 @@
          onerror="this.src='icons/logo.png'" title="홈으로">
     <div class="tabs-wrap" id="tabs-wrap">
       <div class="tabs" id="main-tabs">
-        <button class="tab-btn active" data-tab="stock" onclick="switchTab('stock')">원료 재고</button>
-        <button class="tab-btn" data-tab="manufacture" onclick="switchTab('manufacture')">제품 제조</button>
-        <button class="tab-btn" data-tab="sales" onclick="switchTab('sales')">생산실적</button>
-        <button class="tab-btn" data-tab="hygiene" onclick="switchTab('hygiene')">위생 점검<span id="badge-hygiene" class="tab-dot hide"></span></button>
-        <button class="tab-btn" data-tab="output" onclick="switchTab('output')">문서 출력</button>
-        <button class="tab-btn" data-tab="barcode" onclick="switchTab('barcode')">바코드</button>
-        <button class="tab-btn" data-tab="settings" onclick="switchTab('settings')">설정·알림</button>
+        <button class="tab-btn active" data-tab="stock"       onclick="switchTab('stock')">재료·재고</button>
+        <button class="tab-btn" data-tab="manufacture"         onclick="switchTab('manufacture')">제품 제조</button>
+        <button class="tab-btn" data-tab="mfcheck"             onclick="switchTab('mfcheck')">제조 점검<span id="badge-mfcheck" class="tab-dot hide"></span></button>
+        <button class="tab-btn" data-tab="hygiene"             onclick="switchTab('hygiene')">위생 점검<span id="badge-hygiene" class="tab-dot hide"></span></button>
+        <button class="tab-btn" data-tab="sales"               onclick="switchTab('sales')">생산실적</button>
+        <button class="tab-btn" data-tab="output"              onclick="switchTab('output')">문서 출력</button>
+        <button class="tab-btn" data-tab="barcode"             onclick="switchTab('barcode')">바코드</button>
+        <button class="tab-btn" data-tab="settings"            onclick="switchTab('settings')">설정·알림</button>
       </div>
     </div>
   </div>
