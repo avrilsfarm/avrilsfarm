@@ -39,7 +39,7 @@ async function renderTab(tab) {
     else if (tab === 'production')  await renderProduction(el);
     else if (tab === 'output')      await renderOutput(el);
     else if (tab === 'notify')      renderNotifySettings(el);
-    else if (tab === 'barcode')     await renderBarcode(el);
+    else if (tab === 'barcode')     await renderBarcodeTab(el); // [오류 수정] renderBarcode -> renderBarcodeTab 으로 변경
   } catch(e) {
     el.innerHTML = `<div style="padding:24px;color:var(--red-text)">오류: ${e.message}</div>`;
     console.error(e);
@@ -57,8 +57,9 @@ async function updateBadges() {
 /* ════ 재료·포장재 재고 ════ */
 async function renderStock(el) {
   const all = await DB.getAll('ingredients');
-  const ingList = all.filter(i => i.stockType !== '포장재');
-  const pkgList = all.filter(i => i.stockType === '포장재');
+  // [보완] 구분이 유실된 기본 데이터들을 위해 category 기반 기본 값 바인딩 보완
+  const ingList = all.filter(i => i.stockType !== '포장재' && i.category !== '단상자' && i.category !== '라벨·스티커');
+  const pkgList = all.filter(i => i.stockType === '포장재' || i.category === '단상자' || i.category === '라벨·스티커');
   const list = stockSubTab === '원료' ? ingList : pkgList;
   const cats = [...new Set(list.map(i => i.category))];
   const ok = list.filter(i => i.판정 === '적합').length;
@@ -264,12 +265,10 @@ function recordItem(r) {
 function selectDate(ds) { selectedDate = selectedDate===ds ? null : ds; renderTab('hygiene'); }
 function clearDateFilter() { selectedDate = null; renderTab('hygiene'); }
 
-
 /* ════ 생산실적 ════ */
 async function renderProduction(el) {
   const [prods, batches] = await Promise.all([DB.getAll('production'), DB.getAll('batches')]);
 
-  // 크로스체크: 배치 이론수량(1kg기준) vs 실제 생산실적
   const batchMap = {};
   batches.forEach(b => {
     const key = b.제품명;
@@ -373,7 +372,6 @@ async function saveProd(id) {
   closeSheet(); await renderTab('production');
 }
 
-
 /* ════ 문서 출력 ════ */
 async function renderOutput(el) {
   const now = new Date();
@@ -397,7 +395,6 @@ async function renderOutput(el) {
 
   el.innerHTML = `
     <div class="page-header"><h2 class="page-title">문서 출력</h2></div>
-
     <div class="section-label">출력 기간 설정</div>
     <div class="output-range-card">
       <div class="range-row">
@@ -500,7 +497,6 @@ async function processUploadedFile(file) {
   const name = file.name.toLowerCase();
 
   try {
-    // JSON 백업 파일 복원
     if(name.endsWith('.json')) {
       const text = await file.text();
       const data = JSON.parse(text);
@@ -518,7 +514,6 @@ async function processUploadedFile(file) {
       }
     }
 
-    // docx 파일 파싱 (JSZip 사용)
     if(name.endsWith('.docx')) {
       let text = '';
       if(window.JSZip) {
@@ -540,16 +535,13 @@ async function processUploadedFile(file) {
       return;
     }
 
-    // txt 파일
     if(name.endsWith('.txt')) {
       const text = await file.text();
       await parseDocumentText(name, text, file.name, el);
       return;
     }
 
-    // PDF는 KCL 성적서로 처리
     if(name.endsWith('.pdf')) {
-      const batches = await DB.getAll('batches');
       el.innerHTML = `<span style="color:var(--teal-dark)">📋 <b>${file.name}</b> — KCL 성적서로 인식됐습니다.<br>제품 제조 탭에서 해당 배치를 수정하고 KCL 접수번호를 입력해주세요.</span>`;
       return;
     }
@@ -570,7 +562,6 @@ async function parseDocumentText(name, text, fileName, el) {
   const isHygiene = name.includes('위생') || name.includes('-mh') || name.includes('r-mh');
   const isIng     = name.includes('원료') || name.includes('mms') || name.includes('r-mms');
 
-  // 공통 추출
   const productMatch = text.match(/에이브릴팜\s*([가-힣a-zA-Z]+비누)/);
   const productName  = productMatch ? productMatch[0].trim() : '';
   const docNoMatch   = text.match(/EF-[A-Z]{2}-\d{3}/i);
@@ -614,6 +605,20 @@ async function parseDocumentText(name, text, fileName, el) {
     el.innerHTML = `<span style="color:var(--teal-dark)">📦 원료입고 파일 감지 — 재료·재고 탭에서 확인해주세요.</span>`;
   } else {
     el.innerHTML = `<span style="color:var(--text3)">📄 <b>${fileName}</b> 분석 완료. 파일 유형 미확인 — 해당 탭에서 직접 확인해주세요.</span>`;
+  }
+}
+
+// [오류 수정] 누락되어 있던 handleKCLUpload 함수 정의부 추가
+async function handleKCLUpload(e) {
+  const file = e.target.files[0];
+  const label = document.getElementById('kcl-filename');
+  if (file && label) {
+    label.textContent = file.name;
+    const numMatch = file.name.match(/SC\d{2}-\d{5}[A-Z]/i);
+    const kclInput = document.getElementById('b10');
+    if (numMatch && kclInput && !kclInput.value) {
+      kclInput.value = numMatch[0].toUpperCase();
+    }
   }
 }
 
@@ -667,7 +672,8 @@ async function printRangeMonth(ym) {
   const [y,m]=ym.split('-').map(Number);
   const [hyg,ing,batches]=await Promise.all([DB.getAll('hygiene'),DB.getAll('ingredients'),DB.getAll('batches')]);
   const sep='<div class="page-break"></div>';
-  openPrint(buildCover(y,m,y,m)+sep+buildMH(hyg,y,m)+sep+buildMMS(ing)+sep+buildQCM(batches));
+  // [오류 수정] openPrint -> open$ 로 올바른 함수 호출 적용
+  open$(buildCover(y,m,y,m)+sep+buildMH(hyg,y,m)+sep+buildMMS(ing)+sep+buildQCM(batches));
 }
 
 /* ════ 원료 폼 ════ */
@@ -792,7 +798,6 @@ async function saveBatch(id) {
     알레르기:v('b30'),전성분:v('b26'),
     이상:v('b13'),비고:v('b14')
   };
-  // 기존 레시피 보존
   if(id){
     const existing = await DB.getOne('batches',id);
     if(existing&&existing.레시피) data.레시피=existing.레시피;
@@ -853,7 +858,6 @@ async function openHygieneEditForm(id) {
       <button class="btn-save" onclick="saveHyg(${id})">저장</button>
     </div>
     </div>`);
-  // 기존 값 채우기
   setTimeout(()=>{
     updateHygExtra();
     if(r.type==='온도·습도'){
@@ -947,8 +951,6 @@ function changeMonth(d) {
   if(calMonth<0){calMonth=11;calYear--;} if(calMonth>11){calMonth=0;calYear++;}
   renderTab('hygiene');
 }
-function selectDate(ds) { selectedDate=selectedDate===ds?null:ds; renderTab('hygiene'); }
-function clearDateFilter() { selectedDate=null; renderTab('hygiene'); }
 
 function showSheet(html) {
   document.getElementById('sheet-body').innerHTML=html;
