@@ -605,7 +605,7 @@ async function generatePDF(){
   if(chk('ps')&&batches.length)             pages.push(...batches.map(b=>buildPS(b,ing)));
 
   if(!pages.length){ alert('출력할 문서를 하나 이상 선택하세요.'); return; }
-  openPrint(pages.join(sep));
+  open$(pages.join(sep));
 }
 
 async function printDoc(key){

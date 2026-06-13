@@ -180,6 +180,24 @@ function openBarcodeForm(no) {
       </label>
       <label>소분류 (3자리)
         <input id="bc3" maxlength="3" style="font-family:monospace" value="${item?item.sub:''}" placeholder="예: 033" oninput="updateBcPreview()">
+        <div style="margin-top:5px;background:var(--amber-bg);border-radius:6px;padding:8px 10px;font-size:11px;color:var(--amber-text);line-height:1.7">
+          <b>📌 소분류 입력 규칙</b><br>
+          앞 2자리 = 기획·제조 월 (01~12)<br>
+          마지막 1자리 = 같은 달 시리즈 구분 (0·1·2…)<br>
+          <br>
+          <b>예시</b><br>
+          <span style="font-family:monospace">011</span> → 1월 시리즈 1번 (새해비누)<br>
+          <span style="font-family:monospace">033</span> → 3월 시리즈 3번 (카네이션·선인장 미니화분)<br>
+          <span style="font-family:monospace">101</span> → 10월 시리즈 1번 (당근비누)<br>
+          <span style="font-family:monospace">102</span> → 10월 시리즈 2번 (가지비누)<br>
+          <span style="font-family:monospace">120</span> → 12월 시리즈 0번 (투명비누)<br>
+          <span style="font-family:monospace">715</span> → 7월 15일 기준 (아이스쿨바 — 날짜형)<br>
+          <span style="font-family:monospace">815</span> → 8월 15일 기준 (명절선물 — 날짜형)<br>
+          <br>
+          <b>⚠️ 날짜형 주의:</b> 날짜가 2자리(10일 이상)면<br>
+          월+일 = 4자리 → 앞 3자리만 소분류에, 남은 1자리는 비번호 앞에 붙음<br>
+          예) 7월 15일 → 소분류 <span style="font-family:monospace">715</span> (사실 0715의 앞 3자리)
+        </div>
       </label>
     </div>
 
