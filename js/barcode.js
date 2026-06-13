@@ -2,9 +2,11 @@
 
 /* ════════════════════════════════════════
    에이브릴팜 바코드 관리 모듈
-   자체관리 체계 (CODE128 방식으로 출력 최적화)
+   EAN-13 형식: 8739 + 소분류(3) + 비번호(3) + 개수(2) + 체크디짓(1)
+   제조번호: AP/JP + B + 색상코드 + 월(2) + 번호(3)
 ════════════════════════════════════════ */
 
+/* ── 기존 32개 제품 마스터 데이터 ── */
 const BARCODE_MASTER = [
   { no:1,  name:'캐롯숍',             sub:'071',seq:'001',qty:'09',chk:9, mfgNo:'',           mfgDate:'',        expiry:'',              status:'단종', year:2023, notes:'' },
   { no:2,  name:'크리스마숍',          sub:'112',seq:'002',qty:'09',chk:2, mfgNo:'',           mfgDate:'',        expiry:'',              status:'단종', year:null, notes:'' },
@@ -40,6 +42,7 @@ const BARCODE_MASTER = [
   { no:32, name:'듀오 세트(선인장)',    sub:'033',seq:'031',qty:'03',chk:4, mfgNo:'APBSS03004', mfgDate:'',        expiry:'CP-2년',         status:'현행', year:null, notes:'3/30-10' },
 ];
 
+/* ── 색상 코드 매핑 ── */
 const COLOR_CODES = [
   {code:'O',  label:'O — 오렌지 (당근)'},
   {code:'P',  label:'P — 핑크 (가지)'},
@@ -55,6 +58,7 @@ const COLOR_CODES = [
   {code:'직접입력', label:'직접입력'},
 ];
 
+/* ── EAN-13 체크디짓 계산 ── */
 function calcCheckDigit(biz, sub, seq, qty) {
   const str = (biz||'8739') + sub + seq + qty;
   if (str.length !== 12) return '?';
@@ -63,17 +67,20 @@ function calcCheckDigit(biz, sub, seq, qty) {
   return (10 - (sum % 10)) % 10;
 }
 
+/* ── 바코드 전체 번호 생성 ── */
 function buildBarcode(biz, sub, seq, qty) {
   const base = (biz||'8739') + sub + seq + qty;
   const chk = calcCheckDigit(biz, sub, seq, qty);
   return base + chk;
 }
 
+/* ── 다음 비번호 계산 ── */
 function nextSeq() {
   const seqs = BARCODE_MASTER.map(p => parseInt(p.seq)).filter(n => !isNaN(n));
   return String(Math.max(...seqs) + 1).padStart(3, '0');
 }
 
+/* ════ 바코드 탭 렌더링 ════ */
 function renderBarcodeTab(el) {
   const filter = window._bcFilter || '전체';
   const filtered = filter === '전체' ? BARCODE_MASTER : BARCODE_MASTER.filter(p => p.status === filter);
@@ -88,6 +95,11 @@ function renderBarcodeTab(el) {
       <div class="sum-chip sum-mauve">전체 ${BARCODE_MASTER.length}개</div>
       <div class="sum-chip sum-green">현행 ${active}개</div>
       <div class="sum-chip sum-orange">단종 ${BARCODE_MASTER.length - active}개</div>
+    </div>
+
+    <div class="info-banner" style="background:var(--teal-light);border-color:var(--teal);margin-bottom:2px">
+      <i class="ti ti-info-circle" style="color:var(--teal)"></i>
+      <span style="color:var(--teal-dark);font-size:11px"><b>EAN-13:</b> 8739 + 소분류(3) + 비번호(3) + 개수(2) + 체크디짓(1) = 13자리</span>
     </div>
 
     <div style="display:flex;gap:6px;padding:8px 16px">
@@ -119,18 +131,20 @@ function renderBarcodeTab(el) {
           </div>
         </div>`;
     }).join('')}
+
     <div style="height:80px"></div>`;
 
+  // 바코드 이미지 렌더링
   setTimeout(() => {
     filtered.forEach(p => {
       const svgEl = document.getElementById('bc-svg-' + p.no);
       if (!svgEl || !window.JsBarcode) return;
       try {
         const full = buildBarcode(p.biz||'8739', p.sub, p.seq, p.qty);
-        // CODE128 포맷으로 강제하여 자체규격 문자열 렌더링 에러 방지
         JsBarcode('#bc-svg-' + p.no, full, {
-          format: 'CODE128', width: 1.5, height: 50,
-          displayValue: true, fontSize: 11, textMargin: 2, margin: 4,
+          format: 'EAN13', width: 1.5, height: 50,
+          displayValue: true, fontSize: 11,
+          textMargin: 2, margin: 4,
           lineColor: p.status==='단종' ? '#aaa' : '#111'
         });
       } catch(e) { svgEl.parentElement.innerHTML = `<span style="color:var(--text3);font-size:11px">${full}</span>`; }
@@ -140,15 +154,23 @@ function renderBarcodeTab(el) {
 
 function setBcFilter(f) { window._bcFilter = f; renderTab('barcode'); }
 
+/* ════ 신규 바코드 생성 폼 ════ */
 function openBarcodeForm(no) {
   const item = no ? BARCODE_MASTER.find(p => p.no === no) : null;
+  const nextNo = Math.max(...BARCODE_MASTER.map(p=>p.no)) + 1;
   const ns = nextSeq();
 
   showSheet(`
     <div class="sheet-handle"></div>
     <div class="sheet-inner">
     <div class="sheet-title">${item ? item.name + ' 확인' : '신규 바코드 생성'}</div>
+
+    <div style="background:var(--teal-light);border-radius:var(--r-sm);padding:10px 12px;margin-bottom:16px;font-size:12px;color:var(--teal-dark)">
+      <b>바코드 구조:</b> 대분류(4) + 소분류(3) + 비번호(3) + 개수(2) + 체크디짓(1) = 13자리
+    </div>
+
     <label>제품명<input id="bc1" value="${item?item.name:''}" placeholder="예: 오이비누"></label>
+
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
       <label>대분류 (사업자번호)
         <select id="bc2">
@@ -156,38 +178,91 @@ function openBarcodeForm(no) {
           <option value="6590" ${item&&item.biz==='6590'?'selected':''}>6590 (제이쏩)</option>
         </select>
       </label>
-      <label>소분류 (3자리)<input id="bc3" maxlength="3" style="font-family:monospace" value="${item?item.sub:''}" oninput="updateBcPreview()"></label>
+      <label>소분류 (3자리)
+        <input id="bc3" maxlength="3" style="font-family:monospace" value="${item?item.sub:''}" placeholder="예: 033" oninput="updateBcPreview()">
+      </label>
     </div>
+
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-      <label>비번호 (3자리)<input id="bc4" maxlength="3" style="font-family:monospace" value="${item?item.seq:ns}" oninput="updateBcPreview()"></label>
-      <label>개수 (2자리)<input id="bc5" maxlength="2" style="font-family:monospace" value="${item?item.qty:'09'}" oninput="updateBcPreview()"></label>
+      <label>비번호 (3자리) — 다음: ${ns}
+        <input id="bc4" maxlength="3" style="font-family:monospace" value="${item?item.seq:ns}" placeholder="${ns}" oninput="updateBcPreview()">
+      </label>
+      <label>개수 (2자리)
+        <input id="bc5" maxlength="2" style="font-family:monospace" value="${item?item.qty:'09'}" placeholder="09" oninput="updateBcPreview()">
+      </label>
     </div>
+
+    <!-- 미리보기 -->
     <div class="bc-preview" id="bc-preview">
       <div class="bc-preview-label">바코드 미리보기</div>
       <svg id="bc-preview-svg" style="display:block;margin:0 auto"></svg>
       <div id="bc-preview-num" style="text-align:center;font-family:monospace;font-size:13px;margin-top:4px"></div>
+      <div id="bc-preview-chk" style="text-align:center;font-size:11px;color:var(--text3);margin-top:2px"></div>
     </div>
+
     <div style="font-size:13px;font-weight:700;color:var(--text);margin:14px 0 8px">제조번호 생성</div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-      <label>브랜드 접두어<select id="bc6"><option value="AP" ${!item||!item.mfgNo.startsWith('JP')?'selected':''}>AP (에이브릴팜)</option><option value="JP" ${item&&item.mfgNo.startsWith('JP')?'selected':''}>JP (제이쏩)</option></select></label>
-      <label>색상 코드<select id="bc7" onchange="updateMfgPreview()">${COLOR_CODES.map(c=>`<option value="${c.code}" ${item&&item.mfgNo.includes(c.code.replace('-',''))?'selected':''}>${c.label}</option>`).join('')}</select></label>
+    <div style="background:var(--mauve-light);border-radius:var(--r-sm);padding:10px 12px;margin-bottom:12px;font-size:11px;color:var(--mauve-dark)">
+      AP/JP + B + 색상코드 + 월(2자리) + 비누번호(3자리)
     </div>
-    <div id="bc7-custom" style="display:none"><label>색상코드 직접입력<input id="bc7c" oninput="updateMfgPreview()"></label></div>
+
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-      <label>기획 월 (2자리)<input id="bc8" maxlength="2" style="font-family:monospace" value="${item?item.mfgNo.match(/\d{2}(?=\d{3})/)?.[0]||'':''}" oninput="updateMfgPreview()"></label>
-      <label>비누번호 (3자리)<input id="bc9" maxlength="3" style="font-family:monospace" value="${item?item.mfgNo.match(/\d{3}$/)?.[0]||'':''}" oninput="updateMfgPreview()"></label>
+      <label>브랜드 접두어
+        <select id="bc6">
+          <option value="AP" ${!item||!item.mfgNo.startsWith('JP')?'selected':''}>AP (에이브릴팜)</option>
+          <option value="JP" ${item&&item.mfgNo.startsWith('JP')?'selected':''}>JP (제이쏩)</option>
+        </select>
+      </label>
+      <label>색상 코드
+        <select id="bc7" onchange="updateMfgPreview()">
+          ${COLOR_CODES.map(c=>`<option value="${c.code}" ${item&&item.mfgNo.includes(c.code.replace('-',''))?'selected':''}>${c.label}</option>`).join('')}
+        </select>
+      </label>
     </div>
-    <div class="bc-mfg-preview" id="bc-mfg-preview"><span style="font-size:11px;color:var(--text3)">제조번호: </span><span id="mfg-preview-val" style="font-family:monospace;font-weight:700;color:var(--mauve-dark);font-size:14px"></span></div>
-    <label>제조일자<input id="bc10" value="${item?item.mfgDate:''}"></label>
-    <label>유통기한<select id="bc11">${['CP-2년','MP-1년','제조일로부터 1년','제조일로부터 2년','직접입력'].map(e=>`<option ${item&&item.expiry===e?'selected':''}>${e}</option>`).join('')}</select></label>
-    <label>상태<select id="bc12">${['현행','단종','예정'].map(s=>`<option ${item&&item.status===s?'selected':''}>` + s + '</option>').join('')}</select></label>
+    <div id="bc7-custom" style="display:none">
+      <label>색상코드 직접입력<input id="bc7c" placeholder="예: BK" oninput="updateMfgPreview()"></label>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <label>기획 월 (2자리)
+        <input id="bc8" maxlength="2" style="font-family:monospace" value="${item?item.mfgNo.match(/\d{2}(?=\d{3})/)?.[0]||'':''}" placeholder="예: 06" oninput="updateMfgPreview()">
+      </label>
+      <label>비누번호 (3자리)
+        <input id="bc9" maxlength="3" style="font-family:monospace" value="${item?item.mfgNo.match(/\d{3}$/)?.[0]||'':''}" placeholder="${ns}" oninput="updateMfgPreview()">
+      </label>
+    </div>
+
+    <div class="bc-mfg-preview" id="bc-mfg-preview">
+      <span style="font-size:11px;color:var(--text3)">제조번호 미리보기: </span>
+      <span id="mfg-preview-val" style="font-family:monospace;font-weight:700;color:var(--mauve-dark);font-size:14px"></span>
+    </div>
+
+    <label>제조일자<input id="bc10" value="${item?item.mfgDate:''}" placeholder="예: 26.06.01"></label>
+    <label>유통기한
+      <select id="bc11">
+        ${['CP-2년','MP-1년','제조일로부터 1년','제조일로부터 2년','직접입력'].map(e=>`<option ${item&&item.expiry===e?'selected':''}>${e}</option>`).join('')}
+      </select>
+    </label>
+    <label>상태
+      <select id="bc12">
+        ${['현행','단종','예정'].map(s=>`<option ${item&&item.status===s?'selected':''}>` + s + '</option>').join('')}
+      </select>
+    </label>
+    <label>비고<input id="bc13" value="${item?item.notes||'':''}" placeholder=""></label>
+
+    <div style="background:var(--gray-bg);border-radius:var(--r-sm);padding:10px 12px;margin-top:8px;font-size:11px;color:var(--text3)">
+      ※ 신규 생성 시 앱에 임시 저장됩니다. 마스터 시트에 직접 기재하여 관리하세요.
+    </div>
+
     <div class="sheet-btns">
       <button onclick="closeSheet()">취소</button>
-      <button class="btn-save" onclick="printBarcodeLabel()" style="background:var(--mauve)!important;border-color:var(--mauve)!important"><i class="ti ti-printer"></i> 출력</button>
+      <button class="btn-save" onclick="printBarcodeLabel()" style="background:var(--mauve)!important;border-color:var(--mauve)!important">
+        <i class="ti ti-printer"></i> 출력
+      </button>
       <button class="btn-save" onclick="saveBarcodeNew()">저장</button>
     </div>
     </div>`);
 
+  // 폼 change 이벤트
   setTimeout(() => {
     updateBcPreview();
     updateMfgPreview();
@@ -205,67 +280,167 @@ function updateBcPreview() {
   const sub = (document.getElementById('bc3')?.value || '').padEnd(3,'0').slice(0,3);
   const seq = (document.getElementById('bc4')?.value || '').padEnd(3,'0').slice(0,3);
   const qty = (document.getElementById('bc5')?.value || '').padEnd(2,'0').slice(0,2);
-  const full = biz + sub + seq + qty + calcCheckDigit(biz, sub, seq, qty);
-  document.getElementById('bc-preview-num').textContent = full;
-  const svg = document.getElementById('bc-preview-svg');
-  if (svg && window.JsBarcode) {
-    try { JsBarcode('#bc-preview-svg', full, {format:'CODE128',width:1.5,height:45,displayValue:true,fontSize:11,margin:6}); } catch(e) {}
+
+  if (sub.length === 3 && seq.length === 3 && qty.length === 2) {
+    const chk = calcCheckDigit(biz, sub, seq, qty);
+    const full = biz + sub + seq + qty + chk;
+    document.getElementById('bc-preview-num').textContent = full;
+    document.getElementById('bc-preview-chk').textContent = `체크디짓: ${chk} (자동계산)`;
+    const svg = document.getElementById('bc-preview-svg');
+    if (svg && window.JsBarcode && full.length === 13) {
+      try { JsBarcode('#bc-preview-svg', full, {format:'EAN13',width:1.5,height:45,displayValue:true,fontSize:11,margin:6}); }
+      catch(e) {}
+    }
+  } else {
+    document.getElementById('bc-preview-num').textContent = '— 입력 중 —';
+    document.getElementById('bc-preview-chk').textContent = '';
   }
 }
 
 function updateMfgPreview() {
   const prefix = document.getElementById('bc6')?.value || 'AP';
   const sel7 = document.getElementById('bc7');
-  const color = sel7?.value === '직접입력' ? (document.getElementById('bc7c')?.value || '') : (sel7?.value || '');
-  const mfg = prefix + 'B' + color + (document.getElementById('bc8')?.value || '') + (document.getElementById('bc9')?.value || '');
+  const color = sel7?.value === '직접입력'
+    ? (document.getElementById('bc7c')?.value || '')
+    : (sel7?.value || '');
+  const mon = document.getElementById('bc8')?.value || '';
+  const num = document.getElementById('bc9')?.value || '';
+  const mfg = prefix + 'B' + color + mon + num;
   const el = document.getElementById('mfg-preview-val');
   if (el) el.textContent = mfg || '—';
 }
 
 function saveBarcodeNew() {
   const name = document.getElementById('bc1')?.value;
-  if (!name) return alert('제품명을 입력하세요');
+  if (!name) { alert('제품명을 입력하세요'); return; }
   const biz = document.getElementById('bc2')?.value || '8739';
   const sub = document.getElementById('bc3')?.value || '';
   const seq = document.getElementById('bc4')?.value || '';
   const qty = document.getElementById('bc5')?.value || '';
   const chk = calcCheckDigit(biz, sub, seq, qty);
+  const full = buildBarcode(biz, sub, seq, qty);
   const sel7 = document.getElementById('bc7');
   const color = sel7?.value === '직접입력' ? (document.getElementById('bc7c')?.value||'') : (sel7?.value||'');
-  BARCODE_MASTER.push({
-    no: Math.max(...BARCODE_MASTER.map(p=>p.no)) + 1, name, biz: biz==='8739'?undefined:biz,
-    sub, seq, qty, chk, mfgNo: (document.getElementById('bc6')?.value||'AP') + 'B' + color + (document.getElementById('bc8')?.value||'') + (document.getElementById('bc9')?.value||''),
-    mfgDate: document.getElementById('bc10')?.value||'', expiry: document.getElementById('bc11')?.value||'',
-    status: document.getElementById('bc12')?.value||'현행', notes: ''
-  });
-  closeSheet(); renderTab('barcode');
+  const mfgNo = (document.getElementById('bc6')?.value||'AP') + 'B' + color + (document.getElementById('bc8')?.value||'') + (document.getElementById('bc9')?.value||'');
+
+  // BARCODE_MASTER에 임시 추가
+  const newItem = {
+    no: Math.max(...BARCODE_MASTER.map(p=>p.no)) + 1,
+    name, biz: biz==='8739'?undefined:biz,
+    sub, seq, qty, chk,
+    mfgNo, mfgDate: document.getElementById('bc10')?.value||'',
+    expiry: document.getElementById('bc11')?.value||'',
+    status: document.getElementById('bc12')?.value||'현행',
+    notes: document.getElementById('bc13')?.value||''
+  };
+  BARCODE_MASTER.push(newItem);
+  closeSheet();
+  renderTab('barcode');
 }
 
+/* ── 라벨 출력 ── */
 function printBarcodeLabel() {
-  const full = buildBarcode(document.getElementById('bc2')?.value||'8739', document.getElementById('bc3')?.value||'', document.getElementById('bc4')?.value||'', document.getElementById('bc5')?.value||'');
-  const mfgNo = document.getElementById('mfg-preview-val')?.textContent || '';
+  const biz = document.getElementById('bc2')?.value || '8739';
+  const sub = document.getElementById('bc3')?.value || '';
+  const seq = document.getElementById('bc4')?.value || '';
+  const qty = document.getElementById('bc5')?.value || '';
   const name = document.getElementById('bc1')?.value || '';
+  const mfgEl = document.getElementById('mfg-preview-val');
+  const mfgNo = mfgEl?.textContent || '';
+  const expiry = document.getElementById('bc11')?.value || '';
+  const full = buildBarcode(biz, sub, seq, qty);
+
   const win = window.open('','_blank');
-  win.document.write(`<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><title>바코드 라벨</title>
+  win.document.write(`<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8">
+  <title>바코드 라벨</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.6/JsBarcode.all.min.js"><\/script>
-  <style>body{font-family:sans-serif;padding:20px;}.label{border:1px solid #ccc;border-radius:6px;padding:12px;width:220px;text-align:center;margin-bottom:10px}</style></head><body>
-  <button onclick="window.print()" style="margin-bottom:12px;padding:8px">🖨 인쇄</button>
-  ${[1,2,3,4].map(()=>`<div class="label"><div style="font-weight:bold">${name}</div><svg id="lbc-${Math.random().toString(36).slice(2)}"></svg><div style="font-size:10px">${mfgNo}</div></div>`).join('')}
-  <script>window.onload=()=>{document.querySelectorAll('svg').forEach(svg=>JsBarcode(svg,'${full}',{format:'CODE128',width:1.5,height:45,displayValue:true,fontSize:10}));};<\/script></body></html>`);
+  <style>
+    body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;padding:20px;background:#fff;}
+    .label-wrap{display:flex;flex-wrap:wrap;gap:10px;}
+    .label{border:1px solid #ccc;border-radius:6px;padding:12px 16px;width:220px;text-align:center;}
+    .label-name{font-size:13px;font-weight:700;margin-bottom:6px;}
+    .label-mfg{font-size:10px;color:#555;margin-bottom:4px;}
+    .label-expiry{font-size:10px;color:#555;margin-bottom:4px;}
+    .label-biz{font-size:9px;color:#888;}
+    @media print{body{padding:4mm}button{display:none}}
+  </style></head><body>
+  <div style="margin-bottom:12px">
+    <button onclick="window.print()" style="padding:8px 20px;background:#48997D;color:#fff;border:none;border-radius:6px;cursor:pointer;margin-right:6px">🖨 인쇄</button>
+    <button onclick="window.close()" style="padding:8px 16px;background:#eee;border:none;border-radius:6px;cursor:pointer">닫기</button>
+  </div>
+  <div class="label-wrap">
+    ${[1,2,3,4].map(()=>`
+      <div class="label">
+        <div class="label-name">${name}</div>
+        <svg id="lbc-${Math.random().toString(36).slice(2)}"></svg>
+        <div class="label-mfg">${mfgNo}</div>
+        <div class="label-expiry">${expiry}</div>
+        <div class="label-biz">에이브릴팜 · 화장품제조업 제6494호</div>
+      </div>`).join('')}
+  </div>
+  <script>
+    window.onload=()=>{
+      document.querySelectorAll('[id^="lbc-"]').forEach(svg=>{
+        try{JsBarcode(svg,'${full}',{format:'EAN13',width:1.5,height:45,displayValue:true,fontSize:10,margin:4});}catch(e){}
+      });
+    };
+  <\/script></body></html>`);
   win.document.close();
 }
 
+/* ── 전체 바코드 일괄 출력 ── */
 function printAllBarcodes() {
   const items = BARCODE_MASTER.filter(p => p.status === '현행');
   const win = window.open('','_blank');
-  win.document.write(`<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><title>전체 바코드 목록</title>
+  win.document.write(`<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8">
+  <title>에이브릴팜 바코드 목록</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.6/JsBarcode.all.min.js"><\/script>
-  <style>body{font-family:sans-serif;font-size:10px;}table{width:100%;border-collapse:collapse;}th,td{border:1px solid #ccc;padding:5px;}</style></head><body>
-  <button onclick="window.print()" style="margin-bottom:10px">인쇄</button>
-  <table><thead><tr><th>No</th><th>제품명</th><th>바코드 번호</th><th>바코드 이미지</th></tr></thead><tbody>
-  ${items.map(p=>`<tr><td>${p.no}</td><td>${p.name}</td><td>${buildBarcode(p.biz||'8739',p.sub,p.seq,p.qty)}</td><td><svg id="tbc-${p.no}"></svg></td></tr>`).join('')}
-  </tbody></table>
-  <script>window.onload=()=>{${items.map(p=>`JsBarcode('#tbc-${p.no}','${buildBarcode(p.biz||'8739',p.sub,p.seq,p.qty)}',{format:'CODE128',width:1,height:30,displayValue:true,fontSize:9});`).join('\n')}}<\/script></body></html>`);
+  <style>
+    body{font-family:'Apple SD Gothic Neo',sans-serif;padding:16px;font-size:10px;}
+    table{width:100%;border-collapse:collapse;}
+    th,td{border:0.5px solid #ccc;padding:5px 7px;vertical-align:middle;}
+    th{background:#f5f5f0;font-weight:700;text-align:center;}
+    td.c{text-align:center;}
+    .barcode-cell{text-align:center;min-width:160px;}
+    @media print{button{display:none}@page{size:A4;margin:8mm}}
+  </style></head><body>
+  <div style="margin-bottom:12px">
+    <button onclick="window.print()" style="padding:8px 20px;background:#48997D;color:#fff;border:none;border-radius:6px;cursor:pointer;margin-right:6px">🖨 인쇄/PDF</button>
+    <button onclick="window.close()" style="padding:8px 16px;background:#eee;border:none;border-radius:6px;cursor:pointer">닫기</button>
+  </div>
+  <h2 style="margin-bottom:12px;font-size:16px">에이브릴팜 바코드·제조번호 관리표</h2>
+  <table>
+    <thead><tr>
+      <th>No</th><th>제품명</th><th>바코드 번호</th><th>체크디짓</th>
+      <th class="barcode-cell">바코드</th>
+      <th>제조번호</th><th>제조일자</th><th>유통기한</th><th>상태</th>
+    </tr></thead>
+    <tbody>
+      ${items.map(p=>{
+        const full = buildBarcode(p.biz||'8739',p.sub,p.seq,p.qty);
+        const bc12 = `${p.biz||'8739'}/${p.sub}/${p.seq}/${p.qty}`;
+        return `<tr>
+          <td class="c">${p.no}</td>
+          <td>${p.name}</td>
+          <td style="font-family:monospace">${bc12}</td>
+          <td class="c">${p.chk}</td>
+          <td class="barcode-cell"><svg id="tbc-${p.no}"></svg></td>
+          <td style="font-family:monospace">${p.mfgNo||''}</td>
+          <td class="c">${p.mfgDate||''}</td>
+          <td>${p.expiry||''}</td>
+          <td class="c">${p.status}</td>
+        </tr>`;
+      }).join('')}
+    </tbody>
+  </table>
+  <script>
+    window.onload=()=>{
+      ${items.map(p=>{
+        const full = buildBarcode(p.biz||'8739',p.sub,p.seq,p.qty);
+        return `try{JsBarcode('#tbc-${p.no}','${full}',{format:'EAN13',width:1,height:30,displayValue:true,fontSize:8,margin:2});}catch(e){}`;
+      }).join('\n')}
+    };
+  <\/script></body></html>`);
   win.document.close();
 }
 
