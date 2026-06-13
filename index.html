@@ -11,25 +11,17 @@
   <link rel="manifest" href="manifest.json">
   <link rel="stylesheet" href="css/style.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.0.0/tabler-icons.min.css">
-  <!-- JSZip: docx 파일 파싱 -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-  <!-- JsBarcode: 바코드 생성 -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.6/JsBarcode.all.min.js"></script>
-  <style>
-    @keyframes spin { to { transform: rotate(360deg); } }
-    .ti-loader { display: inline-block; animation: spin 1s linear infinite; }
-  </style>
 </head>
 <body>
 
 <!-- 인트로 화면 -->
 <div id="intro-screen" class="intro-screen">
   <div class="intro-inner">
-    <div class="intro-logo-wrap">
-      <span class="intro-leaf">🌿</span>
-      <div class="intro-brand-name">AVRIL'S FARM</div>
-      <div class="intro-brand-sub">100% Fresh Handmade Natural Soap</div>
-    </div>
+    <img src="icons/logo-full.png" alt="AVRIL'S FARM" class="intro-logo-img" onerror="this.style.display='none';document.getElementById('intro-fallback').style.display='block'">
+    <div id="intro-fallback" style="display:none;color:#fff;font-size:28px;font-weight:700;letter-spacing:.05em;margin-bottom:8px;">AVRIL'S FARM</div>
+    <img src="icons/soap-icon.png" alt="" class="intro-soap-icon" onerror="this.style.display='none'">
     <div class="intro-tagline">손바닥 위의 봄</div>
     <div class="intro-desc">
       사라지는 것들에 정성을 다하는 마음<br>
@@ -43,41 +35,48 @@
   </div>
 </div>
 
-<!-- 메인 앱 -->
-<div class="app">
-  <div class="topbar">
-    <div class="topbar-logo" id="topbar-logo" title="처음으로">
-      <span class="logo-leaf">🌿</span>
-      <div>
-        <div class="logo-text">AVRIL'S FARM</div>
-        <div class="logo-sub">공방 관리 시스템</div>
-      </div>
-    </div>
-    <div class="tabs-wrap">
-      <div class="tabs">
-        <button class="tab-btn" data-tab="stock">재료·재고</button>
-        <button class="tab-btn" data-tab="manufacture">제품 제조</button>
-        <button class="tab-btn" data-tab="mfcheck">제조 점검</button>
-        <button class="tab-btn active" data-tab="hygiene">위생 점검<span id="badge-hygiene" class="tab-dot"></span></button>
-        <button class="tab-btn" data-tab="production">생산실적</button>
-        <button class="tab-btn" data-tab="output">문서 출력</button>
-        <button class="tab-btn" data-tab="barcode">바코드</button>
-        <button class="tab-btn" data-tab="notify">설정·알림</button>
+<!-- 메인 앱 (초기엔 숨김) -->
+<div class="app" id="main-app" style="display:none">
+  <!-- 탑바 -->
+  <div class="topbar" id="topbar">
+    <button class="back-btn hidden" id="back-btn" onclick="goBack()" title="뒤로">
+      <i class="ti ti-chevron-left"></i>
+    </button>
+    <img src="icons/symbol.png" alt="에이브릴팜" class="topbar-logo-img" onclick="goHome()"
+         onerror="this.src='icons/logo.png'" title="홈으로">
+    <div class="tabs-wrap" id="tabs-wrap">
+      <div class="tabs" id="main-tabs">
+        <button class="tab-btn active" data-tab="stock" onclick="switchTab('stock')">원료 재고</button>
+        <button class="tab-btn" data-tab="manufacture" onclick="switchTab('manufacture')">제품 제조</button>
+        <button class="tab-btn" data-tab="sales" onclick="switchTab('sales')">생산실적</button>
+        <button class="tab-btn" data-tab="hygiene" onclick="switchTab('hygiene')">위생 점검<span id="badge-hygiene" class="tab-dot hide"></span></button>
+        <button class="tab-btn" data-tab="output" onclick="switchTab('output')">문서 출력</button>
+        <button class="tab-btn" data-tab="barcode" onclick="switchTab('barcode')">바코드</button>
+        <button class="tab-btn" data-tab="settings" onclick="switchTab('settings')">설정·알림</button>
       </div>
     </div>
   </div>
-  <div id="page-content" style="display:none"></div>
+
+  <!-- 페이지 본문 -->
+  <div class="page-content" id="page-content"></div>
 </div>
 
-<div id="sheet-overlay" class="hide" onclick="closeSheet()"></div>
-<div id="sheet" class="hide"><div id="sheet-body"></div></div>
+<!-- 오버레이 & 바텀 시트 -->
+<div class="overlay" id="overlay" onclick="closeSheet()"></div>
+<div class="sheet" id="sheet">
+  <div class="sheet-handle"></div>
+  <div class="sheet-header">
+    <span class="sheet-title" id="sheet-title"></span>
+    <button class="sheet-close" onclick="closeSheet()"><i class="ti ti-x"></i></button>
+  </div>
+  <div class="sheet-body" id="sheet-body"></div>
+  <div class="sheet-footer hide" id="sheet-footer"></div>
+</div>
 
 <script src="js/db.js"></script>
-<script src="js/notify.js"></script>
-<script src="js/pdf.js"></script>
 <script src="js/app.js"></script>
 <script>
-  if ('serviceWorker' in navigator) {
+  if('serviceWorker' in navigator){
     navigator.serviceWorker.register('sw.js').catch(()=>{});
   }
 </script>

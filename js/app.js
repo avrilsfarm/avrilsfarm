@@ -1,1192 +1,1394 @@
+/* ============================================================
+   에이브릴팜 공방관리 v3 — app.js
+   ============================================================ */
 'use strict';
 
-/* ════ 상태 ════ */
-let currentTab  = 'intro';
-let stockSubTab = '원료';
-let selectedDate = null;
-const today = new Date();
-let calYear = today.getFullYear(), calMonth = today.getMonth();
+/* ── 상태 ── */
+let currentTab = 'stock';
+let pageStack  = [];   // 뒤로가기 스택
+let sheetOpen  = false;
 
-/* ════ 초기화 ════ */
-async function init() {
-  try { await DB.seedIfEmpty(); } catch(e) { console.warn(e); }
-  setupTabs();
-  showIntro();
-}
-
-function setupTabs() {
-  document.querySelectorAll('.tab-btn').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      currentTab = btn.dataset.tab;
-      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      await renderTab(currentTab);
-    });
-  });
-  document.getElementById('topbar-logo').addEventListener('click', showIntro);
-}
-
-function showIntro() {
-  document.getElementById('intro-screen').classList.remove('hide');
-  document.getElementById('page-content').style.display = 'none';
-}
-function startApp() {
-  document.getElementById('intro-screen').classList.add('hide');
-  document.getElementById('page-content').style.display = '';
-  if (currentTab === 'intro') {
-    currentTab = 'hygiene';
-    document.querySelectorAll('.tab-btn').forEach(b => {
-      if (b.dataset.tab === 'hygiene') b.classList.add('active');
-      else b.classList.remove('active');
-    });
-  }
-  renderTab(currentTab);
-  try { checkNotifications(); } catch(e) {}
-}
-
-async function renderTab(tab) {
-  const el = document.getElementById('page-content');
-  if (!el) return;
-  el.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text3)"><i class="ti ti-loader" style="font-size:28px"></i></div>';
-  try {
-    if      (tab==='stock')       await renderStock(el);
-    else if (tab==='manufacture') await renderManufacture(el);
-    else if (tab==='mfcheck')     await renderMfCheck(el);
-    else if (tab==='hygiene')     await renderHygiene(el);
-    else if (tab==='production')  await renderProduction(el);
-    else if (tab==='output')      await renderOutput(el);
-    else if (tab==='notify')      renderNotifySettings(el);
-    else if (tab==='barcode')     await renderBarcode(el);
-  } catch(e) {
-    el.innerHTML = `<div style="padding:24px;color:var(--red-text)">오류: ${e.message}</div>`;
-    console.error(e);
-  }
-  try { await updateBadges(); } catch(e) {}
-}
-
-async function updateBadges() {
-  const ing = await DB.getAll('ingredients');
-  const pending = ing.filter(i=>i.판정==='미기입').length;
-  const hb = document.getElementById('badge-hygiene');
-  if (hb) { hb.textContent=pending>0?pending:''; hb.style.display=pending>0?'inline':'none'; }
-}
-
-/* ════ 재료·재고 ════ */
-async function renderStock(el) {
-  const all = await DB.getAll('ingredients');
-  const ingList = all.filter(i=>i.stockType!=='포장재');
-  const pkgList = all.filter(i=>i.stockType==='포장재');
-  const list = stockSubTab==='원료'?ingList:pkgList;
-  const cats = [...new Set(list.map(i=>i.category))];
-  const ok = list.filter(i=>i.판정==='적합').length;
-  const pending = list.filter(i=>i.판정==='미기입').length;
-
-  el.innerHTML=`
-    <div class="page-header"><h2 class="page-title">재료·포장재 재고</h2></div>
-    <div class="subtab-row">
-      <button class="subtab ${stockSubTab==='원료'?'on':''}" onclick="switchStockTab('원료')">원료 <span class="subtab-cnt">${ingList.length}</span></button>
-      <button class="subtab ${stockSubTab==='포장재'?'on':''}" onclick="switchStockTab('포장재')">포장재 <span class="subtab-cnt">${pkgList.length}</span></button>
-    </div>
-    <div class="summary-row">
-      <div class="sum-chip sum-mauve">전체 ${list.length}종</div>
-      <div class="sum-chip sum-green">적합 ${ok}종</div>
-      ${pending>0?`<div class="sum-chip sum-orange">미기입 ${pending}종</div>`:''}
-    </div>
-    ${list.length===0?`<div class="empty-hint">등록된 ${stockSubTab}이 없습니다</div>`
-    :cats.map(cat=>`
-      <div class="group-header">${cat}</div>
-      ${list.filter(i=>i.category===cat).map(i=>`
-        <div class="list-item" onclick="openIngForm(${i.id})">
-          <div class="item-left">
-            <div class="item-title">${i.원료명}</div>
-            <div class="item-sub">${i.제조처||''}${i.수량?' · '+i.수량:''}${i.입고일?' · '+i.입고일:''}</div>
-          </div>
-          <div class="item-right">
-            <span class="badge ${badgeClass(i.판정)}">${i.판정}</span>
-            <span class="badge ${i.CoA==='수취'?'badge-green':'badge-orange'}">CoA ${i.CoA}</span>
-          </div>
-        </div>`).join('')}
-    `).join('')}
-    <button class="fab" onclick="openIngForm(null,'${stockSubTab}')"><i class="ti ti-plus"></i></button>`;
-}
-function switchStockTab(t){stockSubTab=t;renderTab('stock');}
-
-/* ════ 제품 제조 ════ */
-async function renderManufacture(el) {
-  const list = await DB.getAll('batches');
-  el.innerHTML=`
-    <div class="page-header"><h2 class="page-title">제품 제조</h2></div>
-    <div class="summary-row">
-      <div class="sum-chip sum-mauve">배치 ${list.length}건</div>
-      <div class="sum-chip sum-green">KCL 완료 ${list.filter(b=>b.KCL).length}건</div>
-    </div>
-    ${list.length===0?`<div class="empty-hint">등록된 배치가 없습니다<br><small>아래 + 버튼으로 추가하세요</small></div>`:''}
-    ${list.map(b=>`
-      <div class="card-block">
-        <div class="card-top" onclick="toggleCard(this)">
-          <div class="card-left">
-            <div class="card-title">${b.제품명||''}</div>
-            <div class="card-sub">${b.문서번호||''} · ${b.제조번호||''}</div>
-            <div class="card-sub">${b.date||''} · ${b.제조방법||''}</div>
-          </div>
-          <div class="card-right">
-            <span class="badge ${badgeClass(b.상태)}">${b.상태||''}</span>
-            <button class="icon-btn mt8" onclick="event.stopPropagation();openBatchForm(${b.id})" title="수정/삭제">
-              <i class="ti ti-edit"></i>
-            </button>
-          </div>
-        </div>
-        <div class="card-detail hide">
-          ${drow('투입량',b.투입량+'g')}
-          ${drow('이론/실제 수량',(b.이론수량||'-')+'ea / '+(b.실제수량||'-')+'ea')}
-          ${drow('목표 중량',b.목표중량||'90g ±5g')}
-          ${drow('실측 중량',b.실측중량?b.실측중량+'g':'-')}
-          ${drow('바코드',b.바코드||'-')}
-          ${b.바코드?`<div style="padding:8px 0;text-align:center"><svg id="bc-${b.id}"></svg></div>`:''}
-          ${drow('KCL 성적서',b.KCL||'미등록')}
-          ${drow('내용량',b.내용량?b.내용량+'% (기준 97% 이상)':'-')}
-          ${drow('유리알칼리',b.유리알칼리?b.유리알칼리+' (기준 0.1% 이하)':'-')}
-          ${drow('알레르기 유발성분',b.알레르기||'-')}
-          ${drow('이상 여부',b.이상||'-')}
-          ${b.레시피&&b.레시피.length?`
-            <div style="font-size:11px;font-weight:700;color:var(--teal-dark);padding:8px 0 4px">원료 배합표</div>
-            <div style="overflow-x:auto"><table class="recipe-table">
-              <thead><tr><th>No</th><th>원료명</th><th>INCI명칭</th><th>이론량(g)</th><th>비율(%)</th></tr></thead>
-              <tbody>
-                ${b.레시피.map((r,i)=>`<tr><td>${i+1}</td><td>${r.원료명||''}</td><td style="font-size:10px;color:var(--text3)">${r.INCI||''}</td><td>${r.이론량||''}</td><td>${r.비율||''}</td></tr>`).join('')}
-                <tr><td colspan="3">합계</td><td>${b.투입량||''}</td><td>100</td></tr>
-              </tbody>
-            </table></div>`:''}
-          ${b.비고?drow('비고',b.비고):''}
-        </div>
-      </div>`).join('')}
-    <button class="fab" onclick="openBatchForm()"><i class="ti ti-plus"></i></button>`;
-
-  // 바코드 렌더링
+/* ============================================================
+   인트로 / 앱 시작
+   ============================================================ */
+async function startApp(){
+  await DB.seedIfEmpty();
+  document.getElementById('intro-screen').classList.add('fade-out');
   setTimeout(()=>{
-    list.filter(b=>b.바코드).forEach(b=>{
-      const el2=document.getElementById('bc-'+b.id);
-      if(el2&&window.JsBarcode){
-        try{JsBarcode('#bc-'+b.id,b.바코드,{format:'CODE128',width:1.5,height:40,displayValue:true,fontSize:10});}catch(e){}
-      }
-    });
-  },100);
+    document.getElementById('intro-screen').style.display='none';
+    document.getElementById('main-app').style.display='flex';
+    switchTab('stock');
+    checkHygieneBadge();
+    checkAlerts();
+  }, 500);
 }
 
-/* ════ 제조 점검 ════ */
-async function renderMfCheck(el){
-  el.innerHTML=`
-    <div class="page-header"><h2 class="page-title">제조 점검</h2></div>
-    <div class="info-banner"><i class="ti ti-info-circle"></i><span>CP법 제조 전 체크리스트 · EF-MMS-001</span></div>
-    <div class="group-header">CP법 작업 전 필수</div>
-    ${['내화학성 장갑 착용','고글 착용','마스크 착용','작업대 에탄올 소독','전자저울 영점 확인'].map(item=>`
-      <div class="check-item" onclick="toggleCheck(this)"><div class="check-circle"></div><span class="check-label">${item}</span></div>`).join('')}
-    <div class="group-header mt16">온도·습도 관리</div>
-    ${['온도·습도 기록','혼합 온도 27~30°C 확인'].map(item=>`
-      <div class="check-item" onclick="toggleCheck(this)"><div class="check-circle"></div><span class="check-label">${item}</span></div>`).join('')}
-    <div class="group-header mt16">완제품 출하 전</div>
-    ${['외관·성상 육안검사','목표 중량 확인','표시사항(전성분·사용기한) 확인','KCL 성적서 확인'].map(item=>`
-      <div class="check-item" onclick="toggleCheck(this)"><div class="check-circle"></div><span class="check-label">${item}</span></div>`).join('')}
-    <button class="save-btn mt20" onclick="saveChecklist()">점검 완료 저장</button>`;
+function goHome(){
+  pageStack = [];
+  updateBackBtn();
+  switchTab(currentTab);
 }
 
-/* ════ 위생 점검 ════ */
-async function renderHygiene(el){
-  const hyg = await DB.getAll('hygiene');
-  const ym=`${calYear}-${String(calMonth+1).padStart(2,'0')}`;
-  const monthRecs=hyg.filter(h=>h.date&&h.date.startsWith(ym));
-  const datesIssue=new Set(hyg.filter(h=>h.status==='문제임박'&&h.date&&h.date.startsWith(ym)).map(h=>h.date));
-  const datesRecord=new Set(monthRecs.map(h=>h.date));
-  const displayRecs=selectedDate&&selectedDate.startsWith(ym)?monthRecs.filter(r=>r.date===selectedDate):monthRecs;
-
-  el.innerHTML=`
-    <div class="page-header"><h2 class="page-title">위생 점검 기록</h2></div>
-    <div class="warn-banner" onclick="openHygieneForm()" style="cursor:pointer">
-      <i class="ti ti-plus-circle"></i>
-      <div><div class="warn-title">점검 기록 추가</div><div class="warn-sub">탭해서 오늘 점검 내용을 기록하세요</div></div>
-      <i class="ti ti-chevron-right ml-auto"></i>
-    </div>
-    <div class="cal-nav">
-      <button class="cal-arrow" onclick="changeMonth(-1)"><i class="ti ti-chevron-left"></i></button>
-      <span class="cal-title">${calYear}년 ${calMonth+1}월</span>
-      <button class="cal-arrow" onclick="changeMonth(1)"><i class="ti ti-chevron-right"></i></button>
-    </div>
-    <div class="calendar">${buildCalendar(calYear,calMonth,datesRecord,datesIssue)}</div>
-    <div class="records-section">
-      <div class="records-month">
-        <span>${selectedDate&&selectedDate.startsWith(ym)?selectedDate+' 기록':calYear+'년 '+(calMonth+1)+'월'}</span>
-        ${selectedDate&&selectedDate.startsWith(ym)?`
-          <span style="display:flex;gap:6px">
-            <button class="btn-sm" onclick="clearDateFilter()">전체보기</button>
-            <button class="btn-sm solid" onclick="openHygieneForm('${selectedDate}')">+ 기록추가</button>
-          </span>`:''
-        }
-      </div>
-      ${displayRecs.length>0?displayRecs.map(r=>recordItem(r)).join(''):`<div class="empty-hint">${selectedDate&&selectedDate.startsWith(ym)?'이 날 기록이 없습니다':'이번 달 기록이 없습니다'}</div>`}
-    </div>
-    <button class="fab" onclick="openHygieneForm()"><i class="ti ti-plus"></i></button>`;
-}
-
-function buildCalendar(year,month,hasRecord,hasIssue){
-  const firstDay=new Date(year,month,1).getDay();
-  const days=new Date(year,month+1,0).getDate();
-  let html=`<div class="cal-grid">`;
-  ['월','화','수','목','금','토','일'].forEach(d=>html+=`<div class="cal-dow">${d}</div>`);
-  const offset=(firstDay+6)%7;
-  for(let i=0;i<offset;i++)html+=`<div class="cal-day empty"></div>`;
-  for(let d=1;d<=days;d++){
-    const ds=`${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-    const isToday=ds===today.toISOString().split('T')[0];
-    const isSel=ds===selectedDate;
-    html+=`<div class="cal-day${isToday?' today':''}${isSel?' selected':''}" onclick="selectDate('${ds}')">
-      <span class="cal-num">${d}</span>
-      ${hasIssue.has(ds)?'<span class="cal-dot dot-red"></span>':hasRecord.has(ds)?'<span class="cal-dot dot-green"></span>':''}
-    </div>`;
+function goBack(){
+  if(pageStack.length > 0){
+    const prev = pageStack.pop();
+    updateBackBtn();
+    prev();
   }
-  return html+'</div>';
 }
 
-function recordItem(r){
-  const lbl={'청소점검':'청소 점검','온도·습도':'온도·습도','제조위생':'제조 위생','방충방서':'방충·방서'}[r.type]||r.type;
-  const title=r.type==='온도·습도'?`온도 ${r.온도}°C / 습도 ${r.습도}%`:lbl;
-  return `<div class="record-row" onclick="openHygieneEditForm(${r.id})">
-    <div class="record-left">
-      <div class="record-title">${title}</div>
-      <div class="record-sub">${r.date||''} ${r.이슈?'· ⚠️ '+r.이슈:''}</div>
-    </div>
-    <div class="record-right">
-      <div class="record-type-label">${lbl}</div>
-      <span class="badge ${r.status==='완료'?'badge-green':r.status==='문제임박'?'badge-orange':'badge-gray'}">${r.status||''}</span>
-    </div>
-  </div>`;
+function pushPage(renderFn){
+  pageStack.push(()=> renderFn());
+  updateBackBtn();
 }
 
-function selectDate(ds){selectedDate=selectedDate===ds?null:ds;renderTab('hygiene');}
-function clearDateFilter(){selectedDate=null;renderTab('hygiene');}
+function updateBackBtn(){
+  const btn = document.getElementById('back-btn');
+  const tabsWrap = document.getElementById('tabs-wrap');
+  if(pageStack.length > 0){
+    btn.classList.remove('hidden');
+    tabsWrap.style.display = 'none';
+  } else {
+    btn.classList.add('hidden');
+    tabsWrap.style.display = '';
+  }
+}
 
-/* ════ 생산실적 ════ */
-async function renderProduction(el){
-  const [prods, batches] = await Promise.all([DB.getAll('production'),DB.getAll('batches')]);
-  const totalQty = prods.reduce((s,p)=>s+(+p.수량||0),0);
+/* ============================================================
+   탭 전환
+   ============================================================ */
+function switchTab(tab){
+  currentTab = tab;
+  pageStack = [];
+  updateBackBtn();
+  document.querySelectorAll('.tab-btn').forEach(b=>{
+    b.classList.toggle('active', b.dataset.tab === tab);
+  });
+  const renders = {
+    stock:       renderStock,
+    manufacture: renderManufacture,
+    sales:       renderSales,
+    hygiene:     renderHygiene,
+    output:      renderOutput,
+    barcode:     renderBarcode,
+    settings:    renderSettings,
+  };
+  if(renders[tab]) renders[tab]();
+}
 
-  // 크로스체크: 생산실적 vs 배치 실제수량
-  const batchMap = {};
-  batches.forEach(b=>{batchMap[b.제품명]=(batchMap[b.제품명]||0)+(+b.실제수량||0);});
-  const prodMap = {};
-  prods.forEach(p=>{prodMap[p.제품명]=(prodMap[p.제품명]||0)+(+p.수량||0);});
-  const allProds = [...new Set([...Object.keys(batchMap),...Object.keys(prodMap)])];
+function setContent(html){
+  const el = document.getElementById('page-content');
+  el.innerHTML = html;
+  el.scrollTop = 0;
+}
 
-  el.innerHTML=`
-    <div class="page-header"><h2 class="page-title">생산실적</h2></div>
-    <div class="summary-row">
-      <div class="sum-chip sum-mauve">기록 ${prods.length}건</div>
-      <div class="sum-chip sum-green">총 생산 ${totalQty}개</div>
+/* ============================================================
+   바텀 시트
+   ============================================================ */
+function openSheet(title, bodyHtml, footerHtml=''){
+  document.getElementById('sheet-title').textContent = title;
+  document.getElementById('sheet-body').innerHTML = bodyHtml;
+  const footer = document.getElementById('sheet-footer');
+  if(footerHtml){ footer.innerHTML = footerHtml; footer.classList.remove('hide'); }
+  else { footer.classList.add('hide'); }
+  document.getElementById('overlay').classList.add('show');
+  document.getElementById('sheet').classList.add('show');
+  sheetOpen = true;
+}
+function closeSheet(){
+  document.getElementById('overlay').classList.remove('show');
+  document.getElementById('sheet').classList.remove('show');
+  sheetOpen = false;
+}
+
+/* ============================================================
+   알림 / 밀린점검
+   ============================================================ */
+async function checkHygieneBadge(){
+  const all = await DB.getAll('hygiene');
+  const now = new Date();
+  // 이번 주 청소점검이 있는지
+  const startOfWeek = new Date(now);
+  startOfWeek.setDate(now.getDate() - now.getDay());
+  const weekStr = startOfWeek.toISOString().slice(0,10);
+  const hasThisWeek = all.some(h=> h.type==='청소점검' && h.date >= weekStr);
+  const badge = document.getElementById('badge-hygiene');
+  if(badge) badge.classList.toggle('hide', hasThisWeek);
+}
+
+async function checkAlerts(){
+  const ings = await DB.getAll('ingredients');
+  const lowItems = ings.filter(i=> i.stock <= i.minStock);
+  if(lowItems.length > 0){
+    // 재고 탭 배지는 표시하지 않고 탭 내 배너로만 처리
+  }
+}
+
+/* ============================================================
+   1. 원료 재고 탭
+   ============================================================ */
+async function renderStock(){
+  const ings = await DB.getAll('ingredients');
+  const raw = ings.filter(i=>i.type==='원료');
+  const pkg = ings.filter(i=>i.type==='포장재');
+  const lowRaw = raw.filter(i=>Number(i.stock)<=Number(i.minStock));
+  const lowPkg = pkg.filter(i=>Number(i.stock)<=Number(i.minStock));
+
+  let alertHtml = '';
+  if(lowRaw.length+lowPkg.length > 0){
+    const names = [...lowRaw,...lowPkg].map(i=>i.name).join(', ');
+    alertHtml = `<div class="alert-banner warn"><i class="ti ti-alert-triangle"></i><div>
+      <strong>재고 부족 ${lowRaw.length+lowPkg.length}건</strong><br>
+      <span style="font-size:12px">${names}</span></div></div>`;
+  }
+
+  const makeList = (items, label) => {
+    if(items.length===0) return `<div class="empty-state"><i class="ti ti-box"></i><p>${label} 항목이 없습니다</p></div>`;
+    return items.map((it, idx)=>{
+      const pct = it.minStock>0 ? Math.min(100,Math.round(Number(it.stock)/Number(it.minStock)*50)) : 50;
+      const cls = Number(it.stock)<=0 ? 'empty' : Number(it.stock)<=Number(it.minStock) ? 'low' : '';
+      const badge = Number(it.stock)<=0 ? '<span class="badge badge-red">품절</span>' :
+                    Number(it.stock)<=Number(it.minStock) ? '<span class="badge badge-amber">부족</span>' :
+                    '<span class="badge badge-green">충분</span>';
+      return `<div class="list-item" onclick="editIngredient(${it.id})">
+        <span class="item-no">${idx+1}</span>
+        <div class="list-item-body">
+          <div class="list-item-title">${it.name}</div>
+          <div class="list-item-sub">${it.supplier||''} · 최소재고 ${it.minStock}${it.unit}</div>
+          <div class="stock-bar mt8"><div class="stock-bar-fill ${cls}" style="width:${Math.max(5,pct)}%"></div></div>
+        </div>
+        <div class="list-item-right">
+          <div class="fw700 fs14">${it.stock}<span class="fs12 fw600 color-text2">${it.unit}</span></div>
+          ${badge}
+        </div>
+      </div>`;
+    }).join('');
+  };
+
+  setContent(`
+    ${alertHtml}
+    <div class="section-hd full-width">
+      <span class="section-title">원료 (${raw.length})</span>
+      <button class="section-action" onclick="addIngredient('원료')"><i class="ti ti-plus"></i> 추가</button>
     </div>
+    ${makeList(raw,'원료')}
+    <div class="section-hd full-width mt16">
+      <span class="section-title">포장재 (${pkg.length})</span>
+      <button class="section-action" onclick="addIngredient('포장재')"><i class="ti ti-plus"></i> 추가</button>
+    </div>
+    ${makeList(pkg,'포장재')}
+    <div style="height:16px"></div>
+  `);
+}
 
-    <div class="section-label">크로스체크 — 생산실적 vs 배치 출하</div>
-    <div style="overflow-x:auto;padding:0 16px 12px">
-      <table class="recipe-table" style="min-width:320px">
-        <thead><tr><th>제품명</th><th>배치 출하</th><th>생산실적</th><th>차이</th></tr></thead>
-        <tbody>
-          ${allProds.length===0?`<tr><td colspan="4" style="text-align:center;color:var(--text3)">데이터 없음</td></tr>`:
-          allProds.map(name=>{
-            const bc=batchMap[name]||0, pc=prodMap[name]||0, diff=pc-bc;
-            return `<tr>
-              <td>${name}</td>
-              <td style="text-align:right">${bc}개</td>
-              <td style="text-align:right">${pc}개</td>
-              <td style="text-align:right;font-weight:700;color:${diff===0?'var(--teal-dark)':diff>0?'var(--amber)':'var(--red)'}">${diff>0?'+':''}${diff}</td>
-            </tr>`;
-          }).join('')}
-        </tbody>
+function addIngredient(type='원료'){
+  openSheet(`${type} 추가`, ingFormHtml({type}),
+    `<button class="btn btn-primary btn-block" onclick="saveIngredient(0)">저장</button>`);
+}
+
+async function editIngredient(id){
+  const it = await DB.getOne('ingredients', id);
+  if(!it) return;
+  openSheet(`${it.type} 수정`, ingFormHtml(it),
+    `<div class="flex gap8">
+      <button class="btn btn-danger" style="flex:1" onclick="deleteIngredient(${id})"><i class="ti ti-trash"></i> 삭제</button>
+      <button class="btn btn-primary" style="flex:2" onclick="saveIngredient(${id})">저장</button>
+    </div>`);
+}
+
+function ingFormHtml(it={}){
+  return `
+    <input type="hidden" id="ing-id" value="${it.id||0}">
+    <div class="form-group">
+      <label class="form-label">구분</label>
+      <select class="form-input" id="ing-type">
+        <option value="원료" ${(it.type||'원료')==='원료'?'selected':''}>원료</option>
+        <option value="포장재" ${it.type==='포장재'?'selected':''}>포장재</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">재료명 *</label>
+      <input class="form-input" id="ing-name" placeholder="예: 올리브오일" value="${it.name||''}">
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">현재 재고</label>
+        <input class="form-input" id="ing-stock" type="number" step="0.1" value="${it.stock||0}">
+      </div>
+      <div class="form-group">
+        <label class="form-label">단위</label>
+        <select class="form-input" id="ing-unit">
+          ${['g','kg','mL','L','개','매','병'].map(u=>`<option ${(it.unit||'g')===u?'selected':''}>${u}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">최소 재고</label>
+        <input class="form-input" id="ing-min" type="number" step="0.1" value="${it.minStock||0}">
+      </div>
+      <div class="form-group">
+        <label class="form-label">공급처</label>
+        <input class="form-input" id="ing-supplier" value="${it.supplier||''}">
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">메모</label>
+      <input class="form-input" id="ing-note" value="${it.note||''}">
+    </div>`;
+}
+
+async function saveIngredient(id){
+  const data = {
+    type: document.getElementById('ing-type').value,
+    name: document.getElementById('ing-name').value.trim(),
+    stock: parseFloat(document.getElementById('ing-stock').value)||0,
+    unit: document.getElementById('ing-unit').value,
+    minStock: parseFloat(document.getElementById('ing-min').value)||0,
+    supplier: document.getElementById('ing-supplier').value.trim(),
+    note: document.getElementById('ing-note').value.trim(),
+  };
+  if(!data.name){ alert('재료명을 입력하세요.'); return; }
+  if(id > 0){ data.id = id; await DB.put('ingredients', data); }
+  else { await DB.add('ingredients', data); }
+  closeSheet();
+  renderStock();
+}
+
+async function deleteIngredient(id){
+  if(!confirm('삭제하시겠습니까?')) return;
+  await DB.remove('ingredients', id);
+  closeSheet();
+  renderStock();
+}
+
+/* ============================================================
+   2. 제품 제조 탭
+   ============================================================ */
+async function renderManufacture(){
+  const batches = await DB.getAll('batches');
+  const items = batches.slice().reverse();
+
+  const statusBadge = s => ({
+    '판매중': '<span class="badge badge-green">판매중</span>',
+    '재고있음': '<span class="badge badge-green">재고있음</span>',
+    '품절': '<span class="badge badge-gray">품절</span>',
+    '생산중': '<span class="badge badge-amber">생산중</span>',
+  }[s] || `<span class="badge badge-gray">${s}</span>`);
+
+  const listHtml = items.length===0
+    ? `<div class="empty-state full-width"><i class="ti ti-flask"></i><p>제조 내역이 없습니다<br>오른쪽 상단의 + 버튼으로 추가하세요</p>
+        <button class="empty-action" onclick="addBatch()"><i class="ti ti-plus"></i> 제조 추가</button></div>`
+    : items.map((b, idx)=>`
+        <div class="list-item" onclick="viewBatch(${b.id})">
+          <span class="item-no">${items.length-idx}</span>
+          <div class="list-item-body">
+            <div class="list-item-title">${b.제품명}</div>
+            <div class="list-item-sub">${b.제조번호} · ${b.date}</div>
+          </div>
+          <div class="list-item-right">
+            ${statusBadge(b.상태)}
+            <div class="fs12 color-text2 mt8">${b.실제수량||0}개 생산</div>
+          </div>
+        </div>`).join('');
+
+  setContent(`
+    <div class="section-hd full-width">
+      <span class="section-title">제조 내역 (${batches.length})</span>
+      <button class="section-action" onclick="addBatch()"><i class="ti ti-plus"></i> 추가</button>
+    </div>
+    ${listHtml}
+    <div style="height:16px"></div>
+  `);
+}
+
+async function viewBatch(id){
+  const b = await DB.getOne('batches', id);
+  if(!b) return;
+
+  const prevRender = ()=> renderManufacture();
+  pushPage(prevRender);
+
+  const statusBadge = s => ({
+    '판매중':'<span class="badge badge-green">판매중</span>',
+    '재고있음':'<span class="badge badge-green">재고있음</span>',
+    '품절':'<span class="badge badge-gray">품절</span>',
+    '생산중':'<span class="badge badge-amber">생산중</span>',
+  }[s]||`<span class="badge badge-gray">${s}</span>`);
+
+  const recipeRows = (b.레시피||[]).map(r=>`
+    <tr>
+      <td>${r.no}</td>
+      <td>${r.원료}</td>
+      <td style="font-size:11px;color:#888">${r.INCI||''}</td>
+      <td class="text-right">${r.이론량}g</td>
+      <td class="text-right">${r.비율||''}%</td>
+      <td class="text-right">${r.실사용량||r.이론량}g</td>
+    </tr>`).join('');
+
+  setContent(`
+    <div class="card full-width fade-in">
+      <div class="card-header">
+        <div>
+          <div class="card-title fs14">${b.제품명}</div>
+          <div class="card-sub">${b.제조번호}</div>
+        </div>
+        ${statusBadge(b.상태)}
+      </div>
+      <table class="data-table" style="font-size:12px">
+        <tr><td class="fw700">문서번호</td><td>${b.문서번호||''}</td><td class="fw700">제조일</td><td>${b.date||''}</td></tr>
+        <tr><td class="fw700">제조방법</td><td>${b.제조방법||''}</td><td class="fw700">투입량</td><td>${b.투입량||''}g</td></tr>
+        <tr><td class="fw700">이론수량</td><td>${b.이론수량||''}개</td><td class="fw700">실제수량</td><td>${b.실제수량||''}개</td></tr>
+        <tr><td class="fw700">목표중량</td><td>${b.목표중량||''}</td><td class="fw700">실측중량</td><td>${b.실측중량||''}g</td></tr>
+        <tr><td class="fw700">KCL 성적서</td><td colspan="3">${b.KCL||'없음'} ${b.KCL발행일?'('+b.KCL발행일+')':''}</td></tr>
+        <tr><td class="fw700">내용량(%)</td><td>${b.내용량||''}</td><td class="fw700">유리알칼리</td><td>${b.유리알칼리||''}</td></tr>
+        <tr><td class="fw700">바코드</td><td colspan="3">${b.바코드||''}</td></tr>
       </table>
     </div>
 
-    <div class="section-label">생산실적 기록</div>
-    ${prods.length===0?`<div class="empty-hint">아직 생산실적이 없습니다</div>`:''}
-    ${prods.map(p=>`
-      <div class="list-item" onclick="openProductionForm(${p.id})">
-        <div class="item-left">
-          <div class="item-title">${p.제품명||''}</div>
-          <div class="item-sub">${p.date||''} · ${p.수량||''}개 · ${p.채널||''}</div>
-        </div>
-        <div class="item-right">
-          <span class="badge ${p.유형==='출하'?'badge-green':p.유형==='생산'?'badge-mauve':'badge-gray'}">${p.유형||''}</span>
-        </div>
-      </div>`).join('')}
-    <button class="fab" onclick="openProductionForm()"><i class="ti ti-plus"></i></button>`;
-}
-
-/* ════ 문서 출력 ════ */
-async function renderOutput(el){
-  const now=new Date();
-  const y=now.getFullYear(),m=now.getMonth()+1;
-  const [hyg,batches]=await Promise.all([DB.getAll('hygiene'),DB.getAll('batches')]);
-  const allDates=[...hyg.map(h=>h.date),...batches.map(b=>b.date)].filter(Boolean).sort();
-  const earliest=allDates[0]||`${y}-01`;
-  const ey=+earliest.slice(0,4),em=+earliest.slice(5,7);
-
-  const periodDocs=[
-    {key:'cover',icon:'ti-id-badge',      name:'정기감시 제출용 표지', sub:'업체·기간 자동 기재'},
-    {key:'mh',  icon:'ti-clipboard-check',name:'위생점검기록서',       sub:'R-MH-01 청소 · R-MH-02 방충방서'},
-    {key:'mms', icon:'ti-package',         name:'원료입고기록서',        sub:'R-MMS-01 · 전체 원료'},
-    {key:'qcm', icon:'ti-check',           name:'완제품출하검사기록서', sub:'R-QCM-01/02 · 보관검체 포함'},
-    {key:'std', icon:'ti-book-2',          name:'4대 기준서',           sub:'EF-MMS-001 · EF-HMS-001 · EF-QCM-001'},
-  ];
-  const batchDocs=[
-    {key:'mi',icon:'ti-file-description',name:'제조지시서',  sub:'EF-MI · 원료배합표 포함'},
-    {key:'tr',icon:'ti-microscope',      name:'시험성적서',   sub:'EF-TR · KCL + 자사 육안검사'},
-    {key:'ps',icon:'ti-book',            name:'제품표준서',   sub:'EF-PS · 전성분 포함'},
-  ];
-
-  el.innerHTML=`
-    <div class="page-header"><h2 class="page-title">문서 출력</h2></div>
-
-    <div class="section-label">출력 기간 설정</div>
-    <div class="output-range-card">
-      <div class="range-row">
-        <span class="range-label">시작</span>
-        <div class="range-inputs">
-          <input type="number" id="s-year" value="${ey}" min="2024" max="${y+1}" style="width:68px">년
-          <input type="number" id="s-month" value="${em}" min="1" max="12" style="width:46px">월
-        </div>
+    ${b.레시피&&b.레시피.length>0?`
+    <div class="card full-width fade-in">
+      <div class="card-title mb12">원료 배합표</div>
+      <div style="overflow-x:auto">
+        <table class="data-table" style="font-size:12px;min-width:480px">
+          <thead><tr><th>No</th><th>원료명</th><th>INCI</th><th>이론량</th><th>비율</th><th>실사용량</th></tr></thead>
+          <tbody>${recipeRows}</tbody>
+        </table>
       </div>
-      <div class="range-divider">~</div>
-      <div class="range-row">
-        <span class="range-label">종료</span>
-        <div class="range-inputs">
-          <input type="number" id="e-year" value="${y}" min="2024" max="${y+1}" style="width:68px">년
-          <input type="number" id="e-month" value="${m}" min="1" max="12" style="width:46px">월
-        </div>
-      </div>
-    </div>
+    </div>`:''}
 
-    <div class="section-label mt16">📋 기간별 문서</div>
-    <div style="display:flex;gap:6px;padding:0 16px 8px">
-      <button class="btn-sm" onclick="toggleSection('period',true)">전체 선택</button>
-      <button class="btn-sm" onclick="toggleSection('period',false)">전체 해제</button>
-    </div>
-    <div class="doc-select-list">
-      ${periodDocs.map(d=>`
-        <label class="doc-check-row">
-          <input type="checkbox" id="chk-${d.key}" class="period-chk" ${d.key!=='std'?'checked':''}>
-          <div class="doc-check-info">
-            <div class="doc-check-name"><i class="ti ${d.icon}" style="color:var(--teal)"></i> ${d.name}</div>
-            <div class="doc-check-sub">${d.sub}</div>
-          </div>
-        </label>`).join('')}
-    </div>
+    ${b.전성분?`
+    <div class="card full-width fade-in">
+      <div class="card-title mb8">전성분</div>
+      <div style="font-size:12px;line-height:1.8;color:#555">${b.전성분}</div>
+    </div>`:''}
 
-    <div class="section-label mt16">📦 품목별 문서 종류</div>
-    <div style="display:flex;gap:6px;padding:0 16px 8px">
-      <button class="btn-sm" onclick="toggleSection('doctype',true)">전체 선택</button>
-      <button class="btn-sm" onclick="toggleSection('doctype',false)">전체 해제</button>
-    </div>
-    <div class="doc-select-list">
-      ${batchDocs.map(d=>`
-        <label class="doc-check-row">
-          <input type="checkbox" id="chk-${d.key}" class="doctype-chk" checked>
-          <div class="doc-check-info">
-            <div class="doc-check-name"><i class="ti ${d.icon}" style="color:var(--teal)"></i> ${d.name}</div>
-            <div class="doc-check-sub">${d.sub}</div>
-          </div>
-        </label>`).join('')}
-    </div>
+    ${b.알레르기?`
+    <div class="alert-banner warn full-width"><i class="ti ti-alert-circle"></i>
+      <div><strong>알레르기 유발성분(향료 유래)</strong><br><span style="font-size:12px">${b.알레르기}</span></div>
+    </div>`:''}
 
-    <div class="section-label mt16">출력할 제품 선택</div>
-    <div style="display:flex;gap:6px;padding:0 16px 8px">
-      <button class="btn-sm" onclick="toggleSection('batch',true)">전체 선택</button>
-      <button class="btn-sm" onclick="toggleSection('batch',false)">전체 해제</button>
+    <div class="flex gap8 full-width" style="margin-top:4px">
+      <button class="btn btn-secondary" style="flex:1" onclick="editBatch(${b.id})"><i class="ti ti-edit"></i> 수정</button>
+      <button class="btn btn-primary" style="flex:1" onclick="printBatchDocs(${b.id})"><i class="ti ti-printer"></i> 서류 출력</button>
     </div>
-    <div class="doc-select-list" style="margin-bottom:8px">
-      ${batches.length===0?`<div class="empty-hint" style="padding:14px">등록된 제품이 없습니다</div>`
-      :batches.map(b=>`
-        <label class="doc-check-row">
-          <input type="checkbox" class="batch-chk" data-id="${b.id}" checked>
-          <div class="doc-check-info">
-            <div class="doc-check-name">${b.제품명||''}</div>
-            <div class="doc-check-sub">${b.문서번호||''} · ${b.date||''} · <span class="badge ${badgeClass(b.상태)}" style="font-size:10px">${b.상태||''}</span></div>
-          </div>
-        </label>`).join('')}
-    </div>
-
-    <button class="output-btn" onclick="generatePDF()">
-      <i class="ti ti-printer"></i> 선택한 문서 PDF 생성
-    </button>
-
-    <div class="section-label mt20">📄 파일 업로드 자동 등록</div>
-    <div style="padding:0 16px 8px;font-size:12px;color:var(--text3)">기존 양식 파일 업로드 시 내용을 파싱하여 자동 등록합니다 (docx · txt)</div>
-    <div class="dropzone" onclick="document.getElementById('file-upload').click()"
-         ondragover="event.preventDefault();this.style.borderColor='var(--teal-dark)'"
-         ondragleave="this.style.borderColor=''"
-         ondrop="handleFileDrop(event)" style="margin:0 16px">
-      <div class="dropzone-icon">📄</div>
-      <div class="dropzone-text">파일을 드래그하거나 탭해서 선택</div>
-      <div class="dropzone-sub">제조지시서 · 제품표준서 · 위생점검 등</div>
-    </div>
-    <input type="file" id="file-upload" accept=".docx,.txt,.json" style="display:none" onchange="handleFileUpload(event)">
-    <div id="upload-result" style="padding:8px 16px;font-size:12px"></div>
-
-    <div class="section-label mt20">🗂 과거 이력 조회</div>
-    <div id="history-section"></div>`;
-
-  renderHistory(document.getElementById('history-section'),hyg,batches);
+    <div style="height:16px"></div>
+  `);
 }
 
-function toggleSection(cls, val) {
-  const sel = cls==='period'?'.period-chk':cls==='doctype'?'.doctype-chk':'.batch-chk';
-  document.querySelectorAll(sel).forEach(c=>c.checked=val);
-}
-
-/* 파일 업로드 파싱 */
-function handleFileDrop(e){e.preventDefault();const f=e.dataTransfer.files[0];if(f)processUploadedFile(f);}
-function handleFileUpload(e){const f=e.target.files[0];if(f)processUploadedFile(f);}
-
-async function processUploadedFile(file) {
-  const el = document.getElementById('upload-result');
-  if(!el) return;
-  el.innerHTML='<span style="color:var(--teal)">⏳ 파일 분석 중...</span>';
-  const name = file.name.toLowerCase();
-
-  try {
-    // docx → JSZip으로 XML 추출
-    if (name.endsWith('.docx') && window.JSZip) {
-      const buf = await file.arrayBuffer();
-      const zip = await JSZip.loadAsync(buf);
-      const xmlFile = zip.file('word/document.xml');
-      if (!xmlFile) throw new Error('document.xml 없음');
-      const xml = await xmlFile.async('string');
-      // XML 태그 제거해서 텍스트 추출
-      const text = xml.replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim();
-      await parseAndSaveDocument(name, text, file.name, el);
-    } else if (name.endsWith('.txt')) {
-      const text = await file.text();
-      await parseAndSaveDocument(name, text, file.name, el);
-    } else if (name.endsWith('.json')) {
-      const text = await file.text();
-      const data = JSON.parse(text);
-      // 배치 데이터인지 확인
-      if (data.제품명) {
-        await DB.add('batches', data);
-        el.innerHTML=`<span style="color:var(--teal-dark)">✅ <b>${data.제품명}</b> 배치 등록 완료</span>`;
-      } else {
-        el.innerHTML=`<span style="color:var(--text3)">JSON 형식이 맞지 않습니다. 배치 데이터(제품명 포함)만 지원합니다.</span>`;
-      }
-    } else {
-      el.innerHTML=`<span style="color:var(--text3)">지원 형식: .docx · .txt · .json</span>`;
-    }
-  } catch(e) {
-    el.innerHTML=`<span style="color:var(--red-text)">❌ 오류: ${e.message}</span>`;
-  }
-}
-
-async function parseAndSaveDocument(name, text, fileName, el) {
+async function addBatch(){
   const batches = await DB.getAll('batches');
+  const nextNum = batches.length + 1;
+  const today = new Date().toISOString().slice(0,10);
 
-  // 제조지시서 / 제품표준서 감지
-  if (name.includes('제조지시') || name.includes('ef-mi') || name.includes('제품표준') || name.includes('ef-ps') || name.includes('시험성적')) {
-    // 제품명 추출 시도
-    const productMatch = text.match(/에이브릴팜\s*([가-힣a-zA-Z\s]+비누)/);
-    const productName = productMatch ? productMatch[0].trim() : '';
-    const docnoMatch = text.match(/EF-[A-Z]{2}-\d{3}/);
-    const docNo = docnoMatch ? docnoMatch[0] : '';
-    const barcodeMatch = text.match(/87\d{10}/);
-    const barcode = barcodeMatch ? barcodeMatch[0] : '';
-
-    // 기존 배치 찾기
-    const existing = batches.find(b => productName && b.제품명 && b.제품명.includes(productName.replace('에이브릴팜 ','').trim()));
-
-    if (existing) {
-      // 업데이트
-      const updated = {...existing};
-      if (docNo && name.includes('제조지시')) updated.문서번호 = docNo;
-      if (docNo && name.includes('제품표준')) updated.비고 = docNo;
-      if (barcode) updated.바코드 = barcode;
-      await DB.put('batches', updated);
-      el.innerHTML=`<span style="color:var(--teal-dark)">✅ <b>${existing.제품명}</b> 데이터 업데이트 완료 (${fileName})</span>`;
-    } else {
-      // 새 배치로 등록
-      const newBatch = {제품명: productName||fileName.replace(/\.[^.]+$/,''), 문서번호:docNo, 바코드:barcode, 상태:'제조중'};
-      await DB.add('batches', newBatch);
-      el.innerHTML=`<span style="color:var(--teal-dark)">✅ <b>${newBatch.제품명}</b> 신규 배치 등록 완료 (${fileName})</span>`;
-    }
-    await renderTab('manufacture');
-  } else if (name.includes('위생') || name.includes('mh')) {
-    // 위생점검 데이터 파싱
-    const dateMatch = text.match(/20\d{2}[.\-\/]\d{1,2}[.\-\/]\d{1,2}/g);
-    if (dateMatch && dateMatch.length > 0) {
-      const date = dateMatch[0].replace(/[.\-\/]/g,'-').replace(/(\d{4})-(\d{1})-/,'$1-0$2-').replace(/-(\d{1})$/,'-0$1');
-      await DB.add('hygiene',{date,type:'청소점검',확인자:'변민정',status:'완료',items:{원료보관:'청결',부자재:'청결',완제품:'청결',작업대:'청결',도구류:'청결',포장실:'청결'}});
-      el.innerHTML=`<span style="color:var(--teal-dark)">✅ 위생점검 기록 등록 완료 (${date})</span>`;
-    } else {
-      el.innerHTML=`<span style="color:var(--text3)">⚠️ 날짜를 찾을 수 없습니다. 위생점검 탭에서 직접 입력해주세요.</span>`;
-    }
-  } else if (name.includes('원료') || name.includes('mms')) {
-    el.innerHTML=`<span style="color:var(--teal-dark)">✅ 원료입고 파일 감지. 재료·재고 탭에서 내용을 확인·수정해주세요.</span>`;
-  } else {
-    el.innerHTML=`<span style="color:var(--text3)">📄 <b>${fileName}</b> 업로드 완료. 파일 유형을 자동 감지하지 못했습니다. 해당 탭에서 직접 입력해주세요.</span>`;
-  }
+  openSheet('제조 추가', batchFormHtml({
+    date: today,
+    제조방법: 'CP법',
+    목표중량: '90g ±5g',
+    상태: '생산중',
+    이론수량: 11,
+    투입량: 1190,
+  }), `<button class="btn btn-primary btn-block" onclick="saveBatch(0)">저장</button>`);
 }
 
-/* 과거 이력 */
-function renderHistory(el, hyg, batches) {
-  const months={};
-  [...hyg,...batches].forEach(r=>{
-    const d=r.date||(r.createdAt&&r.createdAt.slice(0,10));
-    if(!d)return;
-    const ym=d.slice(0,7);
-    if(!months[ym])months[ym]={hyg:[],batch:[]};
-    if(r.type)months[ym].hyg.push(r);else months[ym].batch.push(r);
-  });
-  const sorted=Object.keys(months).sort().reverse();
-  if(!sorted.length){el.innerHTML='<div class="empty-hint">기록된 이력이 없습니다</div>';return;}
-  el.innerHTML=sorted.map(ym=>`
-    <div class="history-month-row" onclick="toggleHistory(this)">
-      <div class="history-month-title">${ym.replace('-','년 ')}월</div>
-      <div class="history-month-cnt">
-        <span class="badge badge-green">위생 ${months[ym].hyg.length}건</span>
-        ${months[ym].batch.length?`<span class="badge badge-mauve ml4">배치 ${months[ym].batch.length}건</span>`:''}
-      </div>
-      <i class="ti ti-chevron-down" style="color:var(--text3);font-size:14px;margin-left:auto"></i>
+async function editBatch(id){
+  const b = await DB.getOne('batches', id);
+  if(!b) return;
+  openSheet('제조 수정', batchFormHtml(b),
+    `<div class="flex gap8">
+      <button class="btn btn-danger" style="flex:1" onclick="deleteBatch(${id})"><i class="ti ti-trash"></i> 삭제</button>
+      <button class="btn btn-primary" style="flex:2" onclick="saveBatch(${id})">저장</button>
+    </div>`);
+}
+
+function batchFormHtml(b={}){
+  const statusOpts = ['생산중','재고있음','판매중','품절'];
+  return `
+    <div class="form-group">
+      <label class="form-label">제품명 *</label>
+      <input class="form-input" id="bat-name" placeholder="예: 에이브릴팜 당근비누" value="${b.제품명||''}">
     </div>
-    <div class="history-detail hide">
-      ${months[ym].hyg.map(r=>`
-        <div class="history-item" onclick="openHygieneEditForm(${r.id})" style="cursor:pointer">
-          <span class="history-date">${r.date||''}</span>
-          <span class="history-type">${r.type||''}</span>
-          <span class="badge ${r.status==='완료'?'badge-green':'badge-orange'}">${r.status||''}</span>
-          <i class="ti ti-edit" style="color:var(--text3);margin-left:auto"></i>
-        </div>`).join('')}
-      ${months[ym].batch.map(b=>`
-        <div class="history-item" onclick="openBatchForm(${b.id})" style="cursor:pointer">
-          <span class="history-date">${b.date||''}</span>
-          <span class="history-type">${b.제품명||''}</span>
-          <span class="badge ${badgeClass(b.상태)}">${b.상태||''}</span>
-          <i class="ti ti-edit" style="color:var(--text3);margin-left:auto"></i>
-        </div>`).join('')}
-      <button class="btn-sm" style="margin:8px 14px" onclick="printRangeMonth('${ym}')">이 달 PDF 출력</button>
-    </div>`).join('');
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">제조번호</label>
+        <input class="form-input" id="bat-batchno" placeholder="APBO10001-D1354" value="${b.제조번호||''}">
+      </div>
+      <div class="form-group">
+        <label class="form-label">문서번호</label>
+        <input class="form-input" id="bat-docno" placeholder="EF-MI-004" value="${b.문서번호||''}">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">제조일 *</label>
+        <input class="form-input" id="bat-date" type="date" value="${b.date||''}">
+      </div>
+      <div class="form-group">
+        <label class="form-label">제조방법</label>
+        <input class="form-input" id="bat-method" value="${b.제조방법||'CP법'}">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">투입량(g)</label>
+        <input class="form-input" id="bat-input" type="number" value="${b.투입량||''}">
+      </div>
+      <div class="form-group">
+        <label class="form-label">이론수량(개)</label>
+        <input class="form-input" id="bat-theory" type="number" value="${b.이론수량||''}">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">실제수량(개)</label>
+        <input class="form-input" id="bat-actual" type="number" value="${b.실제수량||''}">
+      </div>
+      <div class="form-group">
+        <label class="form-label">상태</label>
+        <select class="form-input" id="bat-status">
+          ${statusOpts.map(s=>`<option ${(b.상태||'생산중')===s?'selected':''}>${s}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">목표중량</label>
+        <input class="form-input" id="bat-tgtw" value="${b.목표중량||'90g ±5g'}">
+      </div>
+      <div class="form-group">
+        <label class="form-label">실측중량(g) <span style="color:var(--green)">✏️</span></label>
+        <input class="form-input" id="bat-actw" type="number" placeholder="직접 입력" value="${b.실측중량||''}">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">바코드</label>
+        <input class="form-input" id="bat-barcode" value="${b.바코드||''}">
+      </div>
+      <div class="form-group">
+        <label class="form-label">KCL 성적서번호</label>
+        <input class="form-input" id="bat-kcl" value="${b.KCL||''}">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">KCL 발행일</label>
+        <input class="form-input" id="bat-kcldate" type="date" value="${b.KCL발행일||''}">
+      </div>
+      <div class="form-group">
+        <label class="form-label">내용량(%)</label>
+        <input class="form-input" id="bat-content" value="${b.내용량||''}">
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">유리알칼리</label>
+      <input class="form-input" id="bat-alkali" value="${b.유리알칼리||'검출 안 됨'}">
+    </div>
+    <div class="form-group">
+      <label class="form-label">전성분</label>
+      <textarea class="form-input" id="bat-inci" rows="3">${b.전성분||''}</textarea>
+    </div>
+    <div class="form-group">
+      <label class="form-label">알레르기 유발성분(향료 유래)</label>
+      <input class="form-input" id="bat-allergy" value="${b.알레르기||''}">
+    </div>
+  `;
 }
 
-function toggleHistory(row){
-  const d=row.nextElementSibling;d.classList.toggle('hide');
-  const ic=row.querySelector('.ti-chevron-down');
-  if(ic)ic.style.transform=d.classList.contains('hide')?'':'rotate(180deg)';
-}
-async function printRangeMonth(ym){
-  const[y,m]=ym.split('-').map(Number);
-  const[hyg,ing,batches]=await Promise.all([DB.getAll('hygiene'),DB.getAll('ingredients'),DB.getAll('batches')]);
-  const sep='<div class="page-break"></div>';
-  openPrint(buildCover(y,m,y,m)+sep+buildMH(hyg,y,m)+sep+buildMMS(ing)+sep+buildQCM(batches));
-}
-
-/* ════ 원료 폼 ════ */
-async function openIngForm(id,defaultType){
-  const list=await DB.getAll('ingredients');
-  const item=id?list.find(i=>i.id===id):{};
-  const type=(item&&item.stockType)||defaultType||stockSubTab||'원료';
-  const ingCats=['베이스오일','버터·왁스','가성소다','정제수','첨가물·기능성','향료·색소','기타'];
-  const pkgCats=['단상자','선물박스','크라프트박스','라벨·스티커','수축필름','포장지','리본·끈','완충재','기타포장'];
-  const cats=type==='포장재'?pkgCats:ingCats;
-  showSheet(`
-    <div class="sheet-handle"></div><div class="sheet-inner">
-    <div class="sheet-title">${id?(type==='포장재'?'포장재 수정':'원료 수정'):(type==='포장재'?'포장재 추가':'원료 추가')}</div>
-    <label>구분<select id="f0" onchange="updateIngCats(this.value)">
-      <option ${type==='원료'?'selected':''}>원료</option>
-      <option ${type==='포장재'?'selected':''}>포장재</option>
-    </select></label>
-    <label>원료명 / 포장재명<input id="f1" value="${(item&&item.원료명)||''}"></label>
-    <label>제조처 / 공급처<input id="f2" value="${(item&&item.제조처)||''}"></label>
-    <label>수량 / 재고<input id="f3" value="${(item&&item.수량)||''}" placeholder="예: 500g, 100개"></label>
-    <label>입고일<input type="date" id="f8" value="${(item&&item.입고일)||''}"></label>
-    <label>카테고리<select id="f4">${cats.map(c=>`<option ${item&&item.category===c?'selected':''}>${c}</option>`).join('')}</select></label>
-    <label>CoA 수취<select id="f5">${['수취','미수취','미기입','해당없음'].map(c=>`<option ${item&&item.CoA===c?'selected':''}>${c}</option>`).join('')}</select></label>
-    <label>판정<select id="f6">${['적합','부적합','미기입'].map(c=>`<option ${item&&item.판정===c?'selected':''}>${c}</option>`).join('')}</select></label>
-    <label>비고<input id="f7" value="${(item&&item.비고)||''}"></label>
-    <div class="sheet-btns">
-      ${id?`<button class="btn-del" onclick="delItem('ingredients',${id})">삭제</button>`:''}
-      <button onclick="closeSheet()">취소</button>
-      <button class="btn-save" onclick="saveIng(${id||'null'})">저장</button>
-    </div></div>`);
-}
-function updateIngCats(t){
-  const ic=['베이스오일','버터·왁스','가성소다','정제수','첨가물·기능성','향료·색소','기타'];
-  const pc=['단상자','선물박스','크라프트박스','라벨·스티커','수축필름','포장지','리본·끈','완충재','기타포장'];
-  const s=document.getElementById('f4');
-  if(s)s.innerHTML=(t==='포장재'?pc:ic).map(c=>`<option>${c}</option>`).join('');
-}
-async function saveIng(id){
-  const type=v('f0');
-  const data={원료명:v('f1'),제조처:v('f2'),수량:v('f3'),입고일:v('f8'),category:v('f4'),CoA:v('f5'),판정:v('f6'),비고:v('f7'),stockType:type};
-  if(id)await DB.put('ingredients',{...data,id});else await DB.add('ingredients',data);
-  stockSubTab=type;closeSheet();await renderTab('stock');
-}
-
-/* ════ 배치 폼 ════ */
-async function openBatchForm(id){
-  const list=await DB.getAll('batches');
-  const item=id?list.find(b=>b.id===id):{};
-  let nextMI='';
-  if(!id){
-    const nums=list.map(b=>b.문서번호).filter(Boolean).map(n=>parseInt(n.replace(/[^0-9]/g,'')||'0')).filter(n=>!isNaN(n));
-    nextMI=`EF-MI-${String((nums.length?Math.max(...nums):5)+1).padStart(3,'0')}`;
-  }
-  showSheet(`
-    <div class="sheet-handle"></div><div class="sheet-inner">
-    <div class="sheet-title">${id?'배치 수정 ('+(item&&item.제품명||'')+')':'새 배치 추가'}</div>
-    <label>제품명<input id="b1" value="${(item&&item.제품명)||''}"></label>
-    <label>문서번호 (EF-MI)<input id="b2" value="${(item&&item.문서번호)||nextMI}"></label>
-    <label>제조번호<input id="b3" value="${(item&&item.제조번호)||''}"></label>
-    <label>제조일<input type="date" id="b4" value="${(item&&item.date)||''}"></label>
-    <label>제조방법<select id="b5">
-      <option ${item&&item.제조방법==='CP법'?'selected':''}>CP법</option>
-      <option ${item&&item.제조방법==='MP법'?'selected':''}>MP법</option>
-    </select></label>
-    <label>투입량 (g)<input type="number" id="b6" value="${(item&&item.투입량)||''}"></label>
-    <label>이론수량 (ea)<input type="number" id="b7" value="${(item&&item.이론수량)||''}"></label>
-    <label>실제수량 (ea)<input type="number" id="b8" value="${(item&&item.실제수량)||''}"></label>
-    <label>상태<select id="b9">${['제조중','숙성중','판매중','완료','부적합'].map(s=>`<option ${item&&item.상태===s?'selected':''}>${s}</option>`).join('')}</select></label>
-    <label>바코드 번호<input id="b15" placeholder="예: 8739101009095" value="${(item&&item.바코드)||''}">
-      <small style="color:var(--text3);font-size:11px">입력하면 제품 카드에 바코드가 생성됩니다</small>
-    </label>
-    <label>목표 중량<input id="b16" value="${(item&&item.목표중량)||'90g ±5g'}"></label>
-    <label>실측 중량 (g)<input type="number" id="b17" placeholder="예: 100" value="${(item&&item.실측중량)||''}"></label>
-    <label>색상 기준<input id="b18" value="${(item&&item.색상기준)||''}"></label>
-    <label>색상 결과<input id="b19" value="${(item&&item.색상결과)||'이상없음'}"></label>
-    <label>KCL 접수번호<input id="b10" value="${(item&&item.KCL)||''}"></label>
-    <label>KCL 접수일<input type="date" id="b20" value="${(item&&item.KCL접수일)||''}"></label>
-    <label>KCL 발행번호<input id="b21" value="${(item&&item.KCL발행번호)||''}"></label>
-    <label>KCL 발행일<input type="date" id="b22" value="${(item&&item.KCL발행일)||''}"></label>
-    <label>CT 성적서번호<input id="b23" value="${(item&&item.CT)||''}"></label>
-    <label>CT 내용량 (g)<input id="b24" value="${(item&&item.CT내용량)||''}"></label>
-    <label>CT 발행일<input type="date" id="b25" value="${(item&&item.CT발행일)||''}"></label>
-    <label>내용량 결과 (%)<input id="b11" placeholder="예: 103" value="${(item&&item.내용량)||''}"></label>
-    <label>유리알칼리 결과<input id="b12" placeholder="예: 검출 안 됨" value="${(item&&item.유리알칼리)||''}"></label>
-    <label>알레르기 유발성분<input id="b30" value="${(item&&item.알레르기)||''}"></label>
-    <label>전성분<textarea id="b26" rows="3">${(item&&item.전성분)||''}</textarea></label>
-    <label>이상여부<select id="b13">
-      <option ${item&&item.이상==='이상없음'?'selected':''}>이상없음</option>
-      <option ${item&&item.이상==='이상있음'?'selected':''}>이상있음</option>
-    </select></label>
-    <label>비고<input id="b14" value="${(item&&item.비고)||''}"></label>
-    <div class="sheet-btns">
-      ${id?`<button class="btn-del" onclick="delItem('batches',${id})">삭제</button>`:''}
-      <button onclick="closeSheet()">취소</button>
-      <button class="btn-save" onclick="saveBatch(${id||'null'})">저장</button>
-    </div></div>`);
-}
 async function saveBatch(id){
-  const data={
-    제품명:v('b1'),문서번호:v('b2'),제조번호:v('b3'),date:v('b4'),
-    제조방법:v('b5'),투입량:+v('b6'),이론수량:+v('b7'),실제수량:+v('b8'),
-    상태:v('b9'),바코드:v('b15'),목표중량:v('b16'),
-    실측중량:v('b17')?+v('b17'):null,
-    색상기준:v('b18'),색상결과:v('b19'),
-    KCL:v('b10'),KCL접수일:v('b20'),KCL발행번호:v('b21'),KCL발행일:v('b22'),
-    CT:v('b23'),CT내용량:v('b24'),CT발행일:v('b25'),
-    내용량:v('b11'),유리알칼리:v('b12'),
-    알레르기:v('b30'),전성분:v('b26'),이상:v('b13'),비고:v('b14')
+  const data = {
+    제품명: document.getElementById('bat-name').value.trim(),
+    제조번호: document.getElementById('bat-batchno').value.trim(),
+    문서번호: document.getElementById('bat-docno').value.trim(),
+    date: document.getElementById('bat-date').value,
+    제조방법: document.getElementById('bat-method').value.trim(),
+    투입량: parseFloat(document.getElementById('bat-input').value)||0,
+    이론수량: parseInt(document.getElementById('bat-theory').value)||0,
+    실제수량: parseInt(document.getElementById('bat-actual').value)||0,
+    상태: document.getElementById('bat-status').value,
+    목표중량: document.getElementById('bat-tgtw').value.trim(),
+    실측중량: parseFloat(document.getElementById('bat-actw').value)||0,
+    바코드: document.getElementById('bat-barcode').value.trim(),
+    KCL: document.getElementById('bat-kcl').value.trim(),
+    KCL발행일: document.getElementById('bat-kcldate').value,
+    내용량: document.getElementById('bat-content').value.trim(),
+    유리알칼리: document.getElementById('bat-alkali').value.trim(),
+    전성분: document.getElementById('bat-inci').value.trim(),
+    알레르기: document.getElementById('bat-allergy').value.trim(),
+    레시피: id>0 ? (await DB.getOne('batches',id)).레시피||[] : [],
   };
-  if(id){
-    const existing=await DB.getOne('batches',id);
-    if(existing&&existing.레시피)data.레시피=existing.레시피;
-    await DB.put('batches',{...data,id});
-  }else{await DB.add('batches',data);}
-  closeSheet();await renderTab('manufacture');
+  if(!data.제품명){ alert('제품명을 입력하세요.'); return; }
+  if(id>0){ data.id=id; await DB.put('batches', data); }
+  else { await DB.add('batches', data); }
+  closeSheet();
+  renderManufacture();
 }
 
-/* ════ 위생 폼 ════ */
-function openHygieneForm(preDate){
-  const ds=preDate||today.toISOString().split('T')[0];
-  showSheet(`
-    <div class="sheet-handle"></div><div class="sheet-inner">
-    <div class="sheet-title">위생 점검 기록</div>
-    <label>점검일<input type="date" id="h1" value="${ds}"></label>
-    <label>점검 유형<select id="h2" onchange="updateHygExtra()">${['청소점검','온도·습도','제조위생','방충방서'].map(t=>`<option>${t}</option>`).join('')}</select></label>
-    <div id="h-extra"></div>
-    <label>이슈 내용<input id="h5" placeholder="이상 없으면 비워두세요"></label>
-    <label>확인자<input id="h6" value="변민정"></label>
-    <div class="sheet-btns">
-      <button onclick="closeSheet()">취소</button>
-      <button class="btn-save" onclick="saveHyg(null)">저장</button>
-    </div></div>`);
-  updateHygExtra();
+async function deleteBatch(id){
+  if(!confirm('삭제하시겠습니까?')) return;
+  await DB.remove('batches', id);
+  closeSheet();
+  pageStack = [];
+  updateBackBtn();
+  renderManufacture();
 }
 
-async function openHygieneEditForm(id){
-  const list=await DB.getAll('hygiene');
-  const r=list.find(h=>h.id===id);
-  if(!r)return;
-  showSheet(`
-    <div class="sheet-handle"></div><div class="sheet-inner">
-    <div class="sheet-title">위생 점검 수정</div>
-    <label>점검일<input type="date" id="h1" value="${r.date||''}"></label>
-    <label>점검 유형<select id="h2" onchange="updateHygExtra()">${['청소점검','온도·습도','제조위생','방충방서'].map(t=>`<option ${r.type===t?'selected':''}>${t}</option>`).join('')}</select></label>
-    <div id="h-extra"></div>
-    <label>이슈 내용<input id="h5" value="${r.이슈||''}"></label>
-    <label>확인자<input id="h6" value="${r.확인자||'변민정'}"></label>
-    <div class="sheet-btns">
-      <button class="btn-del" onclick="delItem('hygiene',${id})">삭제</button>
-      <button onclick="closeSheet()">취소</button>
-      <button class="btn-save" onclick="saveHyg(${id})">저장</button>
-    </div></div>`);
-  setTimeout(()=>{
-    updateHygExtra();
-    if(r.type==='온도·습도'){const t=document.getElementById('h3'),h=document.getElementById('h4');if(t)t.value=r.온도||'';if(h)h.value=r.습도||'';}
-    else if(r.type==='방충방서'){const s=document.getElementById('h-screen'),p=document.getElementById('h-pest'),ro=document.getElementById('h-rodent');if(s)s.value=r.방충망||'양호';if(p)p.value=r.해충||'없음';if(ro)ro.value=r.설치류||'없음';}
-    else if(r.type==='청소점검'&&r.items){['원료보관','부자재','완제품','작업대','도구류','포장실'].forEach(k=>{const el=document.getElementById('h-'+k);if(el)el.value=r.items[k]||'청결';});}
-  },50);
+/* ============================================================
+   3. 생산실적 탭
+   ============================================================ */
+async function renderSales(){
+  const all = await DB.getAll('sales');
+  const items = all.slice().reverse();
+
+  const channels = ['스마트스토어','에이블리','쿠팡','오프라인','자체몰','기타'];
+
+  const listHtml = items.length===0
+    ? `<div class="empty-state full-width"><i class="ti ti-chart-bar"></i>
+        <p>생산실적이 없습니다.<br>아래 버튼으로 추가하세요</p>
+        <button class="empty-action" onclick="addSale()"><i class="ti ti-plus"></i> 실적 추가</button></div>`
+    : items.map((s, idx)=>`
+        <div class="list-item" onclick="editSale(${s.id})">
+          <span class="item-no">${items.length-idx}</span>
+          <div class="list-item-body">
+            <div class="list-item-title">${s.product}</div>
+            <div class="list-item-sub">${s.date} · ${s.channel||''} · ${s.qty}개</div>
+          </div>
+          <div class="list-item-right">
+            <div class="fw700 fs14">${(s.price||(0)).toLocaleString()}원</div>
+            <div class="fs12 color-text2">${s.qty}개</div>
+          </div>
+        </div>`).join('');
+
+  setContent(`
+    <div class="section-hd full-width">
+      <span class="section-title">생산실적 (${all.length})</span>
+      <button class="section-action" onclick="addSale()"><i class="ti ti-plus"></i> 추가</button>
+    </div>
+    ${listHtml}
+    <div style="height:16px"></div>
+  `);
 }
 
-function updateHygExtra(){
-  const sel=document.getElementById('h2'),el=document.getElementById('h-extra');
-  if(!sel||!el)return;
-  if(sel.value==='온도·습도'){
-    el.innerHTML=`<label>온도 (°C)<input type="number" id="h3" placeholder="예: 23"></label><label>습도 (%)<input type="number" id="h4" placeholder="예: 58"></label>`;
-  }else if(sel.value==='방충방서'){
-    el.innerHTML=`<label>방충망<select id="h-screen"><option>양호</option><option>불량</option></select></label><label>해충<select id="h-pest"><option>없음</option><option>있음</option></select></label><label>설치류<select id="h-rodent"><option>없음</option><option>있음</option></select></label>`;
-  }else if(sel.value==='청소점검'){
-    el.innerHTML=['원료보관','부자재','완제품','작업대','도구류','포장실'].map(k=>`<label>${k}<select id="h-${k}"><option>청결</option><option>불량</option></select></label>`).join('');
-  }else{el.innerHTML='';}
+function addSale(){
+  const today = new Date().toISOString().slice(0,10);
+  openSheet('생산실적 추가', saleFormHtml({date:today}),
+    `<button class="btn btn-primary btn-block" onclick="saveSale(0)">저장</button>`);
 }
 
-async function saveHyg(id){
-  const type=v('h2');
-  const data={date:v('h1'),type,확인자:v('h6'),이슈:v('h5'),status:'완료'};
-  if(type==='온도·습도'){data.온도=+v('h3');data.습도=+v('h4');if(data.온도>35||data.습도>80)data.status='문제임박';}
-  else if(type==='방충방서'){data.방충망=v('h-screen')||'양호';data.해충=v('h-pest')||'없음';data.설치류=v('h-rodent')||'없음';if(data.해충==='있음'||data.설치류==='있음')data.status='문제임박';}
-  else if(type==='청소점검'){data.items={원료보관:v('h-원료보관')||'청결',부자재:v('h-부자재')||'청결',완제품:v('h-완제품')||'청결',작업대:v('h-작업대')||'청결',도구류:v('h-도구류')||'청결',포장실:v('h-포장실')||'청결'};}
-  if(id)await DB.put('hygiene',{...data,id});else await DB.add('hygiene',data);
-  closeSheet();await renderTab('hygiene');
+async function editSale(id){
+  const s = await DB.getOne('sales', id);
+  if(!s) return;
+  openSheet('생산실적 수정', saleFormHtml(s),
+    `<div class="flex gap8">
+      <button class="btn btn-danger" style="flex:1" onclick="deleteSale(${id})"><i class="ti ti-trash"></i></button>
+      <button class="btn btn-primary" style="flex:3" onclick="saveSale(${id})">저장</button>
+    </div>`);
 }
 
-/* ════ 생산실적 폼 ════ */
-async function openProductionForm(id){
-  const [list,batches]=await Promise.all([DB.getAll('production'),DB.getAll('batches')]);
-  const item=id?list.find(p=>p.id===id):{};
-  const ds=today.toISOString().split('T')[0];
-  showSheet(`
-    <div class="sheet-handle"></div><div class="sheet-inner">
-    <div class="sheet-title">${id?'생산실적 수정':'생산실적 추가'}</div>
-    <label>날짜<input type="date" id="p1" value="${(item&&item.date)||ds}"></label>
-    <label>제품명
-      <select id="p2">
-        ${batches.map(b=>`<option ${item&&item.제품명===b.제품명?'selected':''}>${b.제품명}</option>`).join('')}
-        <option ${item&&!batches.find(b=>b.제품명===item.제품명)?'selected':''}>직접입력</option>
+function saleFormHtml(s={}){
+  const channels = ['스마트스토어','에이블리','쿠팡','오프라인','자체몰','기타'];
+  return `
+    <div class="form-group">
+      <label class="form-label">제품명 *</label>
+      <input class="form-input" id="sale-product" placeholder="예: 에이브릴팜 당근비누" value="${s.product||''}">
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">날짜</label>
+        <input class="form-input" id="sale-date" type="date" value="${s.date||''}">
+      </div>
+      <div class="form-group">
+        <label class="form-label">수량(개)</label>
+        <input class="form-input" id="sale-qty" type="number" value="${s.qty||1}">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">단가(원)</label>
+        <input class="form-input" id="sale-price" type="number" value="${s.price||0}">
+      </div>
+      <div class="form-group">
+        <label class="form-label">판매채널 <span style="color:var(--green);font-size:11px">수정 가능</span></label>
+        <input class="form-input" id="sale-channel" list="channel-list" value="${s.channel||''}">
+        <datalist id="channel-list">
+          ${['스마트스토어','에이블리','쿠팡','오프라인','자체몰','기타'].map(c=>`<option value="${c}">`).join('')}
+        </datalist>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">배치/제조번호</label>
+      <input class="form-input" id="sale-batchno" value="${s.batchNo||''}">
+    </div>
+    <div class="form-group">
+      <label class="form-label">메모</label>
+      <textarea class="form-input" id="sale-note" rows="2">${s.note||''}</textarea>
+    </div>`;
+}
+
+async function saveSale(id){
+  const data = {
+    product: document.getElementById('sale-product').value.trim(),
+    date: document.getElementById('sale-date').value,
+    qty: parseInt(document.getElementById('sale-qty').value)||1,
+    price: parseInt(document.getElementById('sale-price').value)||0,
+    channel: document.getElementById('sale-channel').value.trim(),
+    batchNo: document.getElementById('sale-batchno').value.trim(),
+    note: document.getElementById('sale-note').value.trim(),
+  };
+  if(!data.product){ alert('제품명을 입력하세요.'); return; }
+  if(id>0){ data.id=id; await DB.put('sales',data); }
+  else { await DB.add('sales',data); }
+  closeSheet();
+  renderSales();
+}
+
+async function deleteSale(id){
+  if(!confirm('삭제하시겠습니까?')) return;
+  await DB.remove('sales',id);
+  closeSheet();
+  renderSales();
+}
+
+/* ============================================================
+   4. 위생 점검 탭
+   ============================================================ */
+async function renderHygiene(){
+  const all = await DB.getAll('hygiene');
+  const now = new Date();
+  const nowStr = now.toISOString().slice(0,10);
+
+  // 밀린 점검 계산
+  const startOfWeek = new Date(now);
+  startOfWeek.setDate(now.getDate() - now.getDay());
+  const weekStr = startOfWeek.toISOString().slice(0,10);
+
+  const thisMonthStr = nowStr.slice(0,7);
+  const hasWeeklyClean = all.some(h=> h.type==='청소점검' && h.date >= weekStr);
+  const hasMonthlyPest = all.some(h=> h.type==='방충방서' && h.date.startsWith(thisMonthStr));
+
+  let alertHtml = '';
+  const missed = [];
+  if(!hasWeeklyClean) missed.push('이번 주 청소점검 미작성');
+  if(!hasMonthlyPest) missed.push('이번 달 방충방서 점검 미작성');
+  if(missed.length > 0){
+    alertHtml = `<div class="alert-banner warn full-width"><i class="ti ti-bell"></i>
+      <div><strong>밀린 점검 ${missed.length}건</strong><br>
+      <span style="font-size:12px">${missed.join(' / ')}</span></div>
+    </div>`;
+  }
+
+  const recent = all.slice().sort((a,b)=>b.date.localeCompare(a.date)).slice(0,30);
+
+  const typeIcon = t => ({
+    '청소점검':'<i class="ti ti-spray" style="color:var(--green)"></i>',
+    '방충방서':'<i class="ti ti-bug" style="color:var(--amber)"></i>',
+    '설비점검':'<i class="ti ti-tool" style="color:var(--rose)"></i>',
+  }[t]||'<i class="ti ti-check"></i>');
+
+  const listHtml = recent.length===0
+    ? `<div class="empty-state full-width"><i class="ti ti-clipboard-check"></i>
+        <p>위생 점검 기록이 없습니다</p>
+        <button class="empty-action" onclick="addHygiene()"><i class="ti ti-plus"></i> 점검 추가</button></div>`
+    : recent.map((h, idx)=>`
+        <div class="list-item" onclick="editHygiene(${h.id})">
+          <div style="width:28px;text-align:center;font-size:18px">${typeIcon(h.type)}</div>
+          <div class="list-item-body">
+            <div class="list-item-title">${h.type}</div>
+            <div class="list-item-sub">${h.date} · ${h.확인자||'변민정'}</div>
+          </div>
+          <div class="list-item-right">
+            <span class="badge ${h.status==='완료'?'badge-green':'badge-amber'}">${h.status||'완료'}</span>
+          </div>
+        </div>`).join('');
+
+  setContent(`
+    ${alertHtml}
+    <div class="section-hd full-width">
+      <span class="section-title">점검 기록 (${all.length})</span>
+      <button class="section-action" onclick="addHygiene()"><i class="ti ti-plus"></i> 추가</button>
+    </div>
+    ${all.length===0?'':listHtml}
+    ${all.length===0?'':all.length>30?`<div class="text-center mt8"><span class="fs12 color-text2">최근 30건 표시</span></div>`:''}
+    <div style="height:16px"></div>
+  `);
+}
+
+function addHygiene(){
+  const today = new Date().toISOString().slice(0,10);
+  openSheet('위생 점검 추가', hygieneFormHtml({date:today,확인자:'변민정',status:'완료'}),
+    `<button class="btn btn-primary btn-block" onclick="saveHygiene(0)">저장</button>`);
+}
+
+async function editHygiene(id){
+  const h = await DB.getOne('hygiene', id);
+  if(!h) return;
+  openSheet('위생 점검 수정', hygieneFormHtml(h),
+    `<div class="flex gap8">
+      <button class="btn btn-danger" style="flex:1" onclick="deleteHygiene(${id})"><i class="ti ti-trash"></i></button>
+      <button class="btn btn-primary" style="flex:3" onclick="saveHygiene(${id})">저장</button>
+    </div>`);
+}
+
+function hygieneFormHtml(h={}){
+  const types = ['청소점검','방충방서','설비점검','기타'];
+  const cleanItems = ['원료보관','부자재','완제품','작업대','도구류','포장실'];
+  const t = h.type||'청소점검';
+  const items = h.items||{};
+
+  const cleanHtml = cleanItems.map(k=>`
+    <div class="form-row" style="align-items:center;gap:8px;margin-bottom:8px">
+      <span style="flex:1;font-size:13px">${k}</span>
+      <select class="form-input form-input-sm" id="clean-${k}" style="flex:1;max-width:120px">
+        <option value="청결" ${(items[k]||'청결')==='청결'?'selected':''}>✓ 청결</option>
+        <option value="불량" ${items[k]==='불량'?'selected':''}>✗ 불량</option>
       </select>
-    </label>
-    <label>수량 (개)<input type="number" id="p3" value="${(item&&item.수량)||''}"></label>
-    <label>유형<select id="p4">
-      ${['생산','출하','반품','폐기'].map(t=>`<option ${item&&item.유형===t?'selected':''}>${t}</option>`).join('')}
-    </select></label>
-    <label>판매 채널<select id="p5">
-      ${['아이디어스','스마트스토어','신세계 꿈상회','고향사랑기부제','직접판매','기타'].map(c=>`<option ${item&&item.채널===c?'selected':''}>${c}</option>`).join('')}
-    </select></label>
-    <label>비고<input id="p6" value="${(item&&item.비고)||''}"></label>
-    <div class="sheet-btns">
-      ${id?`<button class="btn-del" onclick="delItem('production',${id})">삭제</button>`:''}
-      <button onclick="closeSheet()">취소</button>
-      <button class="btn-save" onclick="saveProd(${id||'null'})">저장</button>
-    </div></div>`);
-}
-async function saveProd(id){
-  const data={date:v('p1'),제품명:v('p2'),수량:+v('p3'),유형:v('p4'),채널:v('p5'),비고:v('p6')};
-  if(id)await DB.put('production',{...data,id});else await DB.add('production',data);
-  closeSheet();await renderTab('production');
-}
+    </div>`).join('');
 
-/* ════ 공통 ════ */
-function v(id){const el=document.getElementById(id);return el?el.value:'';}
-function drow(l,val){return `<div class="drow"><span class="drow-l">${l}</span><span class="drow-r">${val||'-'}</span></div>`;}
-function badgeClass(val){
-  if(['적합','판매중','완료','이상없음','수취'].includes(val))return 'badge-green';
-  if(['미기입','미수취','숙성중','제조중'].includes(val))return 'badge-orange';
-  if(['부적합','이상있음','문제임박'].includes(val))return 'badge-red';
-  return 'badge-gray';
-}
-function toggleCard(hd){hd.nextElementSibling.classList.toggle('hide');}
-function toggleCheck(item){const done=item.classList.toggle('checked');const c=item.querySelector('.check-circle');if(c)c.innerHTML=done?'<i class="ti ti-check"></i>':'';}
-async function saveChecklist(){await DB.add('hygiene',{date:today.toISOString().split('T')[0],type:'제조위생',확인자:'변민정',status:'완료'});alert('제조 점검 완료 저장!');await renderTab('mfcheck');}
-function changeMonth(d){calMonth+=d;if(calMonth<0){calMonth=11;calYear--;}if(calMonth>11){calMonth=0;calYear++;}renderTab('hygiene');}
-function showSheet(html){document.getElementById('sheet-body').innerHTML=html;document.getElementById('sheet').classList.remove('hide');document.getElementById('sheet-overlay').classList.remove('hide');}
-function closeSheet(){document.getElementById('sheet').classList.add('hide');document.getElementById('sheet-overlay').classList.add('hide');}
-async function delItem(store,id){if(!confirm('삭제할까요?'))return;await DB.remove(store,id);closeSheet();await renderTab(currentTab);}
-
-/* window 노출 */
-window.startApp=startApp;
-window.switchStockTab=switchStockTab;
-window.openIngForm=openIngForm;window.saveIng=saveIng;window.updateIngCats=updateIngCats;
-window.openBatchForm=openBatchForm;window.saveBatch=saveBatch;
-window.openHygieneForm=openHygieneForm;window.openHygieneEditForm=openHygieneEditForm;
-window.updateHygExtra=updateHygExtra;window.saveHyg=saveHyg;
-window.openProductionForm=openProductionForm;window.saveProd=saveProd;
-window.closeSheet=closeSheet;window.delItem=delItem;
-window.toggleCard=toggleCard;window.toggleCheck=toggleCheck;window.saveChecklist=saveChecklist;
-window.changeMonth=changeMonth;window.selectDate=selectDate;window.clearDateFilter=clearDateFilter;
-window.toggleHistory=toggleHistory;window.printRangeMonth=printRangeMonth;
-window.toggleSection=toggleSection;
-window.handleFileDrop=handleFileDrop;window.handleFileUpload=handleFileUpload;
-
-document.addEventListener('DOMContentLoaded',init);
-
-/* ════ 바코드 관리 ════ */
-async function renderBarcode(el) {
-  await DB.seedBarcodes();
-  const list = await DB.getAll('barcodes');
-  const active = list.filter(b => b.상태 !== '단종');
-  const discontinued = list.filter(b => b.상태 === '단종');
-
-  el.innerHTML = `
-    <div class="page-header">
-      <h2 class="page-title">바코드 · 제조번호 관리</h2>
-    </div>
-    <div class="summary-row">
-      <div class="sum-chip sum-mauve">전체 ${list.length}개</div>
-      <div class="sum-chip sum-green">활성 ${active.length}개</div>
-      <div class="sum-chip sum-orange">단종 ${discontinued.length}개</div>
-    </div>
-
-    <!-- 바코드 생성기 -->
-    <div class="bc-generator">
-      <div class="bc-gen-title"><i class="ti ti-barcode"></i> 새 바코드 생성기</div>
-      <div class="bc-gen-body">
-        <div class="bc-gen-row">
-          <div class="bc-gen-field">
-            <div class="bc-gen-label">사업자번호</div>
-            <input id="bc-prefix" value="8739" style="width:60px;text-align:center" readonly>
-          </div>
-          <div class="bc-gen-sep">/</div>
-          <div class="bc-gen-field">
-            <div class="bc-gen-label">소분류 <span style="color:var(--text3);font-size:10px">3자리</span></div>
-            <input id="bc-sub" maxlength="3" placeholder="033" style="width:54px;text-align:center" oninput="updateBarcodePreview()">
-          </div>
-          <div class="bc-gen-sep">/</div>
-          <div class="bc-gen-field">
-            <div class="bc-gen-label">비번호 <span style="color:var(--text3);font-size:10px">3자리</span></div>
-            <input id="bc-num" maxlength="3" style="width:54px;text-align:center" oninput="updateBarcodePreview()">
-          </div>
-          <div class="bc-gen-sep">/</div>
-          <div class="bc-gen-field">
-            <div class="bc-gen-label">개수 <span style="color:var(--text3);font-size:10px">2자리</span></div>
-            <input id="bc-qty" maxlength="2" placeholder="09" style="width:44px;text-align:center" oninput="updateBarcodePreview()">
-          </div>
-        </div>
-        <div class="bc-preview-area">
-          <div id="bc-preview-code" style="font-size:18px;font-weight:700;color:var(--teal-dark);letter-spacing:2px;margin-bottom:4px">입력하면 자동 생성</div>
-          <div id="bc-check-info" style="font-size:11px;color:var(--text3);margin-bottom:8px"></div>
-          <svg id="bc-preview-svg" style="max-width:100%"></svg>
-        </div>
-
-        <!-- 제조번호 생성기 -->
-        <div style="border-top:1px solid var(--border);padding-top:12px;margin-top:4px">
-          <div class="bc-gen-label" style="margin-bottom:8px">제조번호 생성 (AP·B·시리즈·월·비번호)</div>
-          <div class="bc-gen-row" style="flex-wrap:wrap;gap:8px">
-            <div class="bc-gen-field">
-              <div class="bc-gen-label">시리즈 코드</div>
-              <select id="mn-series" onchange="updateMfgNoPreview()" style="padding:6px 8px;border:1.5px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);font-family:inherit;font-size:13px">
-                <option value="O">O — 오렌지</option>
-                <option value="P">P — 퍼플</option>
-                <option value="G">G — 그린</option>
-                <option value="YG">YG — 옐로그린</option>
-                <option value="SS">SS — 봄/여름</option>
-                <option value="SF">SF — 여름/가을</option>
-                <option value="FW">FW — 가을/겨울</option>
-                <option value="GS">GS — 굿즈</option>
-                <option value="BS">BS — 베이직/선인장</option>
-                <option value="W">W — 화이트</option>
-              </select>
-            </div>
-            <div class="bc-gen-field">
-              <div class="bc-gen-label">기획 월 <span style="color:var(--text3);font-size:10px">2자리</span></div>
-              <input id="mn-month" maxlength="2" placeholder="03" style="width:44px;text-align:center" oninput="updateMfgNoPreview()">
-            </div>
-          </div>
-          <div id="mn-preview" style="margin-top:8px;font-size:16px;font-weight:700;color:var(--mauve);letter-spacing:1px">—</div>
-        </div>
-
-        <button class="btn-sm solid" style="margin-top:12px;width:100%;padding:11px" onclick="saveBarcodeFromGen()">
-          <i class="ti ti-plus" style="margin-right:6px"></i>위 바코드로 제품 등록
-        </button>
+  const pestHtml = `
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">방충망 상태</label>
+        <select class="form-input" id="pest-net">
+          <option value="양호" ${(h.방충망||'양호')==='양호'?'selected':''}>양호</option>
+          <option value="불량" ${h.방충망==='불량'?'selected':''}>불량</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">해충 발견</label>
+        <select class="form-input" id="pest-bug">
+          <option value="없음" ${(h.해충||'없음')==='없음'?'selected':''}>없음</option>
+          <option value="있음" ${h.해충==='있음'?'selected':''}>있음</option>
+        </select>
       </div>
     </div>
-
-    <!-- 제품 목록 -->
-    <div class="section-label mt16">전체 제품 바코드 목록</div>
-    <div style="padding:0 16px 8px;display:flex;gap:6px">
-      <button class="btn-sm ${bcFilter==='all'?'solid':''}" onclick="setBcFilter('all')">전체</button>
-      <button class="btn-sm ${bcFilter==='active'?'solid':''}" onclick="setBcFilter('active')">활성</button>
-      <button class="btn-sm ${bcFilter==='discontinued'?'solid':''}" onclick="setBcFilter('discontinued')">단종</button>
+    <div class="form-group">
+      <label class="form-label">설치류</label>
+      <select class="form-input" id="pest-rodent">
+        <option value="없음" ${(h.설치류||'없음')==='없음'?'selected':''}>없음</option>
+        <option value="있음" ${h.설치류==='있음'?'selected':''}>있음</option>
+      </select>
     </div>
-    ${(bcFilter==='discontinued'?discontinued:bcFilter==='active'?active:list).map(b => `
-      <div class="bc-item" onclick="openBarcodeDetail(${b.id})">
-        <div class="bc-item-num">${String(b.번호||'').padStart(2,'0')}</div>
-        <div class="bc-item-info">
-          <div class="bc-item-name">${b.제품명||''}${b.상태==='단종'?' <span style="color:var(--text3);font-size:10px">[단종]</span>':''}</div>
-          <div class="bc-item-code">${formatBarcode(b.바코드12||'')} <span style="color:var(--teal-dark);font-weight:700">${b.체크디지트??''}</span></div>
-          ${b.제조번호?`<div class="bc-item-mfg">${b.제조번호}</div>`:''}
-        </div>
-        <div class="bc-item-actions">
-          <button class="icon-btn" onclick="event.stopPropagation();showBarcodeOnly(${b.id})" title="바코드 크게 보기"><i class="ti ti-barcode"></i></button>
-        </div>
-      </div>`).join('')}
-    <button class="fab" onclick="openBarcodeForm()"><i class="ti ti-plus"></i></button>`;
+    <div class="form-group">
+      <label class="form-label">조치 내용</label>
+      <textarea class="form-input" id="pest-action" rows="2">${h.조치||''}</textarea>
+    </div>`;
 
-  // 비번호 자동채번
-  const maxNum = Math.max(...list.map(b=>parseInt(b.비번호||'0')||0));
-  const nextNum = String(maxNum+1).padStart(3,'0');
-  const numEl = document.getElementById('bc-num');
-  if(numEl) numEl.value = nextNum;
-  updateBarcodePreview();
-  updateMfgNoPreview();
-}
-
-let bcFilter = 'all';
-function setBcFilter(f){bcFilter=f;renderTab('barcode');}
-
-function formatBarcode(d12) {
-  if(!d12||d12.length<12) return d12||'';
-  return `${d12.slice(0,4)}/${d12.slice(4,7)}/${d12.slice(7,10)}/${d12.slice(10,12)}`;
-}
-
-function updateBarcodePreview() {
-  const prefix = document.getElementById('bc-prefix')?.value||'8739';
-  const sub  = (document.getElementById('bc-sub')?.value||'').padStart(3,'0');
-  const num  = (document.getElementById('bc-num')?.value||'').padStart(3,'0');
-  const qty  = (document.getElementById('bc-qty')?.value||'').padStart(2,'0');
-  const d12  = prefix+sub+num+qty;
-  if(d12.length!==12||!/^\d+$/.test(d12)){
-    document.getElementById('bc-preview-code').textContent='입력을 완성해주세요';
-    return;
-  }
-  const check = DB.calcCheckDigit(d12);
-  const full  = d12+check;
-  document.getElementById('bc-preview-code').textContent = formatBarcode(d12)+' '+check+' = '+full;
-  document.getElementById('bc-check-info').textContent  = `체크디지트: ${check} (EAN-13 자동계산)`;
-  if(window.JsBarcode){
-    try{JsBarcode('#bc-preview-svg',full,{format:'EAN13',width:2,height:60,displayValue:true,fontSize:12});}catch(e){}
-  }
-}
-
-function updateMfgNoPreview() {
-  const series = document.getElementById('mn-series')?.value||'O';
-  const month  = (document.getElementById('mn-month')?.value||'').padStart(2,'0');
-  const num    = (document.getElementById('bc-num')?.value||'').padStart(3,'0');
-  const mfgNo  = `APB${series}${month}${num}`;
-  const el     = document.getElementById('mn-preview');
-  if(el) el.textContent = mfgNo;
-}
-
-function showBarcodeOnly(id) {
-  DB.getOne('barcodes', id).then(b => {
-    if(!b) return;
-    const full = b.바코드전체||'';
-    const tbUrl = `https://www.terryburton.co.uk/barcodewriter/generator/#bcid=ean13&text=${full}&includetext&guardwhitespace`;
-    showSheet(`
-      <div class="sheet-handle"></div>
-      <div class="sheet-inner">
-      <div class="sheet-title">${b.제품명||''}</div>
-      <div style="text-align:center;padding:12px 0 8px">
-        <svg id="bc-large"></svg>
+  return `
+    <div class="form-group">
+      <label class="form-label">점검 유형</label>
+      <select class="form-input" id="hyg-type" onchange="refreshHygieneSubform()">
+        ${types.map(t2=>`<option ${(h.type||'청소점검')===t2?'selected':''}>${t2}</option>`).join('')}
+      </select>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">점검일</label>
+        <input class="form-input" id="hyg-date" type="date" value="${h.date||''}">
       </div>
-      <div class="bc-detail-box">
-        <div class="bc-detail-row">
-          <span class="bc-detail-label">바코드 번호</span>
-          <span class="bc-detail-val" id="bc-copy-val">${formatBarcode(b.바코드12||'')} <strong style="color:var(--teal-dark)">${b.체크디지트??''}</strong></span>
-          <button class="icon-btn" onclick="copyText('${full}')" title="복사"><i class="ti ti-copy"></i></button>
-        </div>
-        <div class="bc-detail-row">
-          <span class="bc-detail-label">전체 13자리</span>
-          <span class="bc-detail-val mono">${full}</span>
-        </div>
-        ${b.제조번호?`<div class="bc-detail-row">
-          <span class="bc-detail-label">제조번호</span>
-          <span class="bc-detail-val" style="color:var(--mauve-dark);font-weight:700">${b.제조번호}</span>
-        </div>`:''}
-        ${b.제조일?`<div class="bc-detail-row"><span class="bc-detail-label">제조일자</span><span class="bc-detail-val">${b.제조일}</span></div>`:''}
-        ${b.유통기한?`<div class="bc-detail-row"><span class="bc-detail-label">유통기한</span><span class="bc-detail-val">${b.유통기한}</span></div>`:''}
+      <div class="form-group">
+        <label class="form-label">확인자</label>
+        <input class="form-input" id="hyg-checker" value="${h.확인자||'변민정'}">
       </div>
-
-      <!-- Terry Burton + 다운로드 버튼 -->
-      <div style="display:flex;flex-direction:column;gap:8px;margin-top:12px">
-        <a href="${tbUrl}" target="_blank" class="bc-action-btn bc-btn-terry">
-          <i class="ti ti-external-link"></i>
-          Terry Burton 사이트에서 SVG · EPS · PDF 생성
-        </a>
-        <button class="bc-action-btn bc-btn-svg" onclick="downloadBarcodeSVG('bc-large','${b.제품명||'barcode'}')">
-          <i class="ti ti-download"></i>
-          SVG 파일 다운로드
-        </button>
-        <button class="bc-action-btn bc-btn-png" onclick="downloadBarcodePNG('bc-large','${b.제품명||'barcode'}')">
-          <i class="ti ti-photo-down"></i>
-          PNG 파일 다운로드
-        </button>
-      </div>
-      <div class="bc-terry-tip">
-        <i class="ti ti-info-circle"></i>
-        Terry Burton 사이트에서: Barcode=EAN-13 선택 → Contents에 <strong>${full}</strong> 입력 → 형식(SVG/EPS) 선택 후 다운로드
-      </div>
-
-      <div class="sheet-btns" style="margin-top:12px">
-        <button onclick="closeSheet()">닫기</button>
-        <button class="btn-save" onclick="printBarcodeLabel('${full}','${b.제품명||''}','${b.제조번호||''}')">🖨 라벨 인쇄</button>
-      </div>
-      </div>`);
-    setTimeout(()=>{
-      if(window.JsBarcode&&full){
-        try{JsBarcode('#bc-large',full,{format:'EAN13',width:3,height:80,displayValue:true,fontSize:14});}catch(e){}
-      }
-    },100);
-  });
+    </div>
+    <div class="form-group">
+      <label class="form-label">결과</label>
+      <select class="form-input" id="hyg-status">
+        <option value="완료" ${(h.status||'완료')==='완료'?'selected':''}>완료</option>
+        <option value="이슈있음" ${h.status==='이슈있음'?'selected':''}>이슈있음</option>
+      </select>
+    </div>
+    <div id="hyg-subform">
+      ${t==='청소점검'?cleanHtml:t==='방충방서'?pestHtml:''}
+    </div>
+    <div class="form-group">
+      <label class="form-label">비고</label>
+      <textarea class="form-input" id="hyg-note" rows="2">${h.비고||''}</textarea>
+    </div>`;
 }
 
-/* 바코드 SVG 다운로드 */
-function downloadBarcodeSVG(svgId, name) {
-  const svg = document.getElementById(svgId);
-  if(!svg) return;
-  const data = new XMLSerializer().serializeToString(svg);
-  const blob = new Blob([data], {type:'image/svg+xml'});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url; a.download = name.replace(/\s/g,'_')+'_barcode.svg';
-  a.click(); URL.revokeObjectURL(url);
+function refreshHygieneSubform(){
+  const t = document.getElementById('hyg-type').value;
+  const sub = document.getElementById('hyg-subform');
+  const cleanItems = ['원료보관','부자재','완제품','작업대','도구류','포장실'];
+  if(t==='청소점검'){
+    sub.innerHTML = cleanItems.map(k=>`
+      <div class="form-row" style="align-items:center;gap:8px;margin-bottom:8px">
+        <span style="flex:1;font-size:13px">${k}</span>
+        <select class="form-input form-input-sm" id="clean-${k}" style="flex:1;max-width:120px">
+          <option value="청결">✓ 청결</option><option value="불량">✗ 불량</option>
+        </select>
+      </div>`).join('');
+  } else if(t==='방충방서'){
+    sub.innerHTML = `
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">방충망</label>
+          <select class="form-input" id="pest-net"><option>양호</option><option>불량</option></select></div>
+        <div class="form-group"><label class="form-label">해충</label>
+          <select class="form-input" id="pest-bug"><option>없음</option><option>있음</option></select></div>
+      </div>
+      <div class="form-group"><label class="form-label">설치류</label>
+        <select class="form-input" id="pest-rodent"><option>없음</option><option>있음</option></select></div>
+      <div class="form-group"><label class="form-label">조치</label>
+        <textarea class="form-input" id="pest-action" rows="2"></textarea></div>`;
+  } else { sub.innerHTML = ''; }
 }
 
-/* 바코드 PNG 다운로드 */
-function downloadBarcodePNG(svgId, name) {
-  const svg = document.getElementById(svgId);
-  if(!svg) return;
-  const data = new XMLSerializer().serializeToString(svg);
-  const canvas = document.createElement('canvas');
-  const img = new Image();
-  const svgBlob = new Blob([data],{type:'image/svg+xml;charset=utf-8'});
-  const url = URL.createObjectURL(svgBlob);
-  img.onload = () => {
-    canvas.width = img.width; canvas.height = img.height;
-    const ctx = canvas.getContext('2d');
-    ctx.fillStyle='#fff'; ctx.fillRect(0,0,canvas.width,canvas.height);
-    ctx.drawImage(img,0,0);
-    const a=document.createElement('a');
-    a.href=canvas.toDataURL('image/png');
-    a.download=name.replace(/\s/g,'_')+'_barcode.png';
-    a.click(); URL.revokeObjectURL(url);
+async function saveHygiene(id){
+  const t = document.getElementById('hyg-type').value;
+  const cleanItems = ['원료보관','부자재','완제품','작업대','도구류','포장실'];
+  const data = {
+    type: t,
+    date: document.getElementById('hyg-date').value,
+    확인자: document.getElementById('hyg-checker').value.trim(),
+    status: document.getElementById('hyg-status').value,
+    비고: document.getElementById('hyg-note').value.trim(),
   };
-  img.src = url;
+  if(t==='청소점검'){
+    data.items = {};
+    cleanItems.forEach(k=>{ const el=document.getElementById('clean-'+k); if(el) data.items[k]=el.value; });
+  } else if(t==='방충방서'){
+    data.방충망 = (document.getElementById('pest-net')||{}).value||'양호';
+    data.해충   = (document.getElementById('pest-bug')||{}).value||'없음';
+    data.설치류 = (document.getElementById('pest-rodent')||{}).value||'없음';
+    data.조치   = (document.getElementById('pest-action')||{}).value||'';
+  }
+  if(!data.date){ alert('날짜를 입력하세요.'); return; }
+  if(id>0){ data.id=id; await DB.put('hygiene',data); }
+  else { await DB.add('hygiene',data); }
+  closeSheet();
+  checkHygieneBadge();
+  renderHygiene();
 }
 
-/* 텍스트 복사 */
-function copyText(text) {
-  navigator.clipboard.writeText(text).then(()=>alert('복사됨: '+text)).catch(()=>{
-    const el=document.createElement('input');el.value=text;document.body.appendChild(el);el.select();document.execCommand('copy');document.body.removeChild(el);alert('복사됨: '+text);
-  });
+async function deleteHygiene(id){
+  if(!confirm('삭제하시겠습니까?')) return;
+  await DB.remove('hygiene',id);
+  closeSheet();
+  renderHygiene();
 }
 
-/* 바코드 라벨 인쇄 */
-function printBarcodeLabel(barcode, name, mfgNo) {
+/* ============================================================
+   5. 문서 출력 탭
+   ============================================================ */
+async function renderOutput(){
+  const batches = await DB.getAll('batches');
+  const now = new Date();
+  const curY = now.getFullYear(), curM = now.getMonth()+1;
+
+  const batchOpts = batches.map(b=>`<option value="${b.id}">${b.제품명} (${b.제조번호||b.date})</option>`).join('');
+
+  setContent(`
+    <div class="card full-width">
+      <div class="card-title mb12">📄 제품별 서류 출력</div>
+      <div class="form-group">
+        <label class="form-label">제품 선택</label>
+        <select class="form-input" id="out-batch">
+          <option value="">-- 제품을 선택하세요 --</option>
+          ${batchOpts}
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">출력할 서류 (1개 이상 선택)</label>
+        <div class="doc-grid">
+          ${[
+            ['mi','제조지시서'],['tr','시험성적서'],['ps','제품표준서'],
+            ['mms','원료입고기록서'],['qcm','완제품출하검사'],['mh','위생점검기록']
+          ].map(([v,l])=>`
+            <div class="doc-check" onclick="toggleDocCheck(this)" data-val="${v}">
+              <label><input type="checkbox" value="${v}" onclick="event.stopPropagation()"> ${l}</label>
+            </div>`).join('')}
+        </div>
+      </div>
+      <button class="btn btn-primary btn-block" onclick="printSelectedDocs()">
+        <i class="ti ti-printer"></i> PDF 출력
+      </button>
+    </div>
+
+    <div class="card full-width mt12">
+      <div class="card-title mb12">📅 월별 위생점검 기록 출력</div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">연도</label>
+          <select class="form-input" id="out-year">
+            ${[curY-1,curY,curY+1].map(y=>`<option ${y===curY?'selected':''}>${y}</option>`).join('')}
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">월</label>
+          <select class="form-input" id="out-month">
+            ${Array.from({length:12},(_,i)=>`<option value="${i+1}" ${i+1===curM?'selected':''}>${i+1}월</option>`).join('')}
+          </select>
+        </div>
+      </div>
+      <button class="btn btn-secondary btn-block" onclick="printMonthlyHygiene()">
+        <i class="ti ti-file-text"></i> 이달의 위생점검 출력
+      </button>
+    </div>
+
+    <div class="card full-width mt12">
+      <div class="card-title mb12">📁 파일 업로드 & 자동 등록</div>
+      <p style="font-size:13px;color:var(--text2);margin-bottom:12px">KCL 성적서 PDF를 업로드하면 제품에 자동 연결됩니다</p>
+      <div style="border:2px dashed var(--border);border-radius:10px;padding:20px;text-align:center;cursor:pointer" onclick="document.getElementById('file-upload').click()">
+        <i class="ti ti-upload" style="font-size:28px;color:var(--text3);display:block;margin-bottom:8px"></i>
+        <span style="font-size:13px;color:var(--text2)">파일을 여기에 드래그하거나 클릭하여 업로드</span>
+        <input type="file" id="file-upload" style="display:none" accept=".pdf,.jpg,.png,.docx" multiple onchange="handleFileUpload(this)">
+      </div>
+      <div id="upload-result" style="margin-top:8px;font-size:13px;color:var(--green)"></div>
+    </div>
+    <div style="height:16px"></div>
+  `);
+}
+
+function toggleDocCheck(el){
+  el.classList.toggle('selected');
+  const cb = el.querySelector('input[type=checkbox]');
+  if(cb) cb.checked = !cb.checked;
+}
+
+async function printSelectedDocs(){
+  const batchId = parseInt(document.getElementById('out-batch').value||'0');
+  const checked = [...document.querySelectorAll('.doc-check.selected')].map(el=>el.dataset.val);
+
+  if(!batchId){ alert('제품을 선택해 주세요.'); return; }
+  if(checked.length === 0){ alert('출력할 서류를 1개 이상 선택해 주세요.'); return; }
+
+  const b = await DB.getOne('batches', batchId);
+  if(!b){ alert('제품 정보를 찾을 수 없습니다.'); return; }
+
   const win = window.open('','_blank');
-  win.document.write(`<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><title>바코드 라벨</title>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.6/JsBarcode.all.min.js"><\/script>
-  <style>
-    body{margin:0;display:flex;justify-content:center;align-items:center;min-height:100vh;background:#fff;font-family:'Noto Sans KR',sans-serif;}
-    .label{text-align:center;padding:12px 16px;border:1px solid #ccc;border-radius:6px;display:inline-block;}
-    .lname{font-size:12px;font-weight:700;margin-bottom:6px;color:#111;}
-    .lmfg{font-size:10px;color:#666;margin-top:4px;}
-    @media print{@page{margin:4mm}button{display:none}}
-  </style></head><body>
-  <div class="label">
-    <div class="lname">${name}</div>
-    <svg id="bc-print"></svg>
-    ${mfgNo?`<div class="lmfg">제조번호: ${mfgNo}</div>`:''}
-  </div>
-  <script>
-    JsBarcode('#bc-print','${barcode}',{format:'EAN13',width:2.5,height:70,displayValue:true,fontSize:13});
-    setTimeout(()=>window.print(),500);
-  <\/script>
-  </body></html>`);
+  if(!win){ alert('팝업 차단을 해제해 주세요.'); return; }
+
+  let sections = '';
+  if(checked.includes('mi'))  sections += buildMI(b);
+  if(checked.includes('tr'))  sections += buildTR(b);
+  if(checked.includes('ps'))  sections += buildPS(b);
+  if(checked.includes('mms')) sections += buildMMS(b);
+  if(checked.includes('qcm')) sections += buildQCM(b);
+  if(checked.includes('mh')){
+    const hygs = await DB.getAll('hygiene');
+    sections += buildMH(hygs, b);
+  }
+
+  win.document.write(wrapPrint(sections));
   win.document.close();
+  setTimeout(()=>win.print(), 700);
 }
 
-function openBarcodeDetail(id) {
-  DB.getOne('barcodes', id).then(b=>{
-    if(!b) return;
-    openBarcodeForm(id);
-  });
+async function printBatchDocs(id){
+  const b = await DB.getOne('batches', id);
+  if(!b) return;
+  const win = window.open('','_blank');
+  if(!win){ alert('팝업 차단을 해제해 주세요.'); return; }
+  win.document.write(wrapPrint(buildMI(b)+buildTR(b)+buildPS(b)));
+  win.document.close();
+  setTimeout(()=>win.print(), 700);
 }
 
-function openBarcodeForm(id) {
-  const p = id ? DB.getOne('barcodes',id) : Promise.resolve({});
-  p.then(item => {
-    if(!item) item = {};
-    showSheet(`
-      <div class="sheet-handle"></div>
-      <div class="sheet-inner">
-      <div class="sheet-title">${id?'바코드 수정':'바코드 신규 등록'}</div>
-      <label>제품명<input id="bf-name" value="${item.제품명||''}"></label>
-      <label>소분류 (3자리)<input id="bf-sub" maxlength="3" value="${item.소분류||''}"></label>
-      <label>비번호 (3자리)<input id="bf-num" maxlength="3" value="${item.비번호||''}"></label>
-      <label>개수 (2자리)<input id="bf-qty" maxlength="2" value="${item.개수||''}"></label>
-      <label>제조번호<input id="bf-mfg" value="${item.제조번호||''}"></label>
-      <label>제조일자<input id="bf-date" value="${item.제조일||''}"></label>
-      <label>유통기한<input id="bf-exp" value="${item.유통기한||''}"></label>
-      <label>상태<select id="bf-status">
-        <option ${item.상태==='활성'?'selected':''}>활성</option>
-        <option ${item.상태==='단종'?'selected':''}>단종</option>
-      </select></label>
-      <label>비고<input id="bf-note" value="${item.비고||''}"></label>
-      <div class="sheet-btns">
-        ${id?`<button class="btn-del" onclick="delItem('barcodes',${id})">삭제</button>`:''}
-        <button onclick="closeSheet()">취소</button>
-        <button class="btn-save" onclick="saveBarcodeForm(${id||'null'})">저장</button>
+async function printMonthlyHygiene(){
+  const year  = parseInt(document.getElementById('out-year').value);
+  const month = parseInt(document.getElementById('out-month').value);
+  const ym = `${year}-${String(month).padStart(2,'0')}`;
+  const all = await DB.getAll('hygiene');
+  const recs = all.filter(h=>h.date&&h.date.startsWith(ym));
+  const win = window.open('','_blank');
+  if(!win){ alert('팝업 차단을 해제해 주세요.'); return; }
+  win.document.write(wrapPrint(buildMH(recs, null, year, month)));
+  win.document.close();
+  setTimeout(()=>win.print(), 700);
+}
+
+function handleFileUpload(input){
+  const files = [...input.files];
+  const res = document.getElementById('upload-result');
+  if(files.length===0) return;
+  res.innerHTML = `<i class="ti ti-check" style="color:var(--green)"></i> ${files.length}개 파일 업로드됨: ${files.map(f=>f.name).join(', ')}<br><span style="color:var(--text3);font-size:11px">※ 실제 파일은 기기에만 저장됩니다. 서류 출력 시 첨부서류로 활용하세요.</span>`;
+}
+
+/* ── 문서 빌더 함수들 ── */
+function wrapPrint(body){
+  return `<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;600;700&display=swap');
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:'Noto Sans KR','Apple SD Gothic Neo',sans-serif;font-size:10px;color:#111;padding:16px}
+    h2{font-size:14px;font-weight:700;margin-bottom:3px}
+    h3{font-size:12px;font-weight:700;margin:12px 0 6px}
+    .doc-meta{font-size:9px;color:#666;margin-bottom:12px}
+    table{width:100%;border-collapse:collapse;margin-bottom:10px}
+    th,td{padding:4px 7px;border:0.5px solid #bbb;vertical-align:top;font-size:9.5px}
+    th{background:#f5f5f0;font-weight:700}
+    .doc-section{margin-bottom:20px;page-break-inside:avoid}
+    .doc-separator{border:none;border-top:1.5px solid #333;margin:16px 0}
+    .footer{margin-top:12px;font-size:8.5px;color:#888;border-top:0.5px solid #ccc;padding-top:6px}
+    @media print{body{padding:8px}button{display:none}.doc-section{page-break-inside:avoid}}
+  </style></head><body>
+  ${body}
+  <div class="footer">화장품제조업 등록번호 제6494호 · 책임판매업 등록번호 제18216호 · 에이브릴팜 · 경기도 시흥시 진말1로 18, 에스엠타워 303호 · 출력일: ${new Date().toLocaleDateString('ko-KR')}</div>
+  </body></html>`;
+}
+
+function buildMI(b){
+  const rows = (b.레시피||[]).map(r=>`<tr>
+    <td>${r.no}</td><td>${r.원료}</td><td>${r.INCI||''}</td>
+    <td>${r.이론량}g</td><td>${r.비율||''}%</td><td>${r.실사용량||r.이론량}g</td><td>□</td></tr>`).join('');
+  return `<div class="doc-section">
+    <h2>에이브릴팜 제조지시서</h2>
+    <div class="doc-meta">문서번호: ${b.문서번호||'EF-MI'} · 제정일자: ${b.date||''} · 개정번호: Rev.01 · 작성/확인: 변민정</div>
+    <table><tr><th>제품명</th><td>${b.제품명}</td><th>제조번호</th><td>${b.제조번호||''}</td></tr>
+    <tr><th>제조일</th><td>${b.date||''}</td><th>사용기한</th><td>제조일로부터 2년</td></tr>
+    <tr><th>제조방법</th><td>${b.제조방법||'CP법'}</td><th>투입량</th><td>${b.투입량||''}g</td></tr>
+    <tr><th>이론수량</th><td>${b.이론수량||''}개</td><th>실제수량</th><td>${b.실제수량||''}개</td></tr>
+    <tr><th>목표중량</th><td>${b.목표중량||''}</td><th>실측중량</th><td>${b.실측중량||''}g</td></tr></table>
+    <h3>▶ 원료 배합표</h3>
+    <table><thead><tr><th>No</th><th>원료명</th><th>INCI</th><th>이론량</th><th>비율</th><th>실사용량</th><th>확인</th></tr></thead>
+    <tbody>${rows}</tbody></table>
+    ${b.알레르기?`<p style="font-size:9px;color:#555">※ 알레르기 유발성분(향료 유래): ${b.알레르기}</p>`:''}
+    <table style="margin-top:8px"><tr><th>이상여부</th><td>■ 이상 없음 □ 이상 있음</td></tr></table>
+  </div><hr class="doc-separator">`;
+}
+
+function buildTR(b){
+  const rawRows = (b.레시피||[]).map(r=>`<tr>
+    <td>${r.no}</td><td>${r.원료}</td><td>${r.INCI||''}</td>
+    <td>성상·이물</td><td>이상없음</td><td>■적합 □부적합</td><td>변민정</td></tr>`).join('');
+  return `<div class="doc-section">
+    <h2>에이브릴팜 시험성적서 — ${b.제품명}</h2>
+    <div class="doc-meta">문서번호: EF-TR · 제정일자: ${b.date||''} · 개정번호: Rev.00 · ■관리본</div>
+    <h3>▶ ① 원자재 시험성적서 (자사 육안검사)</h3>
+    <table><thead><tr><th>No</th><th>원료명</th><th>제조처/로트번호</th><th>시험항목</th><th>시험성적</th><th>판정</th><th>시험자</th></tr></thead>
+    <tbody>${rawRows}</tbody></table>
+    <h3>▶ ② 완제품 시험성적서 — KCL 공식 품질검사</h3>
+    <table>
+      <tr><th>제품명</th><td>${b.제품명}</td><th>제조번호</th><td>${b.제조번호||''}</td></tr>
+      <tr><th>KCL 성적서</th><td>${b.KCL||''}</td><th>발행일</th><td>${b.KCL발행일||''}</td></tr>
+    </table>
+    <table><thead><tr><th>시험항목</th><th>단위</th><th>기준</th><th>결과</th><th>판정</th></tr></thead>
+    <tbody>
+      <tr><td>내용량(건조)</td><td>%</td><td>97 이상</td><td>${b.내용량||''}</td><td>■ 적합</td></tr>
+      <tr><td>유리알칼리</td><td>%</td><td>0.1 이하</td><td>${b.유리알칼리||'검출 안 됨'}</td><td>■ 적합</td></tr>
+    </tbody></table>
+    <h3>▶ ③ 자사 완제품 육안검사</h3>
+    <table><thead><tr><th>검사항목</th><th>기준</th><th>결과</th><th>판정</th><th>시험자</th></tr></thead>
+    <tbody>
+      <tr><td>성상</td><td>고형, 표면 균일, 이물 없음</td><td>이상없음</td><td>■적합</td><td>변민정</td></tr>
+      <tr><td>색상</td><td>기준색상</td><td>이상없음</td><td>■적합</td><td>변민정</td></tr>
+      <tr><td>이물</td><td>불검출</td><td>■불검출</td><td>■적합</td><td>변민정</td></tr>
+      <tr><td>중량(건조)</td><td>${b.목표중량||'90g ±5g'}</td><td>${b.실측중량||''}g</td><td>■적합</td><td>변민정</td></tr>
+    </tbody></table>
+    <table><tr><th>종합판정</th><td>■ 출하 승인 □ 출하 보류</td></tr>
+    <tr><th>총괄책임자</th><td>변민정 (인)</td></tr></table>
+  </div><hr class="doc-separator">`;
+}
+
+function buildPS(b){
+  const rows = (b.레시피||[]).map(r=>`<tr>
+    <td>${r.no}</td><td>${r.원료}</td><td>${r.INCI||''}</td>
+    <td>${r.이론량}g</td><td>${r.비율||''}%</td></tr>`).join('');
+  return `<div class="doc-section">
+    <h2>에이브릴팜 제품표준서 — ${b.제품명}</h2>
+    <div class="doc-meta">문서번호: EF-PS · 제정일자: ${b.date||''} · 개정번호: Rev.00 · ■관리본</div>
+    <table>
+      <tr><th>제품명</th><td>${b.제품명}</td><th>내용량</th><td>90g (건조기준)</td></tr>
+      <tr><th>바코드</th><td>${b.바코드||''}</td><th>제조방법</th><td>${b.제조방법||'CP법'}</td></tr>
+      <tr><th>사용기한</th><td>제조일로부터 2년</td><th>보관방법</th><td>직사광선 피해 서늘하고 건조한 곳</td></tr>
+    </table>
+    <h3>▶ 원료 배합표</h3>
+    <table><thead><tr><th>No</th><th>원료명</th><th>INCI</th><th>이론량</th><th>비율</th></tr></thead>
+    <tbody>${rows}</tbody></table>
+    <h3>▶ 전성분</h3>
+    <p style="font-size:9.5px;line-height:1.7">${b.전성분||''}</p>
+    ${b.알레르기?`<p style="font-size:9px;color:#555;margin-top:6px">※ 알레르기 유발성분: ${b.알레르기}</p>`:''}
+    <h3>▶ 품질기준</h3>
+    <table><thead><tr><th>검사항목</th><th>기준</th><th>시험방법</th><th>시험기관</th></tr></thead>
+    <tbody>
+      <tr><td>내용량(건조)</td><td>97% 이상</td><td>화장품 안전기준 등에 관한 규정</td><td>KCL (위탁)</td></tr>
+      <tr><td>유리알칼리</td><td>0.1% 이하</td><td>화장품 안전기준 등에 관한 규정</td><td>KCL (위탁)</td></tr>
+      <tr><td>성상/색상</td><td>고형, 이물 없음</td><td>육안검사</td><td>자사</td></tr>
+      <tr><td>중량(건조)</td><td>${b.목표중량||'90g ±5g'}</td><td>저울 계량</td><td>자사</td></tr>
+    </tbody></table>
+    <table style="margin-top:8px"><tr><th>총괄책임자</th><td>변민정 (인)</td><th>작성일</th><td>${b.date||''}</td></tr></table>
+  </div><hr class="doc-separator">`;
+}
+
+function buildMMS(b){
+  const rows = (b.레시피||[]).map(r=>`<tr>
+    <td></td><td>${r.원료}</td><td></td><td></td>
+    <td>■양호□불량</td><td>■수취□미수취</td>
+    <td>■이상없음□이상있음</td><td>■없음□있음</td><td>■이상없음□이상있음</td>
+    <td>■적합□부적합</td><td>변민정</td></tr>`).join('');
+  return `<div class="doc-section">
+    <h2>에이브릴팜 원료입고기록서 (R-MMS-01)</h2>
+    <div class="doc-meta">제정일자: 2026.05.27 · 개정번호: Rev.00 · 작성자: 변민정 · ■관리본</div>
+    <table style="min-width:600px"><thead><tr>
+      <th>입고일</th><th>원료명</th><th>제조처/로트</th><th>수량</th>
+      <th>포장상태</th><th>CoA수취</th><th>성상</th><th>이물</th><th>색상</th><th>판정</th><th>확인자</th>
+    </tr></thead><tbody>${rows}</tbody></table>
+  </div><hr class="doc-separator">`;
+}
+
+function buildQCM(b){
+  return `<div class="doc-section">
+    <h2>에이브릴팜 완제품 출하검사 기록 (R-QCM-01)</h2>
+    <div class="doc-meta">제정일자: 2026.05.27 · 개정번호: Rev.00 · 작성자: 변민정 · ■관리본</div>
+    <table><thead><tr>
+      <th>검사일</th><th>제품명/제조번호</th><th>KCL성적서</th><th>성상</th><th>색상</th><th>이물</th><th>중량(g)</th><th>표시사항</th><th>종합판정</th><th>확인자</th>
+    </tr></thead><tbody>
+    <tr>
+      <td>${new Date().toLocaleDateString('ko-KR')}</td>
+      <td>${b.제품명} / ${b.제조번호||''}</td>
+      <td>■확인 □미확인</td>
+      <td>■이상없음 □이상있음</td>
+      <td>■이상없음 □이상있음</td>
+      <td>■없음 □있음</td>
+      <td>${b.실측중량||''}g</td>
+      <td>■확인 □미확인</td>
+      <td>■적합 □부적합</td>
+      <td>변민정</td>
+    </tr>
+    </tbody></table>
+    <p style="font-size:8.5px;color:#666;margin-top:4px">※ KCL 성적서: ${b.KCL||''} (${b.KCL발행일||''})</p>
+  </div><hr class="doc-separator">`;
+}
+
+function buildMH(hygs=[], b=null, year=null, month=null){
+  const now = new Date();
+  const y = year||now.getFullYear(), m = month||(now.getMonth()+1);
+  const ym = `${y}-${String(m).padStart(2,'0')}`;
+  const recs = hygs.filter(h=>!h.date||h.date.startsWith(ym));
+
+  const cleanRows = recs.filter(h=>h.type==='청소점검').map(h=>{
+    const it = h.items||{};
+    return `<tr>
+      <td>${h.date}</td>
+      <td>${it['원료보관']||''}</td><td>${it['부자재']||''}</td><td>${it['완제품']||''}</td>
+      <td>${it['작업대']||''}</td><td>${it['도구류']||''}</td><td>${it['포장실']||''}</td>
+      <td>${h.확인자||'변민정'}</td></tr>`;
+  }).join('');
+
+  const pestRows = recs.filter(h=>h.type==='방충방서').map(h=>`<tr>
+    <td>${h.date}</td><td>${h.방충망||'양호'}</td><td>${h.해충||'없음'}</td>
+    <td>${h.설치류||'없음'}</td><td>${h.조치||''}</td><td>${h.확인자||'변민정'}</td></tr>`).join('');
+
+  return `<div class="doc-section">
+    <h2>에이브릴팜 위생관리 기록 (R-MH)</h2>
+    <div class="doc-meta">출력 기간: ${y}년 ${m}월 · 문서번호: EF-HMS-001 · 출력일: ${now.toLocaleDateString('ko-KR')}</div>
+    <h3>▶ R-MH-01 작업장 청소점검표</h3>
+    ${cleanRows?`<table><thead><tr><th>날짜</th><th>원료보관</th><th>부자재</th><th>완제품</th><th>작업대</th><th>도구류</th><th>포장실</th><th>확인자</th></tr></thead>
+    <tbody>${cleanRows}</tbody></table>`:'<p style="color:#888;font-size:9px">해당 월 청소점검 기록 없음</p>'}
+    <h3>▶ R-MH-02 방충·방서 점검표</h3>
+    ${pestRows?`<table><thead><tr><th>날짜</th><th>방충망</th><th>해충</th><th>설치류</th><th>조치</th><th>확인자</th></tr></thead>
+    <tbody>${pestRows}</tbody></table>`:'<p style="color:#888;font-size:9px">해당 월 방충방서 기록 없음</p>'}
+  </div>`;
+}
+
+/* ============================================================
+   6. 바코드 탭
+   ============================================================ */
+async function renderBarcode(){
+  const batches = await DB.getAll('batches');
+  const batchOpts = batches.map(b=>`<option value="${b.id}" data-bc="${b.바코드||''}">${b.제품명}</option>`).join('');
+
+  setContent(`
+    <div class="card full-width">
+      <div class="card-title mb12">🔢 바코드 생성</div>
+      <div class="alert-banner info full-width mb12">
+        <i class="ti ti-info-circle"></i>
+        <div style="font-size:12px">
+          <strong>바코드 부여 안내</strong><br>
+          이 바코드는 <strong>개인(자체) 바코드</strong>로, 표준유통바코드(GS1)와 다릅니다.
+          GS1 공식 바코드는 <strong>대한상공회의소 유통물류진흥원</strong>에서 별도 신청이 필요합니다.
+          자체 바코드는 내부 관리·재고 추적 용도로 활용하세요.
+        </div>
       </div>
-      </div>`);
-  });
+      <div class="form-group">
+        <label class="form-label">제품 선택</label>
+        <select class="form-input" id="bc-product" onchange="loadProductBarcode()">
+          <option value="">-- 제품을 선택하세요 --</option>
+          ${batchOpts}
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">바코드 번호 (직접 입력 가능)</label>
+        <input class="form-input" id="bc-number" placeholder="숫자 12~13자리" oninput="generateBarcode()">
+        <div class="form-hint">12자리 입력 시 체크디짓 자동 계산 · 13자리 입력 시 그대로 사용</div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">시리즈 코드 <span style="color:var(--green);font-size:11px">직접 입력 가능</span></label>
+        <input class="form-input" id="bc-series" placeholder="예: -001, -A, -2024 (선택)" oninput="generateBarcode()">
+        <div class="form-hint">바코드 하단에 표기될 시리즈 코드 (선택사항)</div>
+      </div>
+      <div id="bc-preview" class="barcode-wrap mt12" style="display:none">
+        <svg id="bc-svg"></svg>
+        <div class="barcode-number" id="bc-display"></div>
+      </div>
+      <div class="flex gap8 mt12">
+        <button class="btn btn-secondary" style="flex:1" onclick="generateBarcode()"><i class="ti ti-refresh"></i> 미리보기</button>
+        <button class="btn btn-primary" style="flex:1" onclick="printBarcode()"><i class="ti ti-printer"></i> 출력</button>
+      </div>
+    </div>
+
+    <div class="card full-width mt12">
+      <div class="card-title mb12">등록 바코드 목록</div>
+      ${batches.filter(b=>b.바코드).map(b=>`
+        <div class="list-item" onclick="document.getElementById('bc-product').value='${b.id}';loadProductBarcode()">
+          <div class="list-item-body">
+            <div class="list-item-title">${b.제품명}</div>
+            <div class="list-item-sub">${b.바코드}</div>
+          </div>
+          <i class="ti ti-barcode" style="color:var(--text3);font-size:20px"></i>
+        </div>`).join('')}
+    </div>
+    <div style="height:16px"></div>
+  `);
 }
 
-async function saveBarcodeForm(id) {
-  const sub=v('bf-sub').padStart(3,'0'), num=v('bf-num').padStart(3,'0'), qty=v('bf-qty').padStart(2,'0');
-  const d12=`8739${sub}${num}${qty}`;
-  const check=DB.calcCheckDigit(d12);
-  const data={
-    제품명:v('bf-name'), 소분류:sub, 비번호:num, 개수:qty,
-    제조번호:v('bf-mfg'), 제조일:v('bf-date'), 유통기한:v('bf-exp'),
-    상태:v('bf-status'), 비고:v('bf-note'),
-    바코드12:d12, 체크디지트:check, 바코드전체:d12+check
+function loadProductBarcode(){
+  const sel = document.getElementById('bc-product');
+  const opt = sel.options[sel.selectedIndex];
+  const bc = opt?.dataset?.bc || '';
+  document.getElementById('bc-number').value = bc;
+  if(bc) generateBarcode();
+}
+
+function generateBarcode(){
+  const raw = document.getElementById('bc-number').value.replace(/\D/g,'');
+  const series = document.getElementById('bc-series').value.trim();
+  if(raw.length < 12){ document.getElementById('bc-preview').style.display='none'; return; }
+
+  let code = raw;
+  if(raw.length===12){
+    const check = DB.calcCheckDigit(raw);
+    code = raw + check;
+  }
+
+  document.getElementById('bc-preview').style.display = 'block';
+  try{
+    JsBarcode('#bc-svg', code, {format:'EAN13',width:2,height:70,displayValue:true,margin:8,fontSize:14});
+    document.getElementById('bc-display').textContent = code + (series?' '+series:'');
+  } catch(e){
+    document.getElementById('bc-preview').innerHTML = `<p style="color:var(--red)">유효하지 않은 바코드 번호입니다</p>`;
+  }
+}
+
+function printBarcode(){
+  const svg = document.querySelector('#bc-svg');
+  if(!svg || !svg.innerHTML){ alert('바코드를 먼저 생성하세요.'); return; }
+  const win = window.open('','_blank');
+  win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+    <style>body{font-family:sans-serif;text-align:center;padding:20px}
+    svg{max-width:300px} @media print{button{display:none}}</style></head><body>
+    ${svg.outerHTML}
+    <p style="font-size:12px;margin-top:8px">${document.getElementById('bc-display').textContent}</p>
+    <p style="font-size:10px;color:#888">에이브릴팜 자체 바코드 · 내부 관리용</p>
+    </body></html>`);
+  win.document.close();
+  setTimeout(()=>win.print(),400);
+}
+
+/* ============================================================
+   7. 설정·알림 탭
+   ============================================================ */
+async function renderSettings(){
+  setContent(`
+    <div class="card full-width">
+      <div class="card-title mb4">🔔 알림 설정</div>
+      <div class="setting-row">
+        <div><div class="setting-label">위생점검 미작성 알림</div><div class="setting-desc">주 1회 청소점검 미작성 시 배지 표시</div></div>
+        <label class="switch"><input type="checkbox" id="notif-hygiene" checked onchange="saveNotifSettings()"><span class="switch-slider"></span></label>
+      </div>
+      <div class="setting-row">
+        <div><div class="setting-label">재고 부족 알림</div><div class="setting-desc">최소 재고 이하 시 경고 배너 표시</div></div>
+        <label class="switch"><input type="checkbox" id="notif-stock" checked onchange="saveNotifSettings()"><span class="switch-slider"></span></label>
+      </div>
+      <div class="setting-row">
+        <div><div class="setting-label">방충방서 월간 알림</div><div class="setting-desc">이달 방충방서 미작성 시 배지 표시</div></div>
+        <label class="switch"><input type="checkbox" id="notif-pest" checked onchange="saveNotifSettings()"><span class="switch-slider"></span></label>
+      </div>
+    </div>
+
+    <div class="card full-width">
+      <div class="card-title mb12">💾 데이터 관리</div>
+      <div class="setting-row">
+        <div><div class="setting-label">데이터 백업</div><div class="setting-desc">모든 데이터를 JSON 파일로 다운로드</div></div>
+        <button class="btn btn-secondary btn-sm" onclick="backupData()"><i class="ti ti-download"></i> 백업</button>
+      </div>
+      <div class="setting-row">
+        <div><div class="setting-label">데이터 복원</div><div class="setting-desc">백업 JSON 파일에서 복원</div></div>
+        <button class="btn btn-secondary btn-sm" onclick="document.getElementById('restore-file').click()">
+          <i class="ti ti-upload"></i> 복원
+        </button>
+        <input type="file" id="restore-file" accept=".json" style="display:none" onchange="restoreData(this)">
+      </div>
+      <div class="setting-row">
+        <div><div class="setting-label">데이터 초기화</div><div class="setting-desc" style="color:var(--red)">⚠️ 모든 데이터가 삭제됩니다</div></div>
+        <button class="btn btn-danger btn-sm" onclick="resetData()"><i class="ti ti-trash"></i> 초기화</button>
+      </div>
+    </div>
+
+    <div class="card full-width">
+      <div class="card-title mb8">ℹ️ 앱 정보</div>
+      <div class="setting-row">
+        <div><div class="setting-label">에이브릴팜 공방관리</div><div class="setting-desc">v3.0 · EF-MMS-001 / EF-HMS-001 / EF-QCM-001</div></div>
+      </div>
+      <div class="setting-row">
+        <div><div class="setting-label">화장품제조업</div><div class="setting-desc">등록번호 제6494호 · 경기도 시흥시 진말1로 18, 에스엠타워 303호</div></div>
+      </div>
+      <div class="setting-row">
+        <div><div class="setting-label">책임판매업</div><div class="setting-desc">등록번호 제18216호</div></div>
+      </div>
+    </div>
+    <div style="height:16px"></div>
+  `);
+  loadNotifSettings();
+}
+
+function saveNotifSettings(){
+  const s = {
+    hygiene: document.getElementById('notif-hygiene').checked,
+    stock: document.getElementById('notif-stock').checked,
+    pest: document.getElementById('notif-pest').checked,
   };
-  if(id) await DB.put('barcodes',{...data,id}); else { const list=await DB.getAll('barcodes'); data.번호=list.length+1; await DB.add('barcodes',data); }
-  closeSheet(); await renderTab('barcode');
+  localStorage.setItem('notif', JSON.stringify(s));
 }
 
-async function saveBarcodeFromGen() {
-  const prefix=document.getElementById('bc-prefix')?.value||'8739';
-  const sub=(document.getElementById('bc-sub')?.value||'').padStart(3,'0');
-  const num=(document.getElementById('bc-num')?.value||'').padStart(3,'0');
-  const qty=(document.getElementById('bc-qty')?.value||'').padStart(2,'0');
-  const series=document.getElementById('mn-series')?.value||'O';
-  const month=(document.getElementById('mn-month')?.value||'').padStart(2,'0');
-  if(!sub||!num||!qty){alert('소분류·비번호·개수를 모두 입력해주세요');return;}
-  const d12=prefix+sub+num+qty;
-  if(!/^\d{12}$/.test(d12)){alert('12자리 숫자로 입력해주세요');return;}
-  const check=DB.calcCheckDigit(d12);
-  const mfgNo=`APB${series}${month}${num}`;
-  const list=await DB.getAll('barcodes');
-  const data={
-    번호:list.length+1, 제품명:'신규 제품 '+num, 소분류:sub, 비번호:num, 개수:qty,
-    제조번호:mfgNo, 제조일:'', 유통기한:'', 상태:'활성', 비고:'',
-    바코드12:d12, 체크디지트:check, 바코드전체:d12+check
-  };
-  await DB.add('barcodes',data);
-  alert(`바코드 ${d12}${check} 등록 완료!\n제품명을 수정해주세요.`);
-  await renderTab('barcode');
+function loadNotifSettings(){
+  try{
+    const s = JSON.parse(localStorage.getItem('notif')||'{}');
+    if(s.hygiene!==undefined) document.getElementById('notif-hygiene').checked = s.hygiene;
+    if(s.stock!==undefined)   document.getElementById('notif-stock').checked   = s.stock;
+    if(s.pest!==undefined)    document.getElementById('notif-pest').checked    = s.pest;
+  } catch(e){}
 }
 
-window.setBcFilter=setBcFilter;
-window.downloadBarcodeSVG=downloadBarcodeSVG;
-window.downloadBarcodePNG=downloadBarcodePNG;
-window.copyText=copyText;
-window.printBarcodeLabel=printBarcodeLabel;
-window.updateBarcodePreview=updateBarcodePreview;
-window.updateMfgNoPreview=updateMfgNoPreview;
-window.showBarcodeOnly=showBarcodeOnly;
-window.openBarcodeDetail=openBarcodeDetail;
-window.openBarcodeForm=openBarcodeForm;
-window.saveBarcodeForm=saveBarcodeForm;
-window.saveBarcodeFromGen=saveBarcodeFromGen;
+async function backupData(){
+  const json = await DB.exportAll();
+  const blob = new Blob([json], {type:'application/json'});
+  const url  = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `avril-farm-backup-${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+async function restoreData(input){
+  const file = input.files[0];
+  if(!file) return;
+  if(!confirm('기존 데이터를 모두 삭제하고 복원하시겠습니까?')) return;
+  const text = await file.text();
+  try{
+    await DB.importAll(text);
+    alert('복원 완료! 앱을 새로고침합니다.');
+    location.reload();
+  } catch(e){
+    alert('복원 실패: 올바른 백업 파일인지 확인하세요.\n'+e.message);
+  }
+}
+
+async function resetData(){
+  if(!confirm('⚠️ 정말 모든 데이터를 초기화하시겠습니까?\n이 작업은 되돌릴 수 없습니다.')) return;
+  if(!confirm('한 번 더 확인합니다. 모든 데이터가 삭제됩니다. 계속하시겠습니까?')) return;
+  await DB.clearAll();
+  alert('초기화 완료! 앱을 새로고침합니다.');
+  location.reload();
+}

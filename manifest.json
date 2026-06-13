@@ -1,0 +1,16 @@
+{
+  "name": "에이브릴팜 공방관리",
+  "short_name": "에이브릴팜",
+  "description": "에이브릴팜 화장비누 공방 관리 시스템",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#F5F3EE",
+  "theme_color": "#48997D",
+  "icons": [
+    { "src": "icons/icon-64.png",  "sizes": "64x64",   "type": "image/png" },
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-192.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ],
+  "orientation": "portrait-primary",
+  "lang": "ko"
+}
