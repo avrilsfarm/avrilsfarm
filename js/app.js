@@ -39,7 +39,7 @@ async function renderTab(tab) {
     else if (tab === 'production')  await renderProduction(el);
     else if (tab === 'output')      await renderOutput(el);
     else if (tab === 'notify')      renderNotifySettings(el);
-    else if (tab === 'barcode')     await renderBarcodeTab(el); // [오류 수정] renderBarcode -> renderBarcodeTab 으로 변경
+    else if (tab === 'barcode')     await renderBarcodeTab(el);
   } catch(e) {
     el.innerHTML = `<div style="padding:24px;color:var(--red-text)">오류: ${e.message}</div>`;
     console.error(e);
@@ -57,7 +57,6 @@ async function updateBadges() {
 /* ════ 재료·포장재 재고 ════ */
 async function renderStock(el) {
   const all = await DB.getAll('ingredients');
-  // [보완] 구분이 유실된 기본 데이터들을 위해 category 기반 기본 값 바인딩 보완
   const ingList = all.filter(i => i.stockType !== '포장재' && i.category !== '단상자' && i.category !== '라벨·스티커');
   const pkgList = all.filter(i => i.stockType === '포장재' || i.category === '단상자' || i.category === '라벨·스티커');
   const list = stockSubTab === '원료' ? ingList : pkgList;
@@ -343,7 +342,7 @@ async function openProductionForm(id) {
     <div class="sheet-handle"></div><div class="sheet-inner">
     <div class="sheet-title">${id?'생산실적 수정':'생산실적 추가'}</div>
     <div style="background:var(--amber-bg);border-radius:var(--r-sm);padding:8px 12px;font-size:11px;color:var(--amber-text);margin-bottom:14px">
-      ※ 배치(1kg 몰드)와 달리 실제 판매 단위로 입력하세요
+      ※ 배치(1kg 몰드)와 달리 실제 판매 단위로 입력하세요. 이미 작성된 기록도 여기서 수정할 수 있습니다.
     </div>
     <label>날짜<input type="date" id="p1" value="${(item&&item.date)||ds}"></label>
     <label>제품명
@@ -362,13 +361,14 @@ async function openProductionForm(id) {
     <div class="sheet-btns">
       ${id?`<button class="btn-del" onclick="delItem('production',${id})">삭제</button>`:''}
       <button onclick="closeSheet()">취소</button>
-      <button class="btn-save" onclick="saveProd(${id||'null'})">저장</button>
+      <button class="btn-save" onclick="saveProd(${id||null})">저장</button>
     </div></div>`);
 }
 
 async function saveProd(id) {
   const data = {date:v('p1'),제품명:v('p2'),수량:+v('p3'),유형:v('p4'),채널:v('p5'),비고:v('p6')};
-  if(id) await DB.put('production',{...data,id}); else await DB.add('production',data);
+  if(id) await DB.put('production',{...data,id: parseInt(id)}); 
+  else await DB.add('production',data);
   closeSheet(); await renderTab('production');
 }
 
@@ -395,6 +395,7 @@ async function renderOutput(el) {
 
   el.innerHTML = `
     <div class="page-header"><h2 class="page-title">문서 출력</h2></div>
+
     <div class="section-label">출력 기간 설정</div>
     <div class="output-range-card">
       <div class="range-row">
@@ -418,24 +419,32 @@ async function renderOutput(el) {
     <div class="doc-select-list">
       ${periodDocs.map(d=>`
         <label class="doc-check-row">
-          <input type="checkbox" id="chk-${d.key}" ${d.def?'checked':''}>
+          <input type="checkbox" id="chk-${d.key}" class="period-chk" ${d.def?'checked':''}>
           <div class="doc-check-info">
             <div class="doc-check-name"><i class="ti ${d.icon}" style="color:var(--teal)"></i> ${d.name}</div>
             <div class="doc-check-sub">${d.sub}</div>
           </div>
         </label>`).join('')}
     </div>
+    <div style="display:flex;gap:8px;padding:0 0 12px">
+      <button class="btn-sm" onclick="toggleChecks('.period-chk', true)">전체 선택</button>
+      <button class="btn-sm" onclick="toggleChecks('.period-chk', false)">전체 해제</button>
+    </div>
 
     <div class="section-label mt16">📦 품목별 문서 선택</div>
     <div class="doc-select-list" style="margin-bottom:8px">
       ${batchDocs.map(d=>`
         <label class="doc-check-row">
-          <input type="checkbox" id="chk-${d.key}" checked>
+          <input type="checkbox" id="chk-${d.key}" class="batch-doc-chk" checked>
           <div class="doc-check-info">
             <div class="doc-check-name"><i class="ti ${d.icon}" style="color:var(--teal)"></i> ${d.name}</div>
             <div class="doc-check-sub">${d.sub}</div>
           </div>
         </label>`).join('')}
+    </div>
+    <div style="display:flex;gap:8px;padding:0 0 12px">
+      <button class="btn-sm" onclick="toggleChecks('.batch-doc-chk', true)">전체 선택</button>
+      <button class="btn-sm" onclick="toggleChecks('.batch-doc-chk', false)">전체 해제</button>
     </div>
 
     <div class="section-label">출력할 제품 선택</div>
@@ -452,8 +461,8 @@ async function renderOutput(el) {
           </label>`).join('')}
     </div>
     <div style="display:flex;gap:8px;padding:0 0 12px">
-      <button class="btn-sm" onclick="toggleAllBatches(true)">전체 선택</button>
-      <button class="btn-sm" onclick="toggleAllBatches(false)">전체 해제</button>
+      <button class="btn-sm" onclick="toggleChecks('.batch-chk', true)">전체 선택</button>
+      <button class="btn-sm" onclick="toggleChecks('.batch-chk', false)">전체 해제</button>
     </div>
 
     <button class="output-btn" onclick="generatePDF()">
@@ -478,18 +487,13 @@ async function renderOutput(el) {
   renderHistory(document.getElementById('history-section'), hyg, batches);
 }
 
-function toggleAllBatches(val) { document.querySelectorAll('.batch-chk').forEach(c=>c.checked=val); }
+function toggleChecks(selector, val) { document.querySelectorAll(selector).forEach(c=>c.checked=val); }
+function toggleAllBatches(val) { toggleChecks('.batch-chk', val); }
 
 /* 파일 업로드 처리 */
-function handleFileDrop(e) {
-  e.preventDefault();
-  const file = e.dataTransfer.files[0];
-  if (file) processUploadedFile(file);
-}
-function handleFileUpload(e) {
-  const file = e.target.files[0];
-  if (file) processUploadedFile(file);
-}
+function handleFileDrop(e) { e.preventDefault(); const file = e.dataTransfer.files[0]; if (file) processUploadedFile(file); }
+function handleFileUpload(e) { const file = e.target.files[0]; if (file) processUploadedFile(file); }
+
 async function processUploadedFile(file) {
   const el = document.getElementById('upload-result');
   if(!el) return;
@@ -497,23 +501,20 @@ async function processUploadedFile(file) {
   const name = file.name.toLowerCase();
 
   try {
+    // JSON 백업 파일 복원
     if(name.endsWith('.json')) {
       const text = await file.text();
       const data = JSON.parse(text);
       if(data._exportedAt) {
         if(!confirm(`백업 파일(${new Date(data._exportedAt).toLocaleDateString()})로 데이터를 복원할까요?\n현재 데이터가 덮어씌워집니다.`)) return;
         await DB.importAll(data);
-        el.innerHTML = '<span style="color:var(--teal-dark)">✅ 데이터 복원 완료!</span>';
-        await renderTab(currentTab);
-        return;
-      }
-      if(data.제품명) {
-        await DB.add('batches', data);
-        el.innerHTML = `<span style="color:var(--teal-dark)">✅ <b>${data.제품명}</b> 배치 등록 완료</span>`;
+        el.innerHTML = '<span style="color:var(--teal-dark)">✅ 데이터 복원 완료! 새로고침합니다.</span>';
+        setTimeout(() => location.reload(), 800);
         return;
       }
     }
 
+    // docx 파일 파싱 (JSZip 사용)
     if(name.endsWith('.docx')) {
       let text = '';
       if(window.JSZip) {
@@ -525,45 +526,29 @@ async function processUploadedFile(file) {
             const xml = await xmlFile.async('string');
             text = xml.replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim();
           }
-        } catch(zipErr) {
-          text = await file.text().catch(()=>'');
-        }
-      } else {
-        text = await file.text().catch(()=>'');
-      }
+        } catch(zipErr) { text = await file.text().catch(()=>''); }
+      } else { text = await file.text().catch(()=>''); }
       await parseDocumentText(name, text, file.name, el);
       return;
     }
 
-    if(name.endsWith('.txt')) {
-      const text = await file.text();
-      await parseDocumentText(name, text, file.name, el);
-      return;
-    }
-
+    // PDF는 KCL 성적서로 처리
     if(name.endsWith('.pdf')) {
       el.innerHTML = `<span style="color:var(--teal-dark)">📋 <b>${file.name}</b> — KCL 성적서로 인식됐습니다.<br>제품 제조 탭에서 해당 배치를 수정하고 KCL 접수번호를 입력해주세요.</span>`;
       return;
     }
-
-    el.innerHTML = `<span style="color:var(--text3)">📄 <b>${file.name}</b> 업로드됨. 지원 형식: .docx .txt .json .pdf</span>`;
-
-  } catch(e) {
-    el.innerHTML = `<span style="color:var(--red-text)">❌ 오류: ${e.message}</span>`;
-  }
+  } catch(e) { el.innerHTML = `<span style="color:var(--red-text)">❌ 오류: ${e.message}</span>`; }
 }
 
 async function parseDocumentText(name, text, fileName, el) {
   const batches = await DB.getAll('batches');
+  const normText = text.replace(/\s+/g, ''); // 띄어쓰기 무시하고 찾기 위한 텍스트 정규화
 
-  const isOrder   = name.includes('제조지시') || name.includes('-mi-') || name.includes('ef-mi');
-  const isStd     = name.includes('제품표준') || name.includes('-ps-') || name.includes('ef-ps');
-  const isTest    = name.includes('시험성적') || name.includes('-tr-') || name.includes('ef-tr');
-  const isHygiene = name.includes('위생') || name.includes('-mh') || name.includes('r-mh');
-  const isIng     = name.includes('원료') || name.includes('mms') || name.includes('r-mms');
+  const isOrder   = name.includes('제조지시') || name.includes('-mi');
+  const isStd     = name.includes('제품표준') || name.includes('-ps');
+  const isTest    = name.includes('시험성적') || name.includes('-tr');
+  const isHygiene = name.includes('위생') || name.includes('-mh');
 
-  const productMatch = text.match(/에이브릴팜\s*([가-힣a-zA-Z]+비누)/);
-  const productName  = productMatch ? productMatch[0].trim() : '';
   const docNoMatch   = text.match(/EF-[A-Z]{2}-\d{3}/i);
   const docNo        = docNoMatch ? docNoMatch[0].toUpperCase() : '';
   const barcodeMatch = text.match(/87[0-9]{11}/);
@@ -571,7 +556,11 @@ async function parseDocumentText(name, text, fileName, el) {
   const kclMatch     = text.match(/SC\d{2}-\d{5}[A-Z]/i);
   const kcl          = kclMatch ? kclMatch[0].toUpperCase() : '';
 
-  const existing = batches.find(b => productName && b.제품명 && b.제품명.includes(productName.replace('에이브릴팜 ','')));
+  // 띄어쓰기가 깨져도 배치 목록의 제품명이나 문서번호가 문서 내에 존재하는지 강제 스캔
+  let existing = batches.find(b => 
+    normText.includes(b.제품명.replace(/\s+/g, '')) || 
+    (b.문서번호 && normText.includes(b.문서번호.replace(/\s+/g, '')))
+  );
 
   if(isOrder || isStd || isTest) {
     if(existing) {
@@ -580,35 +569,23 @@ async function parseDocumentText(name, text, fileName, el) {
       if(barcode) updated.바코드 = barcode;
       if(kcl) updated.KCL = kcl;
       await DB.put('batches', updated);
-      el.innerHTML = `<span style="color:var(--teal-dark)">✅ <b>${existing.제품명}</b> 정보 업데이트 완료 (${fileName})</span>`;
-    } else if(productName||docNo) {
-      const newB = {제품명:productName||fileName.replace(/\.[^.]+$/,''), 문서번호:docNo, 바코드:barcode, KCL:kcl, 상태:'제조중'};
-      await DB.add('batches', newB);
-      el.innerHTML = `<span style="color:var(--teal-dark)">✅ <b>${newB.제품명}</b> 신규 배치 등록 완료 (${fileName})</span>`;
+      el.innerHTML = `<span style="color:var(--teal-dark)">✅ <b>${existing.제품명}</b> 자동 등록 완료 (${fileName})</span>`;
     } else {
-      el.innerHTML = `<span style="color:var(--text3)">⚠️ 제품명을 찾을 수 없습니다. 배치 탭에서 직접 등록해주세요.</span>`;
+      el.innerHTML = `<span style="color:var(--amber)">⚠️ 매칭되는 배치를 찾을 수 없습니다. 수동으로 등록해주세요.</span>`;
     }
     await renderTab('manufacture');
   } else if(isHygiene) {
     const dateMatch = text.match(/20\d{2}[-./]\d{1,2}[-./]\d{1,2}/g);
     if(dateMatch) {
-      const raw = dateMatch[0].replace(/[./]/g,'-');
-      const parts = raw.split('-');
+      const parts = dateMatch[0].replace(/[./]/g,'-').split('-');
       const date = `${parts[0]}-${parts[1].padStart(2,'0')}-${parts[2].padStart(2,'0')}`;
       await DB.add('hygiene',{date,type:'청소점검',확인자:'변민정',status:'완료',
         items:{원료보관:'청결',부자재:'청결',완제품:'청결',작업대:'청결',도구류:'청결',포장실:'청결'}});
       el.innerHTML = `<span style="color:var(--teal-dark)">✅ 위생점검 기록 등록 (${date})</span>`;
-    } else {
-      el.innerHTML = `<span style="color:var(--text3)">⚠️ 날짜 감지 실패. 위생점검 탭에서 직접 입력해주세요.</span>`;
     }
-  } else if(isIng) {
-    el.innerHTML = `<span style="color:var(--teal-dark)">📦 원료입고 파일 감지 — 재료·재고 탭에서 확인해주세요.</span>`;
-  } else {
-    el.innerHTML = `<span style="color:var(--text3)">📄 <b>${fileName}</b> 분석 완료. 파일 유형 미확인 — 해당 탭에서 직접 확인해주세요.</span>`;
   }
 }
 
-// [오류 수정] 누락되어 있던 handleKCLUpload 함수 정의부 추가
 async function handleKCLUpload(e) {
   const file = e.target.files[0];
   const label = document.getElementById('kcl-filename');
@@ -672,7 +649,6 @@ async function printRangeMonth(ym) {
   const [y,m]=ym.split('-').map(Number);
   const [hyg,ing,batches]=await Promise.all([DB.getAll('hygiene'),DB.getAll('ingredients'),DB.getAll('batches')]);
   const sep='<div class="page-break"></div>';
-  // [오류 수정] openPrint -> open$ 로 올바른 함수 호출 적용
   open$(buildCover(y,m,y,m)+sep+buildMH(hyg,y,m)+sep+buildMMS(ing)+sep+buildQCM(batches));
 }
 
@@ -976,7 +952,7 @@ window.closeSheet=closeSheet; window.delItem=delItem;
 window.toggleCard=toggleCard; window.toggleCheck=toggleCheck; window.saveChecklist=saveChecklist;
 window.changeMonth=changeMonth; window.selectDate=selectDate; window.clearDateFilter=clearDateFilter;
 window.toggleHistory=toggleHistory; window.printRangeMonth=printRangeMonth;
-window.toggleAllBatches=toggleAllBatches;
+window.toggleAllBatches=toggleAllBatches; window.toggleChecks=toggleChecks;
 window.openProductionForm=openProductionForm;
 window.saveProd=saveProd;
 window.handleKCLUpload=handleKCLUpload;
