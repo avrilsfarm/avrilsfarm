@@ -68,6 +68,147 @@ html, body { height: 100%; font-family: 'Noto Sans KR', -apple-system, 'Apple SD
 /* ── 앱 레이아웃 ── */
 .app { display: flex; flex-direction: column; height: 100%; max-width: 480px; margin: 0 auto; background: var(--bg); }
 
+/* ── 인트로 페이지 ── */
+.page-intro {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: center;
+  height: 100%;
+  padding: 40px 24px;
+  background: linear-gradient(135deg, var(--teal-light) 0%, var(--mauve-light) 100%);
+  text-align: center;
+  animation: fadeIn 0.6s ease-in-out;
+}
+
+.intro-header {
+  flex: 0.3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.intro-logo {
+  max-width: 200px;
+  max-height: 80px;
+  object-fit: contain;
+}
+
+.intro-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+}
+
+.intro-symbol {
+  width: 100px;
+  height: 100px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--white);
+  border-radius: 50%;
+  box-shadow: 0 8px 24px rgba(0,0,0,.12);
+}
+
+.intro-symbol-img {
+  width: 60px;
+  height: 60px;
+  object-fit: contain;
+}
+
+.intro-title {
+  font-size: 32px;
+  font-weight: 700;
+  color: var(--teal-dark);
+  margin: 0;
+}
+
+.intro-desc {
+  font-size: 16px;
+  color: var(--text2);
+  margin: 0;
+}
+
+.intro-company {
+  background: var(--white);
+  padding: 16px;
+  border-radius: var(--r);
+  box-shadow: var(--shadow);
+  text-align: left;
+  font-size: 13px;
+  color: var(--text2);
+  max-width: 100%;
+}
+
+.intro-company p {
+  margin: 4px 0;
+}
+
+.intro-company strong {
+  font-size: 14px;
+  color: var(--teal);
+}
+
+.intro-btn {
+  padding: 14px 48px;
+  background: var(--teal);
+  color: var(--white);
+  border: none;
+  border-radius: 24px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(72, 153, 125, 0.3);
+  transition: all 0.2s;
+  font-family: inherit;
+}
+
+.intro-btn:hover {
+  background: var(--teal-dark);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(72, 153, 125, 0.4);
+}
+
+.intro-btn:active {
+  transform: translateY(0);
+}
+
+/* ── 뒤로가기 바 ── */
+.back-bar {
+  background: var(--white);
+  border-bottom: 1px solid var(--border);
+  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  height: 44px;
+  box-shadow: var(--shadow);
+  z-index: 25;
+}
+
+.back-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background: none;
+  border: none;
+  color: var(--teal);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  border-radius: var(--r-sm);
+  transition: all 0.15s;
+  font-family: inherit;
+}
+
+.back-btn:hover {
+  background: var(--teal-light);
+}
+
 /* ── 탑바 ── */
 .topbar {
   background: var(--white);
@@ -80,7 +221,11 @@ html, body { height: 100%; font-family: 'Noto Sans KR', -apple-system, 'Apple SD
   box-shadow: var(--shadow);
 }
 .topbar-logo { display: flex; align-items: center; gap: 8px; padding-right: 8px; }
-.logo-leaf { font-size: 20px; }
+.logo-img { 
+  width: 24px; 
+  height: 24px; 
+  object-fit: contain;
+}
 .logo-text { font-size: 13px; font-weight: 700; color: var(--mauve); letter-spacing: .5px; line-height: 1.2; }
 .logo-sub  { font-size: 9px; color: var(--teal); font-weight: 500; letter-spacing: .3px; }
 
@@ -541,115 +686,3 @@ label textarea { resize: vertical; min-height: 72px; }
 .card-num { width:26px;height:26px;background:var(--mauve-light);color:var(--mauve-dark);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0;margin-right:10px; }
 
 .bc-info-note { background:var(--amber-bg);border-left:3px solid var(--amber);padding:10px 14px;margin:0 16px 12px;border-radius:0 var(--r-sm) var(--r-sm) 0;font-size:12px;color:var(--amber-text);line-height:1.6; }
-
-/* ════════════════════════════════════════
-   추가 스타일 — 수정사항 반영
-════════════════════════════════════════ */
-
-/* ── PC 호환: 넓은 화면 레이아웃 ── */
-@media (min-width: 600px) {
-  body { background: #e8e0d8; }
-  .app { max-width: 560px; box-shadow: 0 0 40px rgba(0,0,0,.12); min-height: 100vh; }
-  #sheet { max-width: 560px; }
-  .fab { right: calc(50% - 280px + 16px); }
-}
-@media (min-width: 900px) {
-  .app { max-width: 640px; }
-  #sheet { max-width: 640px; }
-  .fab { right: calc(50% - 320px + 16px); }
-  #page-content { font-size: 15px; }
-  .item-title { font-size: 15px; }
-  .card-title { font-size: 16px; }
-}
-
-/* ── 로고 이미지 ── */
-.logo-symbol-img {
-  width: 28px; height: 28px;
-  object-fit: contain; flex-shrink: 0;
-}
-.logo-main-img {
-  height: 18px; object-fit: contain;
-  display: block; max-width: 110px;
-}
-.logo-text { font-size: 13px; font-weight: 700; color: var(--mauve); letter-spacing: .5px; line-height: 1.2; }
-
-/* ── 뒤로가기 버튼 ── */
-.back-btn {
-  background: none; border: none;
-  color: var(--text2); font-size: 18px;
-  padding: 6px 8px; cursor: pointer;
-  border-radius: 8px; flex-shrink: 0;
-  transition: background .15s;
-  margin-right: 2px;
-}
-.back-btn:hover { background: var(--gray-bg); }
-.back-btn.hide { display: none; }
-
-/* ── 밀린 점검 알림 배너 ── */
-.overdue-banner {
-  background: var(--red-bg);
-  border-left: 3px solid var(--red);
-  padding: 10px 14px;
-  margin: 6px 16px;
-  border-radius: 0 var(--r-sm) var(--r-sm) 0;
-  font-size: 12px; color: var(--red-text);
-  display: flex; align-items: flex-start; gap: 8px;
-}
-.overdue-banner i { flex-shrink: 0; font-size: 16px; margin-top: 1px; }
-.overdue-list { margin-top: 4px; line-height: 1.8; }
-
-/* ── 생산실적 번호 ── */
-.prod-no { width:24px;height:24px;background:var(--mauve-light);color:var(--mauve-dark);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;margin-right:10px; }
-
-/* ── 전체선택/해제 버튼 행 ── */
-.select-all-row {
-  display: flex; gap: 8px; padding: 4px 16px 8px; align-items: center;
-  font-size: 12px; color: var(--text3);
-}
-
-/* ── 바코드 코멘트 박스 ── */
-.bc-comment-box {
-  background: var(--blue-bg); border-left: 3px solid #1A5CA8;
-  padding: 12px 14px; margin: 8px 16px;
-  border-radius: 0 var(--r-sm) var(--r-sm) 0;
-  font-size: 12px; color: var(--blue-text); line-height: 1.7;
-}
-
-/* ── 파일 업로드 버튼 ── */
-.upload-action-row {
-  display: flex; gap: 8px; padding: 8px 16px;
-  flex-wrap: wrap;
-}
-.upload-result-box {
-  padding: 8px 16px; font-size: 12px;
-  min-height: 28px;
-}
-
-/* ── 빈 목록 버튼 힌트 ── */
-.empty-hint-with-btn {
-  padding: 28px 16px;
-  text-align: center;
-  color: var(--text3);
-  font-size: 13px;
-  line-height: 2;
-}
-.empty-hint-with-btn .btn-add-hint {
-  display: inline-flex; align-items: center; gap: 6px;
-  margin-top: 10px;
-  background: var(--teal); color: #fff;
-  border: none; border-radius: 20px;
-  padding: 9px 20px; font-size: 13px; font-weight: 600;
-  cursor: pointer; font-family: inherit;
-}
-
-/* ── 문서 출력 전체선택 ── */
-.doc-section-header {
-  display: flex; align-items: center;
-  justify-content: space-between;
-  padding: 14px 16px 6px;
-}
-.doc-section-title {
-  font-size: 11px; font-weight: 700;
-  color: var(--taupe);
-  text-transform: uppercase; letter-spacing: .6px;
-}
