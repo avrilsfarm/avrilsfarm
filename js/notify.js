@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════
-   에이브릴팜 알림 모듈
+   에이브릴팜 알림 모듈 v2
    - 청소 점검: 매주 월요일
    - 방충방서: 매월 1일
    - 설비관리: 분기 첫 달 1일 (1/4/7/10월)
@@ -29,44 +29,38 @@ function sendNotification(title, body, icon) {
   });
 }
 
-// 오늘 알림 체크 — 앱 열릴 때마다 호출
 async function checkNotifications() {
   if (Notification.permission !== 'granted') return;
   const s = getSettings();
   const now = new Date();
   const lastCheck = localStorage.getItem('avrilLastNotify');
   const todayStr = now.toISOString().split('T')[0];
-  if (lastCheck === todayStr) return; // 오늘 이미 체크함
+  if (lastCheck === todayStr) return;
 
-  const dow = now.getDay(); // 0=일, 1=월
+  const dow = now.getDay();
   const dom = now.getDate();
   const mon = now.getMonth() + 1;
 
-  // 청소 점검 — 설정한 요일 (기본 월요일)
   const cleanDow = s.cleanDow ?? 1;
   if (s.cleaning && dow === cleanDow) {
     const hyg = await DB.getAll('hygiene');
-    const thisWeekMonday = todayStr;
-    const hasRecord = hyg.some(h => h.type === '청소점검' && h.date === thisWeekMonday);
+    const hasRecord = hyg.some(h => h.type === '청소점검' && h.date === todayStr);
     if (!hasRecord) sendNotification('🧹 청소 점검 기록 필요', '이번 주 작업장청소점검 (R-MH-01)을 기록해주세요.');
   }
 
-  // 방충방서 — 설정한 날짜 (기본 1일)
   const pestDom = s.pestDom ?? 1;
   if (s.pest && dom === pestDom) {
     const hyg = await DB.getAll('hygiene');
     const ym = `${now.getFullYear()}-${String(mon).padStart(2,'0')}`;
     const hasRecord = hyg.some(h => h.type === '방충방서' && h.date?.startsWith(ym));
-    if (!hasRecord) sendNotification('🦟 방충·방서 월간 점검 필요', `${now.getFullYear()}년 ${mon}월 방충방서 점검 (R-MH-02)을 기록해주세요.`);
+    if (!hasRecord) sendNotification('🦟 방충·방서 월간 점검 필요', `${now.getFullYear()}년 ${mon}월 방충방서 점검을 기록해주세요.`);
   }
 
-  // 설비관리 — 분기 첫 달 1일 (1/4/7/10월)
   if (s.equipment && dom === 1 && [1,4,7,10].includes(mon)) {
     const quarter = Math.ceil(mon/3);
-    sendNotification('🔧 설비관리 분기 점검 필요', `${now.getFullYear()}년 ${quarter}/4분기 설비관리기록서 (R-MMS-02) 점검 기간입니다.`);
+    sendNotification('🔧 설비관리 분기 점검 필요', `${now.getFullYear()}년 ${quarter}/4분기 설비관리기록서 점검 기간입니다.`);
   }
 
-  // 사용자 지정 알림
   if(s.custom && s.custom.length) {
     s.custom.forEach(ca => {
       if(ca.date === todayStr) sendNotification('🔔 '+ca.title, ca.date);
@@ -76,14 +70,13 @@ async function checkNotifications() {
   localStorage.setItem('avrilLastNotify', todayStr);
 }
 
-// 알림 설정 화면
 function renderNotifySettings(el) {
   const s = getSettings();
   const perm = 'Notification' in window ? Notification.permission : 'unsupported';
 
   el.innerHTML = `
     <div class="page-header">
-      <h2 class="page-title">알림 설정</h2>
+      <h2 class="page-title">알림·설정</h2>
     </div>
     ${perm === 'unsupported' ? `
       <div class="info-banner"><i class="ti ti-info-circle"></i><span>이 기기는 알림을 지원하지 않습니다.</span></div>
@@ -192,10 +185,24 @@ function renderNotifySettings(el) {
     <input type="file" id="restore-file" accept=".json" style="display:none" onchange="restoreData(event)">
     <div class="list-item" onclick="confirmReset()" style="cursor:pointer;border-top:2px solid var(--red-bg)">
       <div class="item-left">
-        <div class="item-title" style="color:var(--red)">🗑 데이터 초기화</div>
-        <div class="item-sub">모든 기록 삭제 후 초기화</div>
+        <div class="item-title" style="color:var(--red)">🗑 데이터 완전 초기화</div>
+        <div class="item-sub">모든 기록 삭제 후 기본 데이터로 재시작</div>
       </div>
       <i class="ti ti-trash" style="color:var(--red)"></i>
+    </div>
+
+    <div class="group-header mt16">앱 정보</div>
+    <div class="list-item" style="cursor:default">
+      <div class="item-left">
+        <div class="item-title">에이브릴팜 공방관리 시스템</div>
+        <div class="item-sub">v2.0 · 화장품제조업 제6494호 · 책임판매업 제18216호</div>
+      </div>
+    </div>
+    <div class="list-item" style="cursor:default">
+      <div class="item-left">
+        <div class="item-title">대표: 변민정</div>
+        <div class="item-sub">경기도 시흥시 진말1로 18, 에스엠타워 303호 · 0507-1346-8739</div>
+      </div>
     </div>
   `;
 
@@ -221,6 +228,7 @@ function openEquipForm(id) {
     const now = new Date();
     const q = Math.ceil((now.getMonth()+1)/3);
     showSheet(`
+      <div class="sheet-handle"></div><div class="sheet-inner">
       <div class="sheet-title">${id?'설비 점검 수정':'설비관리 분기 점검'}</div>
       <label>점검일<input type="date" id="eq1" value="${item.date||now.toISOString().split('T')[0]}"></label>
       <label>연도<input type="number" id="eq2" value="${item.year||now.getFullYear()}"></label>
@@ -241,7 +249,7 @@ function openEquipForm(id) {
         ${id?`<button class="btn-del" onclick="delItem('equipment',${id})">삭제</button>`:''}
         <button onclick="closeSheet()">취소</button>
         <button class="btn-save" onclick="saveEquip(${id||'null'})">저장</button>
-      </div>`);
+      </div></div>`);
   });
 }
 
@@ -345,15 +353,17 @@ async function restoreData(e) {
 }
 
 async function confirmReset() {
-  if(!confirm('⚠️ 모든 데이터를 삭제합니다.\n먼저 백업을 해두세요.')) return;
-  if(!confirm('정말 삭제하시겠습니까? 되돌릴 수 없습니다.')) return;
+  if(!confirm('⚠️ 모든 데이터를 삭제하고 초기 상태로 되돌립니다.\n백업을 먼저 받아두세요.')) return;
+  if(!confirm('정말 완전 초기화 하시겠습니까? 되돌릴 수 없습니다.')) return;
   try {
     await DB.clearAll();
-    await DB.seedIfEmpty();
-    alert('초기화 완료');
+    alert('초기화 완료 — 기본 데이터로 재시작되었습니다.');
     renderTab('hygiene');
   } catch(e) { alert('초기화 실패: '+e.message); }
 }
+
+/* v 함수 참조 */
+function v(id) { const el=document.getElementById(id); return el?el.value:''; }
 
 window.renderNotifySettings = renderNotifySettings;
 window.checkNotifications = checkNotifications;

@@ -1,5 +1,5 @@
 'use strict';
-const DB_NAME = 'AvrilFarmDB', DB_VER = 8;
+const DB_NAME = 'AvrilFarmDB', DB_VER = 9;
 let _db;
 
 function openDB() {
@@ -8,6 +8,7 @@ function openDB() {
     const r = indexedDB.open(DB_NAME, DB_VER);
     r.onupgradeneeded = e => {
       const d = e.target.result;
+      // 기존 스토어 모두 삭제 후 재생성
       Array.from(d.objectStoreNames).forEach(s => d.deleteObjectStore(s));
       const schema = {
         ingredients: [],
@@ -76,48 +77,47 @@ async function remove(s, id) {
   });
 }
 
+/* ─ 초기 시드 데이터 ─ */
+const carrotRecipe = [
+  {원료명:'올리브오일',    INCI:'Olea Europaea Fruit Oil',         이론량:320, 비율:26.8},
+  {원료명:'코코넛야자오일', INCI:'Cocos Nucifera Oil',              이론량:240, 비율:20.1},
+  {원료명:'오일팜오일',    INCI:'Elaeis Guineensis Oil',            이론량:160, 비율:13.4},
+  {원료명:'피마자씨오일',  INCI:'Ricinus Communis Seed Oil',        이론량:40,  비율:3.3},
+  {원료명:'시어버터',      INCI:'Butyrospermum Parkii Butter',      이론량:40,  비율:3.3},
+  {원료명:'소듐하이드록사이드', INCI:'Sodium Hydroxide',            이론량:97,  비율:8.1},
+  {원료명:'정제수',        INCI:'Water',                            이론량:252, 비율:21.1},
+  {원료명:'당근추출물',    INCI:'Daucus Carota Sativa Root Extract',이론량:6,   비율:0.5},
+  {원료명:'카로틴오일',    INCI:'Helianthus Annuus Seed Oil',       이론량:6,   비율:0.5},
+  {원료명:'나이아신아마이드',INCI:'Niacinamide',                    이론량:8,   비율:0.7},
+  {원료명:'FO 라임바질만다린',INCI:'Fragrance',                    이론량:22,  비율:1.8},
+  {원료명:'EO 당근씨오일',  INCI:'Daucus Carota Sativa Seed Oil',  이론량:2,   비율:0.2},
+  {원료명:'아나토 분말',   INCI:'Bixa Orellana Seed Extract',       이론량:2,   비율:0.2},
+];
+
+const watercressRecipe = [
+  {원료명:'올리브오일',     INCI:'Olea Europaea Fruit Oil',         이론량:280, 비율:23.5},
+  {원료명:'코코넛야자오일', INCI:'Cocos Nucifera Oil',              이론량:240, 비율:20.2},
+  {원료명:'오일팜오일',     INCI:'Elaeis Guineensis Oil',           이론량:120, 비율:10.1},
+  {원료명:'마카다미아씨오일',INCI:'Macadamia Integrifolia Seed Oil', 이론량:80,  비율:6.7},
+  {원료명:'피마자씨오일',   INCI:'Ricinus Communis Seed Oil',       이론량:40,  비율:3.4},
+  {원료명:'시어버터',       INCI:'Butyrospermum Parkii Butter',     이론량:40,  비율:3.4},
+  {원료명:'소듐하이드록사이드',INCI:'Sodium Hydroxide',             이론량:96,  비율:8.1},
+  {원료명:'정제수',         INCI:'Water',                           이론량:246, 비율:20.7},
+  {원료명:'세라마이드엔피', INCI:'Ceramide NP',                     이론량:2,   비율:0.2},
+  {원료명:'살리실릭애씨드', INCI:'Salicylic Acid',                  이론량:2,   비율:0.2},
+  {원료명:'마데카소사이드', INCI:'Madecassoside',                   이론량:2,   비율:0.2},
+  {원료명:'미나리가루',     INCI:'Oenanthe Javanica Powder',        이론량:7,   비율:0.6},
+  {원료명:'FO 아르테미시아',INCI:'Fragrance',                       이론량:17,  비율:1.4},
+  {원료명:'EO 티트리오일',  INCI:'Melaleuca Alternifolia Leaf Oil', 이론량:7,   비율:0.6},
+  {원료명:'크로뮴옥사이드그린',INCI:'Chromium Oxide Greens',        이론량:2,   비율:0.2},
+  {원료명:'어성초가루',     INCI:'Houttuynia Cordata Powder',       이론량:3,   비율:0.3},
+  {원료명:'클로렐라불가리스가루',INCI:'Chlorella Vulgaris Powder',  이론량:3,   비율:0.3},
+];
+
 async function seedIfEmpty() {
   await openDB();
   const [exIng, exBat] = await Promise.all([getAll('ingredients'), getAll('batches')]);
   if (exIng.length > 0 && exBat.length > 0) return;
-
-  // 당근비누 레시피 (800g 오일 배치, 투입량 합계 1195g)
-  const carrotRecipe = [
-    {원료명:'올리브오일',    INCI:'Olea Europaea Fruit Oil',         이론량:320, 비율:26.8},
-    {원료명:'코코넛야자오일', INCI:'Cocos Nucifera Oil',              이론량:240, 비율:20.1},
-    {원료명:'오일팜오일',    INCI:'Elaeis Guineensis Oil',            이론량:160, 비율:13.4},
-    {원료명:'피마자씨오일',  INCI:'Ricinus Communis Seed Oil',        이론량:40,  비율:3.3},
-    {원료명:'시어버터',      INCI:'Butyrospermum Parkii Butter',      이론량:40,  비율:3.3},
-    {원료명:'소듐하이드록사이드', INCI:'Sodium Hydroxide',            이론량:97,  비율:8.1},
-    {원료명:'정제수',        INCI:'Water',                            이론량:252, 비율:21.1},
-    {원료명:'당근추출물',    INCI:'Daucus Carota Sativa Root Extract',이론량:6,   비율:0.5},
-    {원료명:'카로틴오일',    INCI:'Helianthus Annuus Seed Oil',       이론량:6,   비율:0.5},
-    {원료명:'나이아신아마이드',INCI:'Niacinamide',                    이론량:8,   비율:0.7},
-    {원료명:'FO 라임바질만다린',INCI:'Fragrance',                    이론량:22,  비율:1.8},
-    {원료명:'EO 당근씨오일',  INCI:'Daucus Carota Sativa Seed Oil',  이론량:2,   비율:0.2},
-    {원료명:'아나토 분말',   INCI:'Bixa Orellana Seed Extract',       이론량:2,   비율:0.2},
-  ];
-
-  // 미나리비누 레시피
-  const watercressRecipe = [
-    {원료명:'올리브오일',     INCI:'Olea Europaea Fruit Oil',         이론량:280, 비율:23.5},
-    {원료명:'코코넛야자오일', INCI:'Cocos Nucifera Oil',              이론량:240, 비율:20.2},
-    {원료명:'오일팜오일',     INCI:'Elaeis Guineensis Oil',           이론량:120, 비율:10.1},
-    {원료명:'마카다미아씨오일',INCI:'Macadamia Integrifolia Seed Oil', 이론량:80,  비율:6.7},
-    {원료명:'피마자씨오일',   INCI:'Ricinus Communis Seed Oil',       이론량:40,  비율:3.4},
-    {원료명:'시어버터',       INCI:'Butyrospermum Parkii Butter',     이론량:40,  비율:3.4},
-    {원료명:'소듐하이드록사이드',INCI:'Sodium Hydroxide',             이론량:96,  비율:8.1},
-    {원료명:'정제수',         INCI:'Water',                           이론량:246, 비율:20.7},
-    {원료명:'세라마이드엔피', INCI:'Ceramide NP',                     이론량:2,   비율:0.2},
-    {원료명:'살리실릭애씨드', INCI:'Salicylic Acid',                  이론량:2,   비율:0.2},
-    {원료명:'마데카소사이드', INCI:'Madecassoside',                   이론량:2,   비율:0.2},
-    {원료명:'미나리가루',     INCI:'Oenanthe Javanica Powder',        이론량:7,   비율:0.6},
-    {원료명:'FO 아르테미시아',INCI:'Fragrance',                       이론량:17,  비율:1.4},
-    {원료명:'EO 티트리오일',  INCI:'Melaleuca Alternifolia Leaf Oil', 이론량:7,   비율:0.6},
-    {원료명:'크로뮴옥사이드그린',INCI:'Chromium Oxide Greens',        이론량:2,   비율:0.2},
-    {원료명:'어성초가루',     INCI:'Houttuynia Cordata Powder',       이론량:3,   비율:0.3},
-    {원료명:'클로렐라불가리스가루',INCI:'Chlorella Vulgaris Powder',  이론량:3,   비율:0.3},
-  ];
 
   const ing = [
     {원료명:'올리브오일',          제조처:'Ziani',                수량:'16kg', category:'베이스오일',    CoA:'수취', 판정:'적합'},
@@ -178,7 +178,6 @@ async function seedIfEmpty() {
     {date:'2026-05-22', type:'청소점검', items:{원료보관:'청결',부자재:'청결',완제품:'청결',작업대:'청결',도구류:'청결',포장실:'청결'}, 확인자:'변민정', status:'완료'},
     {date:'2026-06-04', type:'제조위생', 확인자:'변민정', status:'완료'},
     {date:'2026-06-04', type:'온도·습도', 온도:23, 습도:47, 확인자:'변민정', status:'완료'},
-    {date:'2026-06-04', type:'온도·습도', 온도:40, 습도:10, 확인자:'변민정', status:'문제임박', 이슈:'온도 기준 초과'},
     {date:'2026-06-04', type:'청소점검', items:{원료보관:'청결',부자재:'청결',완제품:'청결',작업대:'청결',도구류:'청결',포장실:'청결'}, 확인자:'변민정', status:'완료'},
   ];
 
@@ -211,6 +210,7 @@ async function importAll(data) {
   }
 }
 
+/* 완전 초기화: 모든 스토어 클리어 후 DB 재시작해서 시드 데이터 재로드 */
 async function clearAll() {
   await openDB();
   const stores = ['ingredients','batches','hygiene','equipment','production','barcodes'];
@@ -218,6 +218,8 @@ async function clearAll() {
     const st = _db.transaction(s,'readwrite').objectStore(s);
     await new Promise((res,rej) => { const r=st.clear(); r.onsuccess=res; r.onerror=rej; });
   }
+  // 시드 데이터 재로드
+  await seedIfEmpty();
 }
 
 function calcCheckDigit(digits12) {

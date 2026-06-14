@@ -1,7 +1,7 @@
 'use strict';
 
 /* ════════════════════════════════════════
-   에이브릴팜 바코드 관리 모듈
+   에이브릴팜 바코드 관리 모듈 v2
    EAN-13 형식: 8739 + 소분류(3) + 비번호(3) + 개수(2) + 체크디짓(1)
    제조번호: AP/JP + B + 색상코드 + 월(2) + 번호(3)
 ════════════════════════════════════════ */
@@ -42,18 +42,18 @@ const BARCODE_MASTER = [
   { no:32, name:'듀오 세트(선인장)',    sub:'033',seq:'031',qty:'03',chk:4, mfgNo:'APBSS03004', mfgDate:'',        expiry:'CP-2년',         status:'현행', year:null, notes:'3/30-10' },
 ];
 
-/* ── 색상 코드 매핑 ── */
+/* ── 색상 코드 매핑 (P 괄호 내용 제거) ── */
 const COLOR_CODES = [
-  {code:'O',  label:'O — 오렌지'},
-  {code:'P',  label:'P'},
-  {code:'G',  label:'G — 그린'},
-  {code:'YG', label:'YG — 옐로우그린'},
+  {code:'O',  label:'O — 오렌지 (당근)'},
+  {code:'P',  label:'P — 핑크 (가지)'},
+  {code:'G',  label:'G — 그린 (미나리)'},
+  {code:'YG', label:'YG — 옐로우그린 (아보카도)'},
   {code:'B',  label:'B — 블루'},
   {code:'W',  label:'W — 화이트'},
   {code:'Y',  label:'Y — 옐로'},
   {code:'SS', label:'SS — 선인장솝'},
-  {code:'SF', label:'SF'},
-  {code:'FW', label:'FW'},
+  {code:'SF', label:'SF — 썸머프레시 (쿨)'},
+  {code:'FW', label:'FW — 폴윈터 (명절/크리스마스)'},
   {code:'GS', label:'GS — 굿즈'},
   {code:'직접입력', label:'직접입력'},
 ];
@@ -67,14 +67,12 @@ function calcCheckDigit(biz, sub, seq, qty) {
   return (10 - (sum % 10)) % 10;
 }
 
-/* ── 바코드 전체 번호 생성 ── */
 function buildBarcode(biz, sub, seq, qty) {
   const base = (biz||'8739') + sub + seq + qty;
   const chk = calcCheckDigit(biz, sub, seq, qty);
   return base + chk;
 }
 
-/* ── 다음 비번호 계산 ── */
 function nextSeq() {
   const seqs = BARCODE_MASTER.map(p => parseInt(p.seq)).filter(n => !isNaN(n));
   return String(Math.max(...seqs) + 1).padStart(3, '0');
@@ -105,6 +103,9 @@ function renderBarcodeTab(el) {
     <div style="display:flex;gap:6px;padding:8px 16px">
       ${['전체','현행','단종'].map(f=>`
         <button class="btn-sm ${filter===f?'solid':''}" onclick="setBcFilter('${f}')">${f}</button>`).join('')}
+      <button class="btn-sm" onclick="printAllBarcodes()" style="margin-left:auto">
+        <i class="ti ti-printer"></i> 전체 출력
+      </button>
     </div>
 
     ${filtered.map(p => {
@@ -112,7 +113,7 @@ function renderBarcodeTab(el) {
       const bc12 = `${p.biz||'8739'}/${p.sub}/${p.seq}/${p.qty}`;
       return `
         <div class="bc-card">
-          <div class="bc-card-head">
+          <div class="bc-card-head" onclick="openBarcodeForm(${p.no})" style="cursor:pointer">
             <div class="bc-no">${String(p.no).padStart(2,'0')}</div>
             <div class="bc-info">
               <div class="bc-name">${p.name}</div>
@@ -122,6 +123,7 @@ function renderBarcodeTab(el) {
             <div class="bc-meta">
               <span class="badge ${p.status==='현행'?'badge-green':'badge-gray'}">${p.status}</span>
               ${p.expiry?`<div class="bc-expiry">${p.expiry}</div>`:''}
+              <i class="ti ti-edit" style="font-size:13px;color:var(--text3);margin-top:2px"></i>
             </div>
           </div>
           <div class="bc-barcode-wrap" id="bcwrap-${p.no}">
@@ -147,14 +149,17 @@ function renderBarcodeTab(el) {
           textMargin: 2, margin: 4,
           lineColor: p.status==='단종' ? '#aaa' : '#111'
         });
-      } catch(e) { svgEl.parentElement.innerHTML = `<span style="color:var(--text3);font-size:11px">${full}</span>`; }
+      } catch(e) {
+        const full = buildBarcode(p.biz||'8739', p.sub, p.seq, p.qty);
+        svgEl.parentElement.innerHTML = `<span style="color:var(--text3);font-size:11px">${full}</span>`;
+      }
     });
   }, 100);
 }
 
-function setBcFilter(f) { window._bcFilter = f; renderTab('barcode'); }
+function setBcFilter(f) { window._bcFilter = f; renderBarcodeTab(document.getElementById('page-content')); }
 
-/* ════ 신규 바코드 생성 폼 ════ */
+/* ════ 신규/수정 바코드 폼 ════ */
 function openBarcodeForm(no) {
   const item = no ? BARCODE_MASTER.find(p => p.no === no) : null;
   const nextNo = Math.max(...BARCODE_MASTER.map(p=>p.no)) + 1;
@@ -163,7 +168,7 @@ function openBarcodeForm(no) {
   showSheet(`
     <div class="sheet-handle"></div>
     <div class="sheet-inner">
-    <div class="sheet-title">${item ? item.name + ' 확인' : '신규 바코드 생성'}</div>
+    <div class="sheet-title">${item ? item.name + ' 수정' : '신규 바코드 생성'}</div>
 
     <div style="background:var(--teal-light);border-radius:var(--r-sm);padding:10px 12px;margin-bottom:16px;font-size:12px;color:var(--teal-dark)">
       <b>바코드 구조:</b> 대분류(4) + 소분류(3) + 비번호(3) + 개수(2) + 체크디짓(1) = 13자리
@@ -173,7 +178,7 @@ function openBarcodeForm(no) {
 
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
       <label>대분류 (사업자번호)
-        <select id="bc2">
+        <select id="bc2" onchange="updateBcPreview()">
           <option value="8739" ${!item||item.biz!=='6590'?'selected':''}>8739 (에이브릴팜)</option>
           <option value="6590" ${item&&item.biz==='6590'?'selected':''}>6590 (제이쏩)</option>
         </select>
@@ -181,22 +186,7 @@ function openBarcodeForm(no) {
       <label>소분류 (3자리)
         <input id="bc3" maxlength="3" style="font-family:monospace" value="${item?item.sub:''}" placeholder="예: 033" oninput="updateBcPreview()">
         <div style="margin-top:5px;background:var(--amber-bg);border-radius:6px;padding:8px 10px;font-size:11px;color:var(--amber-text);line-height:1.7">
-          <b>📌 소분류 입력 규칙</b><br>
-          앞 2자리 = 기획·제조 월 (01~12)<br>
-          마지막 1자리 = 같은 달 시리즈 구분 (0·1·2…)<br>
-          <br>
-          <b>예시</b><br>
-          <span style="font-family:monospace">011</span> → 1월 시리즈 1번 (새해비누)<br>
-          <span style="font-family:monospace">033</span> → 3월 시리즈 3번 (카네이션·선인장 미니화분)<br>
-          <span style="font-family:monospace">101</span> → 10월 시리즈 1번 (당근비누)<br>
-          <span style="font-family:monospace">102</span> → 10월 시리즈 2번 (가지비누)<br>
-          <span style="font-family:monospace">120</span> → 12월 시리즈 0번 (투명비누)<br>
-          <span style="font-family:monospace">715</span> → 7월 15일 기준 (아이스쿨바 — 날짜형)<br>
-          <span style="font-family:monospace">815</span> → 8월 15일 기준 (명절선물 — 날짜형)<br>
-          <br>
-          <b>⚠️ 날짜형 주의:</b> 날짜가 2자리(10일 이상)면<br>
-          월+일 = 4자리 → 앞 3자리만 소분류에, 남은 1자리는 비번호 앞에 붙음<br>
-          예) 7월 15일 → 소분류 <span style="font-family:monospace">715</span> (사실 0715의 앞 3자리)
+          앞 2자리 = 기획·제조 월 (01~12)<br>마지막 1자리 = 시리즈 구분
         </div>
       </label>
     </div>
@@ -210,7 +200,7 @@ function openBarcodeForm(no) {
       </label>
     </div>
 
-    <!-- 미리보기 -->
+    <!-- 바코드 미리보기 -->
     <div class="bc-preview" id="bc-preview">
       <div class="bc-preview-label">바코드 미리보기</div>
       <svg id="bc-preview-svg" style="display:block;margin:0 auto"></svg>
@@ -226,26 +216,26 @@ function openBarcodeForm(no) {
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
       <label>브랜드 접두어
         <select id="bc6">
-          <option value="AP" ${!item||!item.mfgNo.startsWith('JP')?'selected':''}>AP (에이브릴팜)</option>
-          <option value="JP" ${item&&item.mfgNo.startsWith('JP')?'selected':''}>JP (제이쏩)</option>
+          <option value="AP" ${!item||!(item.mfgNo||'').startsWith('JP')?'selected':''}>AP (에이브릴팜)</option>
+          <option value="JP" ${item&&(item.mfgNo||'').startsWith('JP')?'selected':''}>JP (제이쏩)</option>
         </select>
       </label>
       <label>색상 코드
-        <select id="bc7" onchange="updateMfgPreview()">
-          ${COLOR_CODES.map(c=>`<option value="${c.code}" ${item&&item.mfgNo.includes(c.code.replace('-',''))?'selected':''}>${c.label}</option>`).join('')}
+        <select id="bc7" onchange="updateMfgPreview(); toggleBc7Custom()">
+          ${COLOR_CODES.map(c=>`<option value="${c.code}" ${item&&(item.mfgNo||'').includes(c.code)?'selected':''}>${c.label}</option>`).join('')}
         </select>
       </label>
     </div>
-    <div id="bc7-custom" style="display:none">
-      <label>색상코드 직접입력<input id="bc7c" placeholder="예: BK" oninput="updateMfgPreview()"></label>
+    <div id="bc7-custom" style="display:${item&&item.bc7c?'block':'none'}">
+      <label>색상코드 직접입력<input id="bc7c" value="${item&&item.bc7c||''}" placeholder="예: BK" oninput="updateMfgPreview()"></label>
     </div>
 
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
       <label>기획 월 (2자리)
-        <input id="bc8" maxlength="2" style="font-family:monospace" value="${item?item.mfgNo.match(/\d{2}(?=\d{3})/)?.[0]||'':''}" placeholder="예: 06" oninput="updateMfgPreview()">
+        <input id="bc8" maxlength="2" style="font-family:monospace" value="${item?item.mfgNo?.match(/\d{2}(?=\d{3})/)?.[0]||'':''}" placeholder="예: 06" oninput="updateMfgPreview()">
       </label>
       <label>비누번호 (3자리)
-        <input id="bc9" maxlength="3" style="font-family:monospace" value="${item?item.mfgNo.match(/\d{3}$/)?.[0]||'':''}" placeholder="${ns}" oninput="updateMfgPreview()">
+        <input id="bc9" maxlength="3" style="font-family:monospace" value="${item?item.mfgNo?.match(/\d{3}$/)?.[0]||'':''}" placeholder="${ns}" oninput="updateMfgPreview()">
       </label>
     </div>
 
@@ -255,45 +245,59 @@ function openBarcodeForm(no) {
     </div>
 
     <label>제조일자<input id="bc10" value="${item?item.mfgDate:''}" placeholder="예: 26.06.01"></label>
+
     <label>유통기한
-      <select id="bc11" onchange="toggleExpiryInput()">
+      <select id="bc11" onchange="toggleBc11Custom()">
         ${['CP-2년','MP-1년','제조일로부터 1년','제조일로부터 2년','직접입력'].map(e=>`<option ${item&&item.expiry===e?'selected':''}>${e}</option>`).join('')}
       </select>
     </label>
-    <div id="bc11-custom" style="display:${item&&item.expiry==='직접입력'?'block':'none'}">
-      <label>유통기한 직접입력<input id="bc11c" value="${item&&item.expiry&&item.expiry.startsWith('직접')?item.expiry:''}" placeholder="예: 2년" oninput=""></label>
+    <div id="bc11-custom" style="display:${item&&!['CP-2년','MP-1년','제조일로부터 1년','제조일로부터 2년'].includes(item.expiry)&&item.expiry?'block':'none'}">
+      <label>유통기한 직접입력<input id="bc11c" value="${item&&!['CP-2년','MP-1년','제조일로부터 1년','제조일로부터 2년'].includes(item.expiry)?item.expiry||'':''}" placeholder="예: 2027-12-31까지"></label>
     </div>
+
     <label>상태
       <select id="bc12">
-        ${['현행','단종','예정'].map(s=>`<option ${item&&item.status===s?'selected':''}>` + s + '</option>').join('')}
+        ${['현행','단종','예정'].map(s=>`<option ${item&&item.status===s?'selected':''}>${s}</option>`).join('')}
       </select>
     </label>
     <label>비고<input id="bc13" value="${item?item.notes||'':''}" placeholder=""></label>
 
-    <div style="background:var(--gray-bg);border-radius:var(--r-sm);padding:10px 12px;margin-top:8px;font-size:11px;color:var(--text3)">
+    ${item ? '' : `<div style="background:var(--gray-bg);border-radius:var(--r-sm);padding:10px 12px;margin-top:8px;font-size:11px;color:var(--text3)">
       ※ 신규 생성 시 앱에 임시 저장됩니다. 마스터 시트에 직접 기재하여 관리하세요.
-    </div>
+    </div>`}
 
     <div class="sheet-btns">
       <button onclick="closeSheet()">취소</button>
       <button class="btn-save" onclick="printBarcodeLabel()" style="background:var(--mauve)!important;border-color:var(--mauve)!important">
         <i class="ti ti-printer"></i> 출력
       </button>
-      <button class="btn-save" onclick="saveBarcodeNew()">저장</button>
+      <button class="btn-save" onclick="saveBarcodeNew(${no||'null'})">저장</button>
     </div>
     </div>`);
 
-  // 폼 change 이벤트
   setTimeout(() => {
     updateBcPreview();
     updateMfgPreview();
-    const sel7 = document.getElementById('bc7');
-    if (sel7) sel7.addEventListener('change', () => {
-      const custom = document.getElementById('bc7-custom');
-      if (custom) custom.style.display = sel7.value === '직접입력' ? 'block' : 'none';
-      updateMfgPreview();
-    });
+    // bc11 직접입력 초기 상태 체크
+    const sel11 = document.getElementById('bc11');
+    if (sel11 && sel11.value === '직접입력') {
+      const wrap = document.getElementById('bc11-custom');
+      if(wrap) wrap.style.display = 'block';
+    }
   }, 50);
+}
+
+function toggleBc7Custom() {
+  const sel7 = document.getElementById('bc7');
+  const wrap = document.getElementById('bc7-custom');
+  if(wrap) wrap.style.display = sel7?.value === '직접입력' ? 'block' : 'none';
+  updateMfgPreview();
+}
+
+function toggleBc11Custom() {
+  const sel11 = document.getElementById('bc11');
+  const wrap = document.getElementById('bc11-custom');
+  if(wrap) wrap.style.display = sel11?.value === '직접입력' ? 'block' : 'none';
 }
 
 function updateBcPreview() {
@@ -313,8 +317,10 @@ function updateBcPreview() {
       catch(e) {}
     }
   } else {
-    document.getElementById('bc-preview-num').textContent = '— 입력 중 —';
-    document.getElementById('bc-preview-chk').textContent = '';
+    const numEl = document.getElementById('bc-preview-num');
+    const chkEl = document.getElementById('bc-preview-chk');
+    if(numEl) numEl.textContent = '— 입력 중 —';
+    if(chkEl) chkEl.textContent = '';
   }
 }
 
@@ -328,20 +334,10 @@ function updateMfgPreview() {
   const num = document.getElementById('bc9')?.value || '';
   const mfg = prefix + 'B' + color + mon + num;
   const el = document.getElementById('mfg-preview-val');
-  if (el) el.textContent = mfg || '(미리보기)';
-}
-
-function toggleExpiryInput() {
-  const sel = document.getElementById('bc11');
-  const custom = document.getElementById('bc11-custom');
-  if (sel && custom) {
-    custom.style.display = sel.value === '직접입력' ? 'block' : 'none';
-  }
-}
   if (el) el.textContent = mfg || '—';
 }
 
-function saveBarcodeNew() {
+function saveBarcodeNew(no) {
   const name = document.getElementById('bc1')?.value;
   if (!name) { alert('제품명을 입력하세요'); return; }
   const biz = document.getElementById('bc2')?.value || '8739';
@@ -349,24 +345,45 @@ function saveBarcodeNew() {
   const seq = document.getElementById('bc4')?.value || '';
   const qty = document.getElementById('bc5')?.value || '';
   const chk = calcCheckDigit(biz, sub, seq, qty);
-  const full = buildBarcode(biz, sub, seq, qty);
   const sel7 = document.getElementById('bc7');
   const color = sel7?.value === '직접입력' ? (document.getElementById('bc7c')?.value||'') : (sel7?.value||'');
+  const bc7c = sel7?.value === '직접입력' ? (document.getElementById('bc7c')?.value||'') : '';
   const mfgNo = (document.getElementById('bc6')?.value||'AP') + 'B' + color + (document.getElementById('bc8')?.value||'') + (document.getElementById('bc9')?.value||'');
 
-  // BARCODE_MASTER에 임시 추가
-  const newItem = {
-    no: Math.max(...BARCODE_MASTER.map(p=>p.no)) + 1,
-    name, biz: biz==='8739'?undefined:biz,
-    sub, seq, qty, chk,
-    mfgNo, mfgDate: document.getElementById('bc10')?.value||'',
-    expiry: document.getElementById('bc11')?.value||'',
-    status: document.getElementById('bc12')?.value||'현행',
-    notes: document.getElementById('bc13')?.value||''
-  };
-  BARCODE_MASTER.push(newItem);
+  const sel11 = document.getElementById('bc11');
+  const expiry = sel11?.value === '직접입력'
+    ? (document.getElementById('bc11c')?.value||'')
+    : (sel11?.value||'');
+
+  if (no) {
+    // 기존 항목 수정
+    const idx = BARCODE_MASTER.findIndex(p => p.no === no);
+    if (idx !== -1) {
+      BARCODE_MASTER[idx] = {
+        ...BARCODE_MASTER[idx],
+        name, biz: biz==='8739'?undefined:biz,
+        sub, seq, qty, chk,
+        mfgNo, bc7c,
+        mfgDate: document.getElementById('bc10')?.value||'',
+        expiry,
+        status: document.getElementById('bc12')?.value||'현행',
+        notes: document.getElementById('bc13')?.value||''
+      };
+    }
+  } else {
+    // 신규 추가
+    const newItem = {
+      no: Math.max(...BARCODE_MASTER.map(p=>p.no)) + 1,
+      name, biz: biz==='8739'?undefined:biz,
+      sub, seq, qty, chk, bc7c,
+      mfgNo, mfgDate: document.getElementById('bc10')?.value||'',
+      expiry, status: document.getElementById('bc12')?.value||'현행',
+      notes: document.getElementById('bc13')?.value||''
+    };
+    BARCODE_MASTER.push(newItem);
+  }
   closeSheet();
-  renderTab('barcode');
+  renderBarcodeTab(document.getElementById('page-content'));
 }
 
 /* ── 라벨 출력 ── */
@@ -378,7 +395,10 @@ function printBarcodeLabel() {
   const name = document.getElementById('bc1')?.value || '';
   const mfgEl = document.getElementById('mfg-preview-val');
   const mfgNo = mfgEl?.textContent || '';
-  const expiry = document.getElementById('bc11')?.value || '';
+  const sel11 = document.getElementById('bc11');
+  const expiry = sel11?.value === '직접입력'
+    ? (document.getElementById('bc11c')?.value||'')
+    : (sel11?.value||'');
   const full = buildBarcode(biz, sub, seq, qty);
 
   const win = window.open('','_blank');
@@ -480,6 +500,8 @@ window.setBcFilter = setBcFilter;
 window.openBarcodeForm = openBarcodeForm;
 window.updateBcPreview = updateBcPreview;
 window.updateMfgPreview = updateMfgPreview;
+window.toggleBc7Custom = toggleBc7Custom;
+window.toggleBc11Custom = toggleBc11Custom;
 window.saveBarcodeNew = saveBarcodeNew;
 window.printBarcodeLabel = printBarcodeLabel;
 window.printAllBarcodes = printAllBarcodes;

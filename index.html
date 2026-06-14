@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=5,user-scalable=yes">
+  <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=yes">
   <meta name="theme-color" content="#48997D">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -10,38 +10,99 @@
   <title>에이브릴팜 공방관리</title>
   <link rel="manifest" href="manifest.json">
   <link rel="stylesheet" href="css/style.css">
-  <!-- JSZip: docx 파일 파싱 -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-  <!-- JsBarcode: 바코드 생성 -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.6/JsBarcode.all.min.js"></script>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.0.0/tabler-icons.min.css">
   <style>
     @keyframes spin { to { transform: rotate(360deg); } }
+    @keyframes fadeIn { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }
+    @keyframes pulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.05)} }
+
+    /* ── 인트로 화면 ── */
+    #intro-screen {
+      position: fixed; inset: 0; z-index: 100;
+      background: linear-gradient(160deg, #F5EBE0 0%, #E8F5EE 50%, #F0E4EC 100%);
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      padding: 40px 32px;
+    }
+    .intro-symbol {
+      width: 100px; height: 100px; object-fit: contain;
+      margin-bottom: 20px;
+      animation: pulse 3s ease-in-out infinite;
+      filter: drop-shadow(0 8px 20px rgba(72,153,125,.25));
+    }
+    .intro-logo {
+      width: 200px; object-fit: contain;
+      margin-bottom: 10px;
+      animation: fadeIn .8s ease .2s both;
+    }
+    .intro-tagline {
+      font-size: 13px; color: #48997D; font-weight: 600;
+      letter-spacing: 1px; margin-bottom: 4px;
+      animation: fadeIn .8s ease .35s both;
+    }
+    .intro-info {
+      font-size: 11px; color: #8B8680; text-align: center;
+      line-height: 1.9; margin-bottom: 40px;
+      animation: fadeIn .8s ease .5s both;
+    }
+    .intro-btn {
+      background: #48997D; color: #fff;
+      border: none; border-radius: 28px;
+      padding: 16px 48px; font-size: 16px; font-weight: 700;
+      cursor: pointer; font-family: inherit;
+      box-shadow: 0 6px 20px rgba(72,153,125,.4);
+      transition: transform .15s, box-shadow .15s;
+      animation: fadeIn .8s ease .65s both;
+    }
+    .intro-btn:active { transform: scale(.97); box-shadow: 0 3px 12px rgba(72,153,125,.3); }
+    .intro-reg {
+      font-size: 10px; color: #B0A8A0; margin-top: 28px;
+      text-align: center; line-height: 1.7;
+      animation: fadeIn .8s ease .8s both;
+    }
+    #intro-screen.hidden { display: none; }
   </style>
 </head>
 <body>
-<div class="app">
+
+<!-- ══ 인트로 화면 ══ -->
+<div id="intro-screen">
+  <img src="에이브릴팜_비누심볼.png" alt="에이브릴팜 심볼" class="intro-symbol"
+       onerror="this.style.display='none'">
+  <img src="에이브릴팜_로고.png" alt="AVRIL'S FARM" class="intro-logo"
+       onerror="this.outerHTML='<div style=\'font-size:24px;font-weight:900;color:#AC839B;letter-spacing:2px;margin-bottom:10px\'>AVRIL\'S FARM</div>'">
+  <div class="intro-tagline">🌿 손바닥 위의 봄</div>
+  <div class="intro-info">
+    에이브릴팜 공방 관리 시스템<br>
+    화장품제조업 제6494호<br>
+    책임판매업 제18216호
+  </div>
+  <button class="intro-btn" onclick="enterApp()">시작하기 →</button>
+  <div class="intro-reg">
+    대표: 변민정 · 경기도 시흥시 진말1로 18, 에스엠타워 303호<br>
+    Tel: 0507-1346-8739
+  </div>
+</div>
+
+<!-- ══ 메인 앱 ══ -->
+<div class="app" id="main-app" style="display:none">
   <div class="topbar">
     <div class="topbar-logo">
-      <!-- 5번: 로고 이미지 파일로 교체 -->
-      <img src="에이브릴팜_최종심볼.png" alt="에이브릴팜 심볼" class="logo-symbol-img">
-      <div>
-        <img src="에이브릴팜_최종로고2.png" alt="AVRIL'S FARM" class="logo-main-img">
-        <div class="logo-sub">공방 관리 시스템</div>
-      </div>
+      <img src="에이브릴팜_비누심볼.png" alt="심볼" class="nav-symbol"
+           onerror="this.style.display='none'">
+      <img src="에이브릴팜_로고.png" alt="AVRIL'S FARM" class="nav-logo"
+           onerror="this.outerHTML='<span class=\'logo-text\'>AVRIL\'S FARM</span>'">
     </div>
-    <!-- 1번: 뒤로가기 버튼 -->
-    <button class="back-btn hide" id="back-btn" onclick="goBack()" title="뒤로가기">
-      <i class="ti ti-arrow-left"></i>
-    </button>
     <div class="tabs-wrap">
       <div class="tabs">
-        <button class="tab-btn" data-tab="stock">원료재고</button>
-        <button class="tab-btn" data-tab="manufacture">제품제조</button>
-        <button class="tab-btn" data-tab="mfcheck">제조점검</button>
-        <button class="tab-btn active" data-tab="hygiene">위생점검<span id="badge-hygiene" class="tab-dot"></span></button>
+        <button class="tab-btn" data-tab="stock">원료 재고</button>
+        <button class="tab-btn" data-tab="manufacture">제품 제조</button>
+        <button class="tab-btn" data-tab="mfcheck">제조 점검</button>
+        <button class="tab-btn active" data-tab="hygiene">위생 점검<span id="badge-hygiene" class="tab-dot"></span></button>
         <button class="tab-btn" data-tab="production">생산실적</button>
-        <button class="tab-btn" data-tab="output">문서출력</button>
+        <button class="tab-btn" data-tab="output">문서 출력</button>
         <button class="tab-btn" data-tab="barcode">바코드</button>
         <button class="tab-btn" data-tab="notify">알림·설정</button>
       </div>
@@ -53,13 +114,17 @@
 <div id="sheet-overlay" class="hide" onclick="closeSheet()"></div>
 <div id="sheet" class="hide"><div id="sheet-body"></div></div>
 
-<!-- ⚠️ 로드 순서 중요: db → notify → pdf → app → barcode -->
 <script src="js/db.js"></script>
 <script src="js/notify.js"></script>
 <script src="js/pdf.js"></script>
-<script src="js/app.js"></script>
 <script src="js/barcode.js"></script>
+<script src="js/app.js"></script>
 <script>
+  function enterApp() {
+    document.getElementById('intro-screen').classList.add('hidden');
+    document.getElementById('main-app').style.display = 'flex';
+    init();
+  }
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js').catch(()=>{});
   }
