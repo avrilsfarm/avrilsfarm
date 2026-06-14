@@ -44,16 +44,16 @@ const BARCODE_MASTER = [
 
 /* ── 색상 코드 매핑 ── */
 const COLOR_CODES = [
-  {code:'O',  label:'O — 오렌지 (당근)'},
-  {code:'P',  label:'P — 핑크 (가지)'},
-  {code:'G',  label:'G — 그린 (미나리)'},
-  {code:'YG', label:'YG — 옐로우그린 (아보카도)'},
+  {code:'O',  label:'O — 오렌지'},
+  {code:'P',  label:'P'},
+  {code:'G',  label:'G — 그린'},
+  {code:'YG', label:'YG — 옐로우그린'},
   {code:'B',  label:'B — 블루'},
   {code:'W',  label:'W — 화이트'},
   {code:'Y',  label:'Y — 옐로'},
   {code:'SS', label:'SS — 선인장솝'},
-  {code:'SF', label:'SF — 썸머프레시 (쿨)'},
-  {code:'FW', label:'FW — 폴윈터 (명절/크리스마스)'},
+  {code:'SF', label:'SF'},
+  {code:'FW', label:'FW'},
   {code:'GS', label:'GS — 굿즈'},
   {code:'직접입력', label:'직접입력'},
 ];
@@ -97,22 +97,9 @@ function renderBarcodeTab(el) {
       <div class="sum-chip sum-orange">단종 ${BARCODE_MASTER.length - active}개</div>
     </div>
 
-    <!-- 10번: 개인바코드 안내 + 코멘트 -->
-    <div class="bc-comment-box">
-      <div style="font-weight:700;margin-bottom:4px">⚠️ 개인사업자 자체 바코드 (GS1 공식 아님)</div>
-      이 바코드는 <b>에이브릴팜 자체 관리용</b>으로, GS1(국제표준) 공식 등록 바코드가 아닙니다.<br>
-      오픈마켓·편의점 납품 등 <b>외부 유통</b>에는 GS1 공식 바코드(gs1kr.org)가 필요합니다.
-    </div>
     <div class="info-banner" style="background:var(--teal-light);border-color:var(--teal);margin-bottom:2px">
       <i class="ti ti-info-circle" style="color:var(--teal)"></i>
-      <div style="color:var(--teal-dark);font-size:11px;line-height:1.7">
-        <b>바코드 부여 방법</b><br>
-        대분류(4) = 사업자 뒷자리 · 에이브릴팜: <b>8739</b> / 제이쏩: 6590<br>
-        소분류(3) = 기획월 2자리 + 시리즈 구분 1자리 (예: 101 → 10월 1번)<br>
-        비번호(3) = 제품 고유 일련번호 (누적, 절대 중복 안 됨)<br>
-        개수(2) = 제조 예정 수량 (예: 09)<br>
-        체크디짓(1) = EAN-13 표준 자동계산 (홀수×1 + 짝수×3, 10의 보수)
-      </div>
+      <span style="color:var(--teal-dark);font-size:11px"><b>EAN-13:</b> 8739 + 소분류(3) + 비번호(3) + 개수(2) + 체크디짓(1) = 13자리</span>
     </div>
 
     <div style="display:flex;gap:6px;padding:8px 16px">
@@ -269,10 +256,13 @@ function openBarcodeForm(no) {
 
     <label>제조일자<input id="bc10" value="${item?item.mfgDate:''}" placeholder="예: 26.06.01"></label>
     <label>유통기한
-      <select id="bc11">
+      <select id="bc11" onchange="toggleExpiryInput()">
         ${['CP-2년','MP-1년','제조일로부터 1년','제조일로부터 2년','직접입력'].map(e=>`<option ${item&&item.expiry===e?'selected':''}>${e}</option>`).join('')}
       </select>
     </label>
+    <div id="bc11-custom" style="display:${item&&item.expiry==='직접입력'?'block':'none'}">
+      <label>유통기한 직접입력<input id="bc11c" value="${item&&item.expiry&&item.expiry.startsWith('직접')?item.expiry:''}" placeholder="예: 2년" oninput=""></label>
+    </div>
     <label>상태
       <select id="bc12">
         ${['현행','단종','예정'].map(s=>`<option ${item&&item.status===s?'selected':''}>` + s + '</option>').join('')}
@@ -338,6 +328,16 @@ function updateMfgPreview() {
   const num = document.getElementById('bc9')?.value || '';
   const mfg = prefix + 'B' + color + mon + num;
   const el = document.getElementById('mfg-preview-val');
+  if (el) el.textContent = mfg || '(미리보기)';
+}
+
+function toggleExpiryInput() {
+  const sel = document.getElementById('bc11');
+  const custom = document.getElementById('bc11-custom');
+  if (sel && custom) {
+    custom.style.display = sel.value === '직접입력' ? 'block' : 'none';
+  }
+}
   if (el) el.textContent = mfg || '—';
 }
 
@@ -483,7 +483,3 @@ window.updateMfgPreview = updateMfgPreview;
 window.saveBarcodeNew = saveBarcodeNew;
 window.printBarcodeLabel = printBarcodeLabel;
 window.printAllBarcodes = printAllBarcodes;
-
-// app.js 호환 별칭
-async function renderBarcode(el) { renderBarcodeTab(el); }
-window.renderBarcode = renderBarcode;

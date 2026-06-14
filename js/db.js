@@ -1,5 +1,5 @@
 'use strict';
-const DB_NAME = 'AvrilFarmDB', DB_VER = 9;
+const DB_NAME = 'AvrilFarmDB', DB_VER = 8;
 let _db;
 
 function openDB() {
@@ -8,7 +8,7 @@ function openDB() {
     const r = indexedDB.open(DB_NAME, DB_VER);
     r.onupgradeneeded = e => {
       const d = e.target.result;
-      // 기존 스토어 삭제 안 함 — 없는 것만 추가
+      Array.from(d.objectStoreNames).forEach(s => d.deleteObjectStore(s));
       const schema = {
         ingredients: [],
         batches:     [{n:'status',k:'status'}],
@@ -18,10 +18,8 @@ function openDB() {
         barcodes:    [{n:'번호',k:'번호'}]
       };
       Object.entries(schema).forEach(([name, idxs]) => {
-        if (!d.objectStoreNames.contains(name)) {
-          const st = d.createObjectStore(name, {keyPath:'id', autoIncrement:true});
-          idxs.forEach(({n,k}) => st.createIndex(n, k));
-        }
+        const st = d.createObjectStore(name, {keyPath:'id', autoIncrement:true});
+        idxs.forEach(({n,k}) => st.createIndex(n, k));
       });
     };
     r.onsuccess = e => { _db = e.target.result; res(_db); };

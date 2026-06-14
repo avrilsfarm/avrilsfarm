@@ -175,29 +175,27 @@ function renderNotifySettings(el) {
     <button class="save-btn mt16" onclick="openEquipForm()">+ 분기 점검 기록 추가</button>
 
     <div class="group-header mt16">데이터 관리</div>
-    <div style="padding:6px 16px 12px;display:flex;flex-direction:column;gap:8px">
-      <button onclick="exportData()" style="display:flex;align-items:center;gap:10px;width:100%;padding:13px 16px;background:var(--card);border:1.5px solid var(--border);border-radius:var(--r-sm);cursor:pointer;font-family:inherit;font-size:14px;color:var(--text);text-align:left">
-        <i class="ti ti-download" style="color:var(--teal);font-size:18px"></i>
-        <div>
-          <div style="font-weight:600">💾 데이터 백업</div>
-          <div style="font-size:11px;color:var(--text3);margin-top:2px">전체 데이터를 JSON 파일로 저장</div>
-        </div>
-      </button>
-      <button onclick="document.getElementById('restore-file').click()" style="display:flex;align-items:center;gap:10px;width:100%;padding:13px 16px;background:var(--card);border:1.5px solid var(--border);border-radius:var(--r-sm);cursor:pointer;font-family:inherit;font-size:14px;color:var(--text);text-align:left">
-        <i class="ti ti-upload" style="color:var(--teal);font-size:18px"></i>
-        <div>
-          <div style="font-weight:600">📂 데이터 복원</div>
-          <div style="font-size:11px;color:var(--text3);margin-top:2px">백업 JSON 파일로 복원</div>
-        </div>
-      </button>
-      <input type="file" id="restore-file" accept=".json" style="display:none" onchange="restoreData(event)">
-      <button onclick="confirmReset()" style="display:flex;align-items:center;gap:10px;width:100%;padding:13px 16px;background:var(--red-bg);border:1.5px solid var(--red);border-radius:var(--r-sm);cursor:pointer;font-family:inherit;font-size:14px;color:var(--red-text);text-align:left">
-        <i class="ti ti-trash" style="font-size:18px"></i>
-        <div>
-          <div style="font-weight:600">🗑 데이터 초기화</div>
-          <div style="font-size:11px;color:var(--red-text);margin-top:2px;opacity:.7">모든 기록 삭제 후 초기화 (되돌릴 수 없음)</div>
-        </div>
-      </button>
+    <div class="list-item" onclick="exportData()" style="cursor:pointer">
+      <div class="item-left">
+        <div class="item-title">💾 데이터 백업</div>
+        <div class="item-sub">전체 데이터를 JSON 파일로 저장</div>
+      </div>
+      <i class="ti ti-download" style="color:var(--teal)"></i>
+    </div>
+    <div class="list-item" onclick="document.getElementById('restore-file').click()" style="cursor:pointer">
+      <div class="item-left">
+        <div class="item-title">📂 데이터 복원</div>
+        <div class="item-sub">백업 JSON 파일로 복원</div>
+      </div>
+      <i class="ti ti-upload" style="color:var(--teal)"></i>
+    </div>
+    <input type="file" id="restore-file" accept=".json" style="display:none" onchange="restoreData(event)">
+    <div class="list-item" onclick="confirmReset()" style="cursor:pointer;border-top:2px solid var(--red-bg)">
+      <div class="item-left">
+        <div class="item-title" style="color:var(--red)">🗑 데이터 초기화</div>
+        <div class="item-sub">모든 기록 삭제 후 초기화</div>
+      </div>
+      <i class="ti ti-trash" style="color:var(--red)"></i>
     </div>
   `;
 
