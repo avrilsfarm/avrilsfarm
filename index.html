@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=5,user-scalable=yes">
   <meta name="theme-color" content="#48997D">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -10,77 +10,57 @@
   <title>에이브릴팜 공방관리</title>
   <link rel="manifest" href="manifest.json">
   <link rel="stylesheet" href="css/style.css">
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.0.0/tabler-icons.min.css">
+  <!-- JSZip: docx 파일 파싱 -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <!-- JsBarcode: 바코드 생성 -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.6/JsBarcode.all.min.js"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.0.0/tabler-icons.min.css">
+  <style>
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
 </head>
 <body>
-
-<!-- 인트로 화면 -->
-<div id="intro-screen" class="intro-screen">
-  <div class="intro-inner">
-    <!-- 로고: 컬러(핑크+그린)이므로 어두운 배경 위에서 밝게 보이도록 흰색 처리 -->
-    <img src="icons/logo-full.png" alt="AVRIL'S FARM" class="intro-logo-img"
-         onerror="this.style.display='none';document.getElementById('intro-fallback').style.display='block'">
-    <div id="intro-fallback" style="display:none;color:#fff;font-size:26px;font-weight:700;letter-spacing:.05em;margin-bottom:12px;">AVRIL'S FARM</div>
-    <!-- 심볼: 투명 배경에 노란색 비누 아이콘 — 원본 그대로 -->
-    <img src="icons/symbol.png" alt="" class="intro-soap-icon">
-    <div class="intro-tagline">손바닥 위의 봄</div>
-    <div class="intro-desc">
-      사라지는 것들에 정성을 다하는 마음<br>
-      공방 관리 시스템 · EF-MMS-001
+<div class="app">
+  <div class="topbar">
+    <div class="topbar-logo">
+      <!-- 5번: 로고 이미지 파일로 교체 -->
+      <img src="에이브릴팜_최종심볼.png" alt="에이브릴팜 심볼" class="logo-symbol-img">
+      <div>
+        <img src="에이브릴팜_최종로고2.png" alt="AVRIL'S FARM" class="logo-main-img">
+        <div class="logo-sub">공방 관리 시스템</div>
+      </div>
     </div>
-    <button class="intro-btn" onclick="startApp()">공방 관리 시작하기</button>
-    <div class="intro-reg">
-      화장품제조업 등록번호 제6494호 · 책임판매업 등록번호 제18216호<br>
-      경기도 시흥시 진말1로 18, 에스엠타워 303호
-    </div>
-  </div>
-</div>
-
-<!-- 메인 앱 (초기엔 숨김) -->
-<div class="app" id="main-app" style="display:none">
-  <!-- 탑바 -->
-  <div class="topbar" id="topbar">
-    <button class="back-btn hidden" id="back-btn" onclick="goBack()" title="뒤로">
-      <i class="ti ti-chevron-left"></i>
+    <!-- 1번: 뒤로가기 버튼 -->
+    <button class="back-btn hide" id="back-btn" onclick="goBack()" title="뒤로가기">
+      <i class="ti ti-arrow-left"></i>
     </button>
-    <img src="icons/symbol.png" alt="에이브릴팜" class="topbar-logo-img" onclick="goHome()"
-         onerror="this.src='icons/logo.png'" title="홈으로">
-    <div class="tabs-wrap" id="tabs-wrap">
-      <div class="tabs" id="main-tabs">
-        <button class="tab-btn active" data-tab="stock"       onclick="switchTab('stock')">재료·재고</button>
-        <button class="tab-btn" data-tab="manufacture"         onclick="switchTab('manufacture')">제품 제조</button>
-        <button class="tab-btn" data-tab="mfcheck"             onclick="switchTab('mfcheck')">제조 점검<span id="badge-mfcheck" class="tab-dot hide"></span></button>
-        <button class="tab-btn" data-tab="hygiene"             onclick="switchTab('hygiene')">위생 점검<span id="badge-hygiene" class="tab-dot hide"></span></button>
-        <button class="tab-btn" data-tab="sales"               onclick="switchTab('sales')">생산실적</button>
-        <button class="tab-btn" data-tab="output"              onclick="switchTab('output')">문서 출력</button>
-        <button class="tab-btn" data-tab="barcode"             onclick="switchTab('barcode')">바코드</button>
-        <button class="tab-btn" data-tab="settings"            onclick="switchTab('settings')">설정·알림</button>
+    <div class="tabs-wrap">
+      <div class="tabs">
+        <button class="tab-btn" data-tab="stock">원료재고</button>
+        <button class="tab-btn" data-tab="manufacture">제품제조</button>
+        <button class="tab-btn" data-tab="mfcheck">제조점검</button>
+        <button class="tab-btn active" data-tab="hygiene">위생점검<span id="badge-hygiene" class="tab-dot"></span></button>
+        <button class="tab-btn" data-tab="production">생산실적</button>
+        <button class="tab-btn" data-tab="output">문서출력</button>
+        <button class="tab-btn" data-tab="barcode">바코드</button>
+        <button class="tab-btn" data-tab="notify">알림·설정</button>
       </div>
     </div>
   </div>
-
-  <!-- 페이지 본문 -->
-  <div class="page-content" id="page-content"></div>
+  <div id="page-content"></div>
 </div>
 
-<!-- 오버레이 & 바텀 시트 -->
-<div class="overlay" id="overlay" onclick="closeSheet()"></div>
-<div class="sheet" id="sheet">
-  <div class="sheet-handle"></div>
-  <div class="sheet-header">
-    <span class="sheet-title" id="sheet-title"></span>
-    <button class="sheet-close" onclick="closeSheet()"><i class="ti ti-x"></i></button>
-  </div>
-  <div class="sheet-body" id="sheet-body"></div>
-  <div class="sheet-footer hide" id="sheet-footer"></div>
-</div>
+<div id="sheet-overlay" class="hide" onclick="closeSheet()"></div>
+<div id="sheet" class="hide"><div id="sheet-body"></div></div>
 
+<!-- ⚠️ 로드 순서 중요: db → notify → pdf → app → barcode -->
 <script src="js/db.js"></script>
+<script src="js/notify.js"></script>
+<script src="js/pdf.js"></script>
 <script src="js/app.js"></script>
+<script src="js/barcode.js"></script>
 <script>
-  if('serviceWorker' in navigator){
+  if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js').catch(()=>{});
   }
 </script>

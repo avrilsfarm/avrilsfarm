@@ -600,12 +600,14 @@ async function generatePDF(){
   if(chk('mh'))                             pages.push(...months.map(({y,m})=>buildMH(filtHyg,y,m)));
   if(chk('mms'))                            pages.push(buildMMS(ing));
   if(chk('qcm'))                            pages.push(buildQCM(allBatches));
-  if(chk('mi')&&batches.length)             pages.push(...batches.map(b=>buildMI(b)));
-  if(chk('tr')&&batches.length)             pages.push(...batches.map(b=>buildTR(b,ing)));
-  if(chk('ps')&&batches.length)             pages.push(...batches.map(b=>buildPS(b,ing)));
+  // 품목별: 선택된 배치가 없으면 전체 배치 사용
+  const targetBatches = (selectedIds.length > 0) ? batches : allBatches;
+  if(chk('mi')&&targetBatches.length)       pages.push(...targetBatches.map(b=>buildMI(b)));
+  if(chk('tr')&&targetBatches.length)       pages.push(...targetBatches.map(b=>buildTR(b,ing)));
+  if(chk('ps')&&targetBatches.length)       pages.push(...targetBatches.map(b=>buildPS(b,ing)));
 
   if(!pages.length){ alert('출력할 문서를 하나 이상 선택하세요.'); return; }
-  openPrint(pages.join(sep));
+  open$(pages.join(sep));
 }
 
 async function printDoc(key){
