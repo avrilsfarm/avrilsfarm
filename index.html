@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=5,user-scalable=yes">
+  <meta name="theme-color" content="#48997D">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="에이브릴팜">
+  <title>에이브릴팜 공방관리</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="stylesheet" href="css/style.css">
+  <!-- JSZip: docx 파일 파싱 -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <!-- JsBarcode: 바코드 생성 -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.6/JsBarcode.all.min.js"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.0.0/tabler-icons.min.css">
+  <style>
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+<div class="app">
+  <div class="topbar">
+    <div class="topbar-logo">
+      <!-- 5번: 로고 이미지 파일로 교체 -->
+      <img src="에이브릴팜_최종심볼.png" alt="에이브릴팜 심볼" class="logo-symbol-img">
+      <div>
+        <img src="에이브릴팜_최종로고2.png" alt="AVRIL'S FARM" class="logo-main-img">
+        <div class="logo-sub">공방 관리 시스템</div>
+      </div>
+    </div>
+    <!-- 1번: 뒤로가기 버튼 -->
+    <button class="back-btn hide" id="back-btn" onclick="goBack()" title="뒤로가기">
+      <i class="ti ti-arrow-left"></i>
+    </button>
+    <div class="tabs-wrap">
+      <div class="tabs">
+        <button class="tab-btn" data-tab="stock">원료재고</button>
+        <button class="tab-btn" data-tab="manufacture">제품제조</button>
+        <button class="tab-btn" data-tab="mfcheck">제조점검</button>
+        <button class="tab-btn active" data-tab="hygiene">위생점검<span id="badge-hygiene" class="tab-dot"></span></button>
+        <button class="tab-btn" data-tab="production">생산실적</button>
+        <button class="tab-btn" data-tab="output">문서출력</button>
+        <button class="tab-btn" data-tab="barcode">바코드</button>
+        <button class="tab-btn" data-tab="notify">알림·설정</button>
+      </div>
+    </div>
+  </div>
+  <div id="page-content"></div>
+</div>
+
+<div id="sheet-overlay" class="hide" onclick="closeSheet()"></div>
+<div id="sheet" class="hide"><div id="sheet-body"></div></div>
+
+<!-- ⚠️ 로드 순서 중요: db → notify → pdf → app → barcode -->
+<script src="js/db.js"></script>
+<script src="js/notify.js"></script>
+<script src="js/pdf.js"></script>
+<script src="js/app.js"></script>
+<script src="js/barcode.js"></script>
+<script>
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js').catch(()=>{});
+  }
+</script>
+</body>
+</html>
