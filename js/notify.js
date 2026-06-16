@@ -190,6 +190,13 @@ function renderNotifySettings(el) {
       </div>
       <i class="ti ti-trash" style="color:var(--red)"></i>
     </div>
+    <div class="list-item" onclick="runMigrateEFtoAF()" style="cursor:pointer">
+      <div class="item-left">
+        <div class="item-title">🔄 문서번호 EF→AF 일괄 변환</div>
+        <div class="item-sub">기존 저장된 EF-MI, EF-PS 등을 AF- 형식으로 변환</div>
+      </div>
+      <i class="ti ti-replace" style="color:var(--teal)"></i>
+    </div>
 
     <div class="group-header mt16">앱 정보</div>
     <div class="list-item" style="cursor:default">
@@ -377,4 +384,12 @@ window.saveCustomAlarm = saveCustomAlarm;
 window.removeCustomAlarm = removeCustomAlarm;
 window.exportData = exportData;
 window.restoreData = restoreData;
+async function runMigrateEFtoAF() {
+  if(!confirm('저장된 문서번호를 EF- → AF- 로 일괄 변환할까요?')) return;
+  const count = await DB.migrateEFtoAF();
+  alert(`완료! ${count}개 문서번호가 AF-로 변환됐습니다.`);
+  if(typeof renderTab === 'function') renderTab('manufacture');
+}
+
+window.runMigrateEFtoAF = runMigrateEFtoAF;
 window.confirmReset = confirmReset;

@@ -84,7 +84,7 @@ function chk(val, trueLabel, falseLabel){
 }
 
 /* ─────────────────────────────────────
-   시험성적서 (EF-TR)
+   시험성적서 (AF-TR)
    원본 5개 섹션 그대로:
    ① 원자재 시험성적서
    ② 완제품 시험성적서 CT (내용량 단독, 참고용) — 해당시
@@ -94,7 +94,7 @@ function chk(val, trueLabel, falseLabel){
 ───────────────────────────────────── */
 function buildTR(batch, allIng){
   const ing = allIng.filter(i => i.stockType !== '포장재');
-  const docNo = batch.문서번호 ? batch.문서번호.replace('EF-MI','EF-TR') : 'EF-TR-00X';
+  const docNo = batch.문서번호 ? batch.문서번호.replace('AF-MI','AF-TR') : 'AF-TR-00X';
   const expiry = batch.date ? batch.date.slice(0,4)*1+2 + batch.date.slice(4) : '';
 
   // ① 원자재 행
@@ -395,10 +395,10 @@ function buildQCM(batches){
 }
 
 /* ─────────────────────────────────────
-   제조지시서 (EF-MI)
+   제조지시서 (AF-MI)
 ───────────────────────────────────── */
 function buildMI(batch){
-  return hd('제조지시서','Manufacturing Instruction · '+batch.제품명, batch.문서번호||'EF-MI-00X','Rev.00',batch.date) + `
+  return hd('제조지시서','Manufacturing Instruction · '+batch.제품명, batch.문서번호||'AF-MI-00X','Rev.00',batch.date) + `
   <div class="sign"><div class="sign-box"><div class="sign-lbl">총괄책임자(제조관리담당자)</div>${CO.owner} (인)</div></div>
 
   <div class="sec">▶ 가. 기본 정보</div>
@@ -461,11 +461,11 @@ function buildMI(batch){
 }
 
 /* ─────────────────────────────────────
-   제품표준서 (EF-PS)  ← 앱 내 신규 작성 가능
+   제품표준서 (AF-PS)  ← 앱 내 신규 작성 가능
 ───────────────────────────────────── */
 function buildPS(batch, allIng){
   const ing = allIng.filter(i=>i.stockType!=='포장재');
-  const psNo = batch.문서번호 ? batch.문서번호.replace('EF-MI','EF-PS') : 'EF-PS-00X';
+  const psNo = batch.문서번호 ? batch.문서번호.replace('AF-MI','AF-PS') : 'AF-PS-00X';
 
   return hd('제품표준서','Product Standard · '+batch.제품명, psNo,'Rev.00',batch.date) + `
   <div class="sign"><div class="sign-box"><div class="sign-lbl">총괄책임자(제조관리담당자)</div>${CO.owner} (인)</div></div>

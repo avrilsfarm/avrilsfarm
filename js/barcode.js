@@ -7,9 +7,9 @@
 
 /* ── 마스터 데이터 (제이쏩 삭제, expiry 수정) ── */
 const BARCODE_MASTER = [
-  { no:1,  name:'캐롯숍',                   sub:'071',seq:'001',qty:'09',chk:9, mfgNo:'',            mfgDate:'',         expiry:'',               status:'단종', notes:'' },
-  { no:2,  name:'크리스마숍',                sub:'112',seq:'002',qty:'09',chk:2, mfgNo:'',            mfgDate:'',         expiry:'',               status:'단종', notes:'' },
-  { no:3,  name:'젤리베어숍',                sub:'113',seq:'003',qty:'20',chk:3, mfgNo:'',            mfgDate:'',         expiry:'',               status:'단종', notes:'' },
+  { no:1,  name:'캐롯솝',                   sub:'071',seq:'001',qty:'09',chk:9, mfgNo:'',            mfgDate:'',         expiry:'',               status:'단종', notes:'' },
+  { no:2,  name:'크리스마솝',                sub:'112',seq:'002',qty:'09',chk:2, mfgNo:'',            mfgDate:'',         expiry:'',               status:'단종', notes:'' },
+  { no:3,  name:'젤리베어솝',                sub:'113',seq:'003',qty:'20',chk:3, mfgNo:'',            mfgDate:'',         expiry:'',               status:'단종', notes:'' },
   { no:4,  name:'새해비누',                  sub:'011',seq:'004',qty:'50',chk:0, mfgNo:'',            mfgDate:'',         expiry:'',               status:'현행', notes:'' },
   { no:5,  name:'카네이션비누',              sub:'004',seq:'005',qty:'24',chk:8, mfgNo:'',            mfgDate:'',         expiry:'',               status:'단종', notes:'' },
   { no:6,  name:'아이스쿨바',               sub:'715',seq:'006',qty:'06',chk:0, mfgNo:'APBSF06006',  mfgDate:'25.06.25', expiry:'제조일로부터 1년', status:'현행', notes:'' },
@@ -52,6 +52,7 @@ const COLOR_CODES = [
   {code:'SS',       label:'SS — Spring / Summer'},
   {code:'SF',       label:'SF — Summer / Fall'},
   {code:'FW',       label:'FW — Fall / Winter'},
+  {code:'WS',       label:'WS — Winter / Spring'},
   {code:'GS',       label:'GS — 굿즈'},
   {code:'직접입력',  label:'직접입력'},
 ];

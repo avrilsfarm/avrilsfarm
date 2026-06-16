@@ -122,27 +122,34 @@ async function renderStock(el) {
 function switchStockTab(tab) { stockSubTab = tab; renderTab('stock'); }
 
 /* ═══════════════════════════════════
-   제품 제조 — 바로 서류 출력 버튼 추가
+   제품 제조 — 제품 마스터(표준서) 연동
 ════════════════════════════════════*/
 async function renderManufacture(el) {
-  const list = await DB.getAll('batches');
+  const [list, products] = await Promise.all([DB.getAll('batches'), DB.getAll('products')]);
+  const prodMap = Object.fromEntries(products.map(p=>[p.id, p]));
+
   el.innerHTML = `
     <div class="page-header">
       <h2 class="page-title">제품 제조</h2>
+      <button class="header-btn" onclick="openProductMasterList()" style="background:var(--mauve);color:#fff;border-color:var(--mauve)">
+        <i class="ti ti-book-2"></i> 제품표준서
+      </button>
     </div>
     <div class="summary-row">
       <div class="sum-chip sum-mauve">배치 ${list.length}건</div>
       <div class="sum-chip sum-green">KCL 완료 ${list.filter(b=>b.KCL).length}건</div>
     </div>
     ${list.length===0 ? `<div class="empty-hint"><div class="empty-icon">🧪</div>등록된 배치가 없습니다<br><small>아래 + 버튼으로 추가하세요</small></div>` : ''}
-    ${list.map((b, idx) => `
+    ${list.map((b, idx) => {
+      const prod = prodMap[b.productId] || {};
+      return `
       <div class="card-block">
         <div class="card-top" onclick="toggleCard(this)">
           <div class="card-num">${idx+1}</div>
           <div class="card-left">
             <div class="card-title">${b.제품명||''}</div>
             <div class="card-sub">${b.문서번호||''} · ${b.제조번호||''}</div>
-            <div class="card-sub">${b.date||''} · ${b.제조방법||''}</div>
+            <div class="card-sub">${b.date||''} · ${prod.제조방법||b.제조방법||''}</div>
           </div>
           <div class="card-right">
             <span class="badge ${badgeClass(b.상태)}">${b.상태||''}</span>
@@ -152,23 +159,36 @@ async function renderManufacture(el) {
           </div>
         </div>
         <div class="card-detail hide">
+          ${drow('제조방법', prod.제조방법||b.제조방법||'-')}
           ${drow('투입량', b.투입량+'g')}
-          ${drow('이론/실제 수량 (1kg 몰드 기준)', (b.이론수량||'-')+'ea / '+(b.실제수량||'-')+'ea')}
-          ${drow('목표 중량', b.목표중량||'90g ±5g')}
+          ${drow('이론수량 (표준서 기준)', prod.이론수량?prod.이론수량+'ea':'-')}
+          ${drow('실제수량 (이번 배치)', b.실제수량?b.실제수량+'ea':'-')}
+          ${drow('목표 중량 (표준서)', prod.목표중량||'90g ±5g')}
           ${drow('실측 중량', b.실측중량?b.실측중량+'g':'-')}
+          ${drow('색상 기준 (표준서)', prod.색상기준||'-')}
+          ${drow('색상 결과 (이번 배치)', b.색상결과||'-')}
           ${drow('KCL 성적서', b.KCL||'미등록')}
           ${drow('내용량', b.내용량?b.내용량+'% (기준 97% 이상)':'-')}
           ${drow('유리알칼리', b.유리알칼리?b.유리알칼리+' (기준 0.1% 이하)':'-')}
-          ${drow('알레르기 유발성분', b.알레르기||'-')}
+          ${drow('알레르기 유발성분 (표준서)', prod.알레르기||b.알레르기||'-')}
           ${drow('이상 여부', b.이상||'-')}
-          ${b.레시피&&b.레시피.length ? `
-            <div style="margin-top:8px;font-size:11px;font-weight:700;color:var(--teal-dark);padding-bottom:4px">원료 배합표 (1kg 몰드 기준)</div>
+          ${prod.전성분 ? drow('전성분 (표준서)', prod.전성분) : ''}
+          ${prod.레시피&&prod.레시피.length ? `
+            <div style="margin-top:8px;font-size:11px;font-weight:700;color:var(--teal-dark);padding-bottom:4px">
+              원료 배합표 — ${prod.문서번호||'표준서'} 기준 (1kg 몰드)
+            </div>
             <div style="overflow-x:auto">
             <table class="recipe-table">
               <thead><tr><th>No</th><th>원료명</th><th>INCI명칭</th><th>이론량(g)</th><th>비율(%)</th></tr></thead>
               <tbody>
-                ${b.레시피.map((r,i)=>`<tr><td>${i+1}</td><td>${r.원료명||''}</td><td style="font-size:10px;color:var(--text3)">${r.INCI||''}</td><td>${r.이론량||''}</td><td>${r.비율||''}</td></tr>`).join('')}
-                <tr><td colspan="3">합계</td><td>${b.투입량||''}</td><td>100</td></tr>
+                ${prod.레시피.map((r,i)=>`<tr>
+                  <td>${i+1}</td>
+                  <td>${r.원료명||''}</td>
+                  <td style="font-size:10px;color:var(--text3)">${r.INCI||''}</td>
+                  <td>${r.이론량||''}</td>
+                  <td>${r.비율||''}</td>
+                </tr>`).join('')}
+                <tr><td colspan="3"><b>합계</b></td><td>${prod.기준투입량||''}</td><td>100</td></tr>
               </tbody>
             </table></div>` : ''}
           ${b.비고 ? drow('비고', b.비고) : ''}
@@ -178,20 +198,132 @@ async function renderManufacture(el) {
             </button>
           </div>
         </div>
-      </div>`).join('')}
+      </div>`;
+    }).join('')}
     <button class="fab" onclick="openBatchForm()"><i class="ti ti-plus"></i> 배치 추가</button>`;
 }
 
 /* 제품 제조 탭에서 바로 PDF 출력 */
 async function quickPrintBatch(batchId) {
-  const batch = await DB.getOne('batches', batchId);
-  if(!batch) return;
-  if(typeof generatePDF === 'function') {
-    // pdf.js의 generatePDF를 특정 배치만 대상으로 호출
-    await generatePDF({ singleBatchId: batchId });
-  } else {
-    alert('PDF 생성 기능을 불러오는 중입니다. 문서 출력 탭을 이용해 주세요.');
-  }
+  const [allBatches, products, ing] = await Promise.all([
+    DB.getAll('batches'), DB.getAll('products'), DB.getAll('ingredients')
+  ]);
+  const batch = allBatches.find(b => b.id === batchId);
+  if(!batch) { alert('배치 정보를 찾을 수 없습니다.'); return; }
+
+  // 제품 마스터 정보 병합 (표준서 → 배치에 오버레이)
+  const prod = products.find(p => p.id === batch.productId) || {};
+  const merged = {
+    ...batch,
+    레시피:     prod.레시피     || batch.레시피,
+    전성분:     prod.전성분     || batch.전성분,
+    목표중량:   prod.목표중량   || batch.목표중량 || '90g ±5g',
+    이론수량:   prod.이론수량   || batch.이론수량,
+    알레르기:   prod.알레르기   || batch.알레르기,
+    제조방법:   prod.제조방법   || batch.제조방법,
+    색상기준:   prod.색상기준,
+    유통기한:   prod.유통기한,
+    보관방법:   prod.보관방법,
+    기준투입량: prod.기준투입량,
+    PS문서번호: prod.문서번호,  // AF-PS
+  };
+
+  const sep = '<div class="page-break"></div>';
+  const pages = [buildMI(merged), buildTR(merged, ing), buildPS(merged, ing)];
+  open$(pages.join(sep));
+}
+
+/* ════ 제품 마스터(표준서) 관리 폼 ════ */
+async function openProductMasterForm(id) {
+  const products = await DB.getAll('products');
+  const item = id ? products.find(p=>p.id===id) : null;
+
+  showSheet(`
+    <div class="sheet-handle"></div>
+    <div class="sheet-inner">
+    <div class="sheet-title">${id?'제품표준서 수정':'제품표준서 신규 등록'}</div>
+    <div style="background:var(--mauve-light);border-radius:var(--r-sm);padding:10px 12px;margin-bottom:12px;font-size:11px;color:var(--mauve-dark)">
+      여기에 입력한 정보가 제품표준서(AF-PS)에 영구 저장되며, 배치 기록에서 자동 참조됩니다.
+    </div>
+
+    <label>제품명<input id="pm1" value="${item?.제품명||''}"></label>
+    <label>문서번호 (AF-PS-XXX)<input id="pm2" value="${item?.문서번호||'AF-PS-'}" placeholder="AF-PS-006"></label>
+    <label>제조방법<select id="pm3">
+      <option ${item?.제조방법==='CP법'?'selected':''}>CP법</option>
+      <option ${item?.제조방법==='MP법'?'selected':''}>MP법</option>
+    </select></label>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <label>기준 투입량 (g)<input type="number" id="pm4" value="${item?.기준투입량||''}"></label>
+      <label>이론 수량 (ea)<input type="number" id="pm5" value="${item?.이론수량||''}"></label>
+    </div>
+
+    <label>목표 중량<input id="pm6" value="${item?.목표중량||'90g ±5g'}" placeholder="90g ±5g"></label>
+    <label>용량 표기<input id="pm7" value="${item?.용량||'90g'}" placeholder="90g"></label>
+    <label>색상 기준<input id="pm8" value="${item?.색상기준||''}" placeholder="예: 오렌지·아나토 계열"></label>
+    <label>유통기한<input id="pm9" value="${item?.유통기한||'제조일로부터 2년'}"></label>
+    <label>보관방법<input id="pm10" value="${item?.보관방법||'직사광선 차단, 서늘하고 건조한 곳 보관'}"></label>
+
+    <label>알레르기 유발성분<textarea id="pm11" rows="2">${item?.알레르기||''}</textarea></label>
+    <label>전성분<textarea id="pm12" rows="4">${item?.전성분||''}</textarea></label>
+
+    <label>바코드<input id="pm13" value="${item?.바코드||''}"></label>
+    <label>제조번호 형식<input id="pm14" value="${item?.제조번호형식||'APBO'}" placeholder="예: APBO"></label>
+    <label>비고<input id="pm15" value="${item?.비고||''}"></label>
+
+    <div class="sheet-btns">
+      ${id?`<button class="btn-del" onclick="delItem('products',${id})">삭제</button>`:''}
+      <button onclick="closeSheet()">취소</button>
+      <button class="btn-save" onclick="saveProductMaster(${id||'null'})">저장</button>
+    </div>
+    </div>`);
+}
+
+async function openProductMasterList() {
+  const products = await DB.getAll('products');
+  showSheet(`
+    <div class="sheet-handle"></div>
+    <div class="sheet-inner">
+    <div class="sheet-title">제품표준서 (AF-PS) 관리</div>
+    <div style="font-size:11px;color:var(--text3);margin-bottom:12px">
+      배합비·전성분·목표중량 등 제품의 영구 기준 정보를 여기에 저장합니다.
+      배치 기록(AF-MI)은 이 정보를 자동 참조합니다.
+    </div>
+    ${products.map(p=>`
+      <div class="list-item" onclick="openProductMasterForm(${p.id})">
+        <div class="item-left">
+          <div class="item-title">${p.제품명}</div>
+          <div class="item-sub">${p.문서번호} · ${p.제조방법} · 기준 ${p.기준투입량}g → ${p.이론수량}ea</div>
+        </div>
+        <div class="item-right">
+          <i class="ti ti-edit" style="color:var(--text3)"></i>
+        </div>
+      </div>`).join('')}
+    ${products.length===0?`<div class="empty-hint">등록된 제품이 없습니다</div>`:''}
+    <div style="padding:16px">
+      <button class="btn-sm solid" style="width:100%" onclick="closeSheet();openProductMasterForm(null)">
+        <i class="ti ti-plus"></i> 신규 제품표준서 등록
+      </button>
+    </div>
+    </div>`);
+}
+window.openProductMasterList = openProductMasterList;
+
+async function saveProductMaster(id) {
+  const existing = id ? await DB.getOne('products', id) : null;
+  const data = {
+    제품명: v('pm1'), 문서번호: v('pm2'), 제조방법: v('pm3'),
+    기준투입량: +v('pm4'), 이론수량: +v('pm5'),
+    목표중량: v('pm6'), 용량: v('pm7'), 색상기준: v('pm8'),
+    유통기한: v('pm9'), 보관방법: v('pm10'),
+    알레르기: v('pm11'), 전성분: v('pm12'),
+    바코드: v('pm13'), 제조번호형식: v('pm14'), 비고: v('pm15'),
+    레시피: existing?.레시피 || [],
+    품질기준: {내용량:'97% 이상', 유리알칼리:'0.1% 이하'},
+  };
+  if(id) await DB.put('products', {...data, id});
+  else   await DB.add('products', data);
+  closeSheet(); await renderTab('manufacture');
 }
 
 /* ════ 제조 점검 ════ */
@@ -200,7 +332,7 @@ async function renderMfCheck(el) {
     <div class="page-header"><h2 class="page-title">제조 점검</h2></div>
     <div class="info-banner">
       <i class="ti ti-info-circle"></i>
-      <span>CP법 제조 전 체크리스트 · EF-MMS-001 §3 기준</span>
+      <span>CP법 제조 전 체크리스트 · AF-MMS-001 §3 기준</span>
     </div>
     <div class="group-header">CP법 작업 전 필수</div>
     ${['내화학성 장갑 착용','고글 착용','마스크 착용','작업대 에탄올 소독','전자저울 영점 확인'].map(item=>`
@@ -357,7 +489,7 @@ async function renderProduction(el) {
     </div>
 
     ${Object.keys(byChannel).length > 0 ? `
-    <div class="section-label">채널별 판매 현황</div>
+    <div class="section-label">판매 채널 요약</div>
     <div style="padding:0 16px 12px;display:flex;flex-wrap:wrap;gap:8px">
       ${Object.entries(byChannel).map(([ch,cnt])=>`
         <div style="background:var(--teal-light);border-radius:20px;padding:6px 14px;font-size:12px;color:var(--teal-dark)">
@@ -382,11 +514,7 @@ async function renderProduction(el) {
 }
 
 /* ═══════════════════════════════════
-   문서 출력 — 이미지 순서대로
-   ① 제품별 서류 출력
-   ② 월별 위생점검 출력
-   ③ 파일 업로드 & 자동 등록 + 실행 버튼
-   ④ 과거 이력 조회
+   문서 출력
 ════════════════════════════════════*/
 async function renderOutput(el) {
   const now = new Date();
@@ -399,32 +527,38 @@ async function renderOutput(el) {
     <!-- ① 제품별 서류 출력 -->
     <div class="output-section-card">
       <div class="output-section-title">📄 제품별 서류 출력</div>
-      <label class="output-field-label">제품 선택</label>
+      <label class="output-field-label">제품 선택 <span style="font-weight:400;color:var(--text3)">(제조지시서·시험성적서·제품표준서에 필요)</span></label>
       <select id="out-product" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--card);color:var(--text);font-size:14px;margin-bottom:10px">
-        <option value="">-- 제품을 선택하세요 --</option>
-        ${batches.map(b=>`<option value="${b.id}">${b.제품명||''} (${b.date||''})</option>`).join('')}
+        <option value="">-- 선택 안 함 (제품 무관 서류만 출력) --</option>
+        ${batches.map(b=>`<option value="${b.id}">${b.제품명||''} ${b.date?'('+b.date+')':''}</option>`).join('')}
       </select>
-      <label class="output-field-label">출력할 서류 (1개 이상 선택)</label>
+      <label class="output-field-label">출력할 서류 선택</label>
       <div class="doc-check-inline">
         ${[
-          {key:'mi', name:'제조지시서'},
-          {key:'tr', name:'시험성적서'},
-          {key:'ps', name:'제품표준서'},
-          {key:'mms', name:'원료입고기록서'},
-          {key:'qcm', name:'완제품출하검사'},
-          {key:'mh', name:'위생점검기록'},
+          {key:'mi',  name:'제조지시서',    note:'제품 필요'},
+          {key:'tr',  name:'시험성적서',    note:'제품 필요'},
+          {key:'ps',  name:'제품표준서',    note:'제품 필요'},
+          {key:'mms', name:'원료입고기록서', note:'제품 불필요'},
+          {key:'qcm', name:'완제품출하검사', note:'제품 불필요'},
+          {key:'mh',  name:'위생점검기록',  note:'제품 불필요'},
         ].map(d=>`
-          <label class="doc-check-pill">
+          <label class="doc-check-pill" title="${d.note}">
             <input type="checkbox" id="chk-${d.key}" checked>
             <span>${d.name}</span>
           </label>`).join('')}
       </div>
-      <button class="output-btn" onclick="generatePDF()">
-        <i class="ti ti-file-type-pdf"></i> PDF 생성
-      </button>
+      <div style="display:flex;gap:8px">
+        <button class="output-btn" style="flex:1" onclick="runGeneratePDF()">
+          <i class="ti ti-file-type-pdf"></i> PDF 출력
+        </button>
+        <button class="output-btn" style="flex:1;background:var(--mauve)!important" onclick="runPrintDoc()">
+          <i class="ti ti-printer"></i> 인쇄
+        </button>
+      </div>
+      <div id="pdf-status" style="padding:6px 0;font-size:11px;color:var(--text3);min-height:20px"></div>
     </div>
 
-    <!-- ② 월별 위생점검 기록 출력 -->
+    <!-- ② 월별 위생점검 출력 -->
     <div class="output-section-card">
       <div class="output-section-title">🗒 월별 위생점검 기록 출력</div>
       <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
@@ -442,32 +576,243 @@ async function renderOutput(el) {
       </button>
     </div>
 
-    <!-- ③ 파일 업로드 & 자동 등록 -->
+    <!-- ③ 4대 기준서 출력 -->
+    <div class="output-section-card">
+      <div class="output-section-title">📋 4대 기준서 출력</div>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:10px">
+        화장품제조업 법적 필수 문서 · 클릭 시 새 창에서 열립니다
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        ${[
+          {key:'mms001', name:'제조관리기준서', code:'AF-MMS-001'},
+          {key:'hms001', name:'제조위생관리기준서', code:'AF-HMS-001'},
+          {key:'qcm001', name:'품질관리기준서', code:'AF-QCM-001'},
+          {key:'ps-carrot', name:'제품표준서 (당근비누)', code:'AF-PS-004'},
+          {key:'ps-minari', name:'제품표준서 (미나리비누)', code:'AF-PS-005'},
+        ].map(d=>`
+          <button class="output-btn-sec" onclick="openStandardDoc('${d.key}')" style="text-align:left;display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:10px 12px">
+            <span style="font-size:12px;font-weight:700;color:var(--text)">${d.name}</span>
+            <span style="font-size:10px;color:var(--text3)">${d.code}</span>
+          </button>`).join('')}
+      </div>
+    </div>
+
+    <!-- ④ 파일 업로드 & 자동 등록 -->
     <div class="output-section-card">
       <div class="output-section-title">📁 파일 업로드 & 자동 등록</div>
-      <div style="font-size:12px;color:var(--text3);margin-bottom:10px">기존 docx 파일을 업로드하면 내용을 자동으로 읽어 DB에 저장합니다</div>
+      <div style="font-size:12px;color:var(--text3);margin-bottom:4px">
+        .json 백업 파일 → 데이터 복원<br>
+        .docx 제조지시서/위생점검 → DB 자동 등록
+      </div>
       <div class="dropzone" id="dropzone-area"
            ondragover="event.preventDefault();this.classList.add('drag-over')"
            ondragleave="this.classList.remove('drag-over')"
            ondrop="handleFileDrop(event)">
         <div class="dropzone-icon">📄</div>
         <div class="dropzone-text">파일을 드래그하거나 탭해서 선택</div>
-        <div class="dropzone-sub">지원: .docx · 제조지시서, 위생점검, 원료입고기록서 · .json 백업</div>
-        <input type="file" id="file-upload" accept=".docx,.txt,.json,.pdf" style="position:absolute;inset:0;opacity:0;cursor:pointer" onchange="handleFileUpload(event)">
+        <div class="dropzone-sub">지원: .json 백업 · .docx 문서</div>
+        <input type="file" id="file-upload" accept=".docx,.txt,.json,.pdf"
+          style="position:absolute;inset:0;opacity:0;cursor:pointer"
+          onchange="handleFileUpload(event)">
       </div>
-      <div id="upload-result" style="padding:8px 0;font-size:12px;min-height:28px;color:var(--text3)">파일을 선택하면 자동으로 분석합니다</div>
-      <button class="output-btn-sec" id="btn-run-parse" onclick="runParseSaved()">
-        <i class="ti ti-bolt"></i> 자동 작성 실행
+      <div id="upload-result" style="padding:8px 0;font-size:12px;min-height:28px;color:var(--text3)">
+        파일을 선택하면 자동으로 분석합니다
+      </div>
+      <button class="output-btn-sec" onclick="runParseSaved()">
+        <i class="ti ti-bolt"></i> 자동 작성 다시 실행
       </button>
     </div>
 
-    <!-- ④ 과거 이력 조회 -->
+    <!-- ⑤ 과거 이력 조회 -->
     <div class="output-section-card">
       <div class="output-section-title">🗂 과거 이력 조회</div>
       <div id="history-section"></div>
     </div>`;
 
   renderHistory(document.getElementById('history-section'), hyg, batches);
+}
+
+/* ── PDF 출력 실행 (제품 미선택 시 제품 무관 서류만) ── */
+async function runGeneratePDF() {
+  const statusEl = document.getElementById('pdf-status');
+  if(statusEl) statusEl.textContent = '⏳ PDF 생성 중...';
+
+  const productId = document.getElementById('out-product')?.value;
+  const chk = key => document.getElementById('chk-'+key)?.checked;
+
+  const [hyg, ing, allBatches] = await Promise.all([
+    DB.getAll('hygiene'), DB.getAll('ingredients'), DB.getAll('batches')
+  ]);
+
+  const now = new Date();
+  const y = document.getElementById('out-year')?.value || now.getFullYear();
+  const m = document.getElementById('out-month')?.value || (now.getMonth()+1);
+
+  const selectedBatch = productId ? allBatches.find(b => String(b.id)===String(productId)) : null;
+  const sep = '<div class="page-break"></div>';
+  const pages = [];
+
+  // 제품 무관 서류 (제품 선택 없어도 출력)
+  if(chk('mms')) pages.push(buildMMS(ing));
+  if(chk('qcm')) pages.push(buildQCM(allBatches));
+  if(chk('mh'))  pages.push(buildMH(hyg, +y, +m));
+
+  // 제품 필요 서류
+  if(selectedBatch) {
+    if(chk('mi')) pages.push(buildMI(selectedBatch));
+    if(chk('tr')) pages.push(buildTR(selectedBatch, ing));
+    if(chk('ps')) pages.push(buildPS(selectedBatch, ing));
+  } else if(chk('mi')||chk('tr')||chk('ps')) {
+    if(statusEl) statusEl.innerHTML = '<span style="color:var(--amber-text)">⚠️ 제조지시서·시험성적서·제품표준서는 제품 선택이 필요합니다</span>';
+    if(!pages.length) return;
+  }
+
+  if(!pages.length) {
+    if(statusEl) statusEl.innerHTML = '<span style="color:var(--red-text)">출력할 서류를 하나 이상 선택하세요</span>';
+    return;
+  }
+
+  if(statusEl) statusEl.textContent = '';
+  open$(pages.join(sep));
+}
+
+/* ── 인쇄 전용 ── */
+async function runPrintDoc() {
+  await runGeneratePDF();
+}
+
+/* ── 4대 기준서 출력 ── */
+async function openStandardDoc(key) {
+  const [batches, ing] = await Promise.all([DB.getAll('batches'), DB.getAll('ingredients')]);
+  const sep = '<div class="page-break"></div>';
+
+  const pages = {
+    'mms001':    () => buildStdMMS001(),
+    'hms001':    () => buildStdHMS001(),
+    'qcm001':    () => buildStdQCM001(),
+    'ps-carrot': () => buildPS(batches.find(b=>b.제품명&&b.제품명.includes('당근'))||{제품명:'에이브릴팜 당근 비누'}, ing),
+    'ps-minari': () => buildPS(batches.find(b=>b.제품명&&b.제품명.includes('미나리'))||{제품명:'에이브릴팜 미나리 비누'}, ing),
+  };
+
+  if(pages[key]) open$(pages[key]());
+}
+
+/* 기준서 빌더 (간략 버전 - 클릭하면 pdf.js의 open$으로 열림) */
+function buildStdMMS001() {
+  return `<div class="doc">
+  <div class="doc-title">에이브릴팜</div>
+  <div class="doc-sub">제조관리기준서 · AF-MMS-001</div>
+  <div class="doc-meta">
+    <span><b>문서번호</b> AF-MMS-001</span>
+    <span><b>제정일자</b> 2025.01.01</span>
+    <span><b>개정번호</b> Rev.00</span>
+    <span><b>작성/확인</b> 변민정 (인)</span>
+  </div>
+  <div class="sec">1. 목적</div>
+  <p style="font-size:9.5px;line-height:1.8;margin-bottom:10px">
+    이 기준서는 화장품법 제5조 및 화장품 제조 및 품질관리기준에 따라 에이브릴팜의 화장품 제조 전반에 걸친 관리사항을 규정하여 일관된 품질의 제품을 생산하는 데 목적이 있다.
+  </p>
+  <div class="sec">2. 적용 범위</div>
+  <p style="font-size:9.5px;line-height:1.8;margin-bottom:10px">
+    에이브릴팜에서 제조하는 모든 화장품(비누류 포함)에 적용한다.
+  </p>
+  <div class="sec">3. 제조 위생 관리</div>
+  <table><thead><tr><th>구분</th><th>관리 항목</th><th>기준</th></tr></thead>
+  <tbody>
+    <tr><td>작업 전</td><td>장갑·마스크·고글 착용</td><td>필수</td></tr>
+    <tr><td>작업 전</td><td>작업대 에탄올(70%) 소독</td><td>필수</td></tr>
+    <tr><td>작업 전</td><td>전자저울 영점 확인</td><td>필수</td></tr>
+    <tr><td>작업 중</td><td>온도·습도 기록 (온도계)</td><td>기록 필수</td></tr>
+    <tr><td>작업 후</td><td>사용 도구 세척 및 건조</td><td>필수</td></tr>
+  </tbody></table>
+  <div class="sec">4. 원료 관리</div>
+  <table><thead><tr><th>항목</th><th>기준</th></tr></thead>
+  <tbody>
+    <tr><td>원료 입고 시 CoA 확인</td><td>제조사 CoA 수취 후 보관</td></tr>
+    <tr><td>원료 보관</td><td>서늘하고 건조한 곳, 직사광선 차단</td></tr>
+    <tr><td>사용 기한</td><td>입고일로부터 2년 이내</td></tr>
+  </tbody></table>
+  <div class="sec">5. 제조 기록</div>
+  <p style="font-size:9.5px;line-height:1.8">
+    모든 제조 작업은 제조지시서(AF-MI)에 따라 진행하며, 배합비·제조일·확인자를 기록한다. 비누 제조번호는 AP/JP + B + 색상코드 + 기획월 + 비번호 형식으로 부여한다.
+  </p>
+  <div class="foot">에이브릴팜 · 경기도 시흥시 진말1로 18, 에스엠타워 303호 · TEL 0507-1346-8739 · 화장품제조업 제6494호</div>
+  </div>`;
+}
+
+function buildStdHMS001() {
+  return `<div class="doc">
+  <div class="doc-title">에이브릴팜</div>
+  <div class="doc-sub">제조위생관리기준서 · AF-HMS-001</div>
+  <div class="doc-meta">
+    <span><b>문서번호</b> AF-HMS-001</span>
+    <span><b>제정일자</b> 2025.01.01</span>
+    <span><b>개정번호</b> Rev.00</span>
+    <span><b>작성/확인</b> 변민정 (인)</span>
+  </div>
+  <div class="sec">1. 청소 점검</div>
+  <table><thead><tr><th>점검 항목</th><th>점검 기준</th><th>주기</th></tr></thead>
+  <tbody>
+    <tr><td>원료 보관 구역</td><td>청결, 이물 없음</td><td>주 1회</td></tr>
+    <tr><td>부자재 보관 구역</td><td>청결, 이물 없음</td><td>주 1회</td></tr>
+    <tr><td>완제품 보관 구역</td><td>청결, 이물 없음</td><td>주 1회</td></tr>
+    <tr><td>작업대(칭량)</td><td>에탄올 소독, 이물 없음</td><td>작업 전·후</td></tr>
+    <tr><td>도구류(조제)</td><td>세척·건조 후 보관</td><td>사용 후</td></tr>
+    <tr><td>포장실</td><td>청결, 이물 없음</td><td>주 1회</td></tr>
+  </tbody></table>
+  <div class="sec">2. 방충·방서 관리</div>
+  <table><thead><tr><th>항목</th><th>기준</th><th>주기</th></tr></thead>
+  <tbody>
+    <tr><td>방충망 상태</td><td>양호 (파손 없음)</td><td>월 1회</td></tr>
+    <tr><td>해충 발견 여부</td><td>없음</td><td>월 1회</td></tr>
+    <tr><td>설치류 발견 여부</td><td>없음</td><td>월 1회</td></tr>
+  </tbody></table>
+  <div class="sec">3. 설비 점검</div>
+  <table><thead><tr><th>설비명</th><th>점검 내용</th><th>주기</th></tr></thead>
+  <tbody>
+    <tr><td>전자저울</td><td>영점 확인, 정확도 점검</td><td>사용 전</td></tr>
+    <tr><td>온습도계</td><td>작동 상태 확인</td><td>월 1회</td></tr>
+    <tr><td>제조기기</td><td>청결·작동 상태</td><td>사용 후</td></tr>
+    <tr><td>포장기기</td><td>청결·작동 상태</td><td>사용 후</td></tr>
+  </tbody></table>
+  <div class="foot">에이브릴팜 · 경기도 시흥시 진말1로 18, 에스엠타워 303호 · TEL 0507-1346-8739 · 화장품제조업 제6494호</div>
+  </div>`;
+}
+
+function buildStdQCM001() {
+  return `<div class="doc">
+  <div class="doc-title">에이브릴팜</div>
+  <div class="doc-sub">품질관리기준서 · AF-QCM-001</div>
+  <div class="doc-meta">
+    <span><b>문서번호</b> AF-QCM-001</span>
+    <span><b>제정일자</b> 2025.01.01</span>
+    <span><b>개정번호</b> Rev.00</span>
+    <span><b>작성/확인</b> 변민정 (인)</span>
+  </div>
+  <div class="sec">1. 원료 품질 기준</div>
+  <table><thead><tr><th>항목</th><th>기준</th></tr></thead>
+  <tbody>
+    <tr><td>CoA 수취</td><td>모든 원료 CoA 수취 후 보관</td></tr>
+    <tr><td>외관</td><td>이물·변색·이취 없음</td></tr>
+    <tr><td>판정</td><td>적합 판정 후 사용</td></tr>
+  </tbody></table>
+  <div class="sec">2. 완제품 품질 기준</div>
+  <table><thead><tr><th>시험 항목</th><th>기준치</th><th>시험 기관</th></tr></thead>
+  <tbody>
+    <tr><td>내용량</td><td>표기량의 97% 이상</td><td>KCL (한국건설생활환경시험연구원)</td></tr>
+    <tr><td>유리알칼리</td><td>0.1% 이하</td><td>KCL</td></tr>
+    <tr><td>pH</td><td>자체 측정 기록</td><td>자체</td></tr>
+  </tbody></table>
+  <div class="sec">3. 출하 기준</div>
+  <table><thead><tr><th>항목</th><th>기준</th></tr></thead>
+  <tbody>
+    <tr><td>외관·성상</td><td>육안 검사 이상 없음</td></tr>
+    <tr><td>중량</td><td>목표 중량 ±5g 이내</td></tr>
+    <tr><td>표시사항</td><td>전성분·사용기한·제조번호 표기 확인</td></tr>
+    <tr><td>KCL 성적서</td><td>적합 성적서 확인 후 출하</td></tr>
+  </tbody></table>
+  <div class="foot">에이브릴팜 · 경기도 시흥시 진말1로 18, 에스엠타워 303호 · TEL 0507-1346-8739 · 화장품제조업 제6494호</div>
+  </div>`;
 }
 
 /* 선택한 월 위생점검 출력 */
@@ -515,14 +860,20 @@ async function processUploadedFile(file) {
   const name = file.name.toLowerCase();
 
   try {
+    /* ── JSON 백업 복원 ── */
     if(name.endsWith('.json')) {
       const text = await file.text();
-      const data = JSON.parse(text);
-      if(data._exportedAt) {
-        if(!confirm(`백업 파일(${new Date(data._exportedAt).toLocaleDateString()})로 데이터를 복원할까요?\n현재 데이터가 덮어씌워집니다.`)) return;
+      let data;
+      try { data = JSON.parse(text); } catch(e) { el.innerHTML = `<span style="color:var(--red-text)">❌ JSON 파싱 오류: ${e.message}</span>`; return; }
+
+      if(data._exportedAt || data.ingredients || data.batches || data.hygiene) {
+        if(!confirm(`백업 파일을 복원할까요?\n(${file.name})\n현재 데이터가 덮어씌워집니다.`)) {
+          el.innerHTML = '<span style="color:var(--text3)">취소됐습니다</span>';
+          return;
+        }
         await DB.importAll(data);
-        el.innerHTML = '<span style="color:var(--teal-dark)">✅ 데이터 복원 완료!</span>';
-        await renderTab(currentTab);
+        el.innerHTML = '<span style="color:var(--teal-dark)">✅ 데이터 복원 완료! 앱을 새로고침하세요.</span>';
+        setTimeout(()=>renderTab(currentTab), 1500);
         return;
       }
       if(data.제품명) {
@@ -530,8 +881,11 @@ async function processUploadedFile(file) {
         el.innerHTML = `<span style="color:var(--teal-dark)">✅ <b>${data.제품명}</b> 배치 등록 완료</span>`;
         return;
       }
+      el.innerHTML = '<span style="color:var(--text3)">⚠️ 인식할 수 없는 JSON 형식입니다</span>';
+      return;
     }
 
+    /* ── DOCX 파싱 ── */
     if(name.endsWith('.docx')) {
       let text = '';
       if(window.JSZip) {
@@ -553,61 +907,122 @@ async function processUploadedFile(file) {
       return;
     }
 
+    /* ── TXT ── */
     if(name.endsWith('.txt')) {
       const text = await file.text();
       await parseDocumentText(name, text, file.name, el);
       return;
     }
 
+    /* ── PDF (KCL 성적서) ── */
     if(name.endsWith('.pdf')) {
       el.innerHTML = `<span style="color:var(--teal-dark)">📋 <b>${file.name}</b> — KCL 성적서로 인식됐습니다.<br>제품 제조 탭에서 해당 배치를 수정하고 KCL 접수번호를 입력해주세요.</span>`;
       return;
     }
 
-    el.innerHTML = `<span style="color:var(--text3)">📄 <b>${file.name}</b> 업로드됨. 지원 형식: .docx .txt .json .pdf</span>`;
+    el.innerHTML = `<span style="color:var(--text3)">📄 <b>${file.name}</b> — 지원 형식: .json .docx .pdf</span>`;
 
   } catch(e) {
     el.innerHTML = `<span style="color:var(--red-text)">❌ 오류: ${e.message}</span>`;
+    console.error('파일 처리 오류:', e);
   }
 }
 
 async function parseDocumentText(name, text, fileName, el) {
-  const batches = await DB.getAll('batches');
+  const [batches, products] = await Promise.all([DB.getAll('batches'), DB.getAll('products')]);
 
-  const isOrder   = name.includes('제조지시') || name.includes('-mi-') || name.includes('ef-mi');
-  const isStd     = name.includes('제품표준') || name.includes('-ps-') || name.includes('ef-ps');
-  const isTest    = name.includes('시험성적') || name.includes('-tr-') || name.includes('ef-tr');
+  // 파일명 감지 (EF/AF 모두 인식)
+  const isStd     = name.includes('제품표준') || name.includes('af-ps') || name.includes('ef-ps') || name.includes('-ps-');
+  const isOrder   = name.includes('제조지시') || name.includes('af-mi') || name.includes('ef-mi') || name.includes('-mi-');
+  const isTest    = name.includes('시험성적') || name.includes('af-tr') || name.includes('ef-tr') || name.includes('-tr-');
   const isHygiene = name.includes('위생') || name.includes('-mh') || name.includes('r-mh');
   const isIng     = name.includes('원료') || name.includes('mms') || name.includes('r-mms');
 
-  const productMatch = text.match(/에이브릴팜\s*([가-힣a-zA-Z]+비누)/);
+  // 공통 정보 추출
+  const productMatch = text.match(/에이브릴팜\s*([가-힣a-zA-Z\s]+?(?:비누|솝|크림|로션|오일))/);
   const productName  = productMatch ? productMatch[0].trim() : '';
-  const docNoMatch   = text.match(/EF-[A-Z]{2}-\d{3}/i);
-  const docNo        = docNoMatch ? docNoMatch[0].toUpperCase() : '';
+  const docNoMatch   = text.match(/[AE]F-[A-Z]{2}-\d{3}/i);
+  const docNo        = docNoMatch ? docNoMatch[0].toUpperCase().replace(/^EF-/,'AF-') : '';
   const barcodeMatch = text.match(/87[0-9]{11}/);
   const barcode      = barcodeMatch ? barcodeMatch[0] : '';
   const kclMatch     = text.match(/SC\d{2}-\d{5}[A-Z]/i);
   const kcl          = kclMatch ? kclMatch[0].toUpperCase() : '';
 
-  const existing = batches.find(b => productName && b.제품명 && b.제품명.includes(productName.replace('에이브릴팜 ','')));
+  /* ── 제품표준서 → products 스토어 ── */
+  if(isStd) {
+    const existingProd = products.find(p =>
+      productName && p.제품명 && p.제품명.includes(productName.replace('에이브릴팜 ',''))
+    );
 
-  if(isOrder || isStd || isTest) {
-    if(existing) {
-      const updated = {...existing};
+    // docx 본문에서 추출 가능한 추가 정보
+    const weightMatch  = text.match(/(\d+)\s*g\s*[±＋\-]\s*\d+\s*g/);
+    const expiryMatch  = text.match(/제조일(?:로부터)?\s*(\d+)\s*년/);
+    const allergyMatch = text.match(/알레르기[^:：]*[:：]\s*([가-힣a-zA-Z,\s]+?)(?:\.|$)/);
+
+    if(existingProd) {
+      // 기존 제품표준서 업데이트
+      const updated = {
+        ...existingProd,
+        ...(docNo && {문서번호: docNo}),
+        ...(barcode && {바코드: barcode}),
+        ...(weightMatch && {목표중량: weightMatch[0]}),
+        ...(expiryMatch && {유통기한: `제조일로부터 ${expiryMatch[1]}년`}),
+        ...(allergyMatch && {알레르기: allergyMatch[1].trim()}),
+      };
+      await DB.put('products', updated);
+      el.innerHTML = `<span style="color:var(--teal-dark)">✅ <b>${existingProd.제품명}</b> 제품표준서 업데이트 완료</span>`;
+    } else {
+      // 신규 제품표준서 등록
+      const newProd = {
+        제품명: productName || fileName.replace(/\.[^.]+$/, ''),
+        문서번호: docNo || 'AF-PS-',
+        바코드: barcode,
+        목표중량: weightMatch ? weightMatch[0] : '90g ±5g',
+        유통기한: expiryMatch ? `제조일로부터 ${expiryMatch[1]}년` : '제조일로부터 2년',
+        알레르기: allergyMatch ? allergyMatch[1].trim() : '',
+        제조방법: text.includes('CP법') ? 'CP법' : text.includes('MP법') ? 'MP법' : 'CP법',
+        품질기준: {내용량:'97% 이상', 유리알칼리:'0.1% 이하'},
+        레시피: [],
+        전성분: '',
+        보관방법: '직사광선 차단, 서늘하고 건조한 곳 보관',
+      };
+      await DB.add('products', newProd);
+      el.innerHTML = `<span style="color:var(--teal-dark)">
+        ✅ <b>${newProd.제품명}</b> 제품표준서 신규 등록 완료!<br>
+        <span style="font-size:11px">제품 제조 탭 → 제품표준서 버튼에서 배합비·전성분을 추가로 입력해주세요.</span>
+      </span>`;
+    }
+    await renderTab('manufacture');
+    return;
+  }
+
+  /* ── 제조지시서 / 시험성적서 → batches 스토어 ── */
+  if(isOrder || isTest) {
+    const existingBatch = batches.find(b =>
+      productName && b.제품명 && b.제품명.includes(productName.replace('에이브릴팜 ',''))
+    );
+    if(existingBatch) {
+      const updated = {...existingBatch};
       if(docNo && isOrder) updated.문서번호 = docNo;
       if(barcode) updated.바코드 = barcode;
       if(kcl) updated.KCL = kcl;
+      const contentMatch = text.match(/내용량[^%\d]*(\d+\.?\d*)\s*%/);
+      if(contentMatch && isTest) updated.내용량 = contentMatch[1];
       await DB.put('batches', updated);
-      el.innerHTML = `<span style="color:var(--teal-dark)">✅ <b>${existing.제품명}</b> 정보 업데이트 완료 (${fileName})</span>`;
+      el.innerHTML = `<span style="color:var(--teal-dark)">✅ <b>${existingBatch.제품명}</b> ${isTest?'시험성적':'제조지시서'} 업데이트 완료</span>`;
     } else if(productName||docNo) {
       const newB = {제품명:productName||fileName.replace(/\.[^.]+$/,''), 문서번호:docNo, 바코드:barcode, KCL:kcl, 상태:'제조중'};
       await DB.add('batches', newB);
-      el.innerHTML = `<span style="color:var(--teal-dark)">✅ <b>${newB.제품명}</b> 신규 배치 등록 완료 (${fileName})</span>`;
+      el.innerHTML = `<span style="color:var(--teal-dark)">✅ <b>${newB.제품명}</b> 배치 신규 등록 완료</span>`;
     } else {
-      el.innerHTML = `<span style="color:var(--text3)">⚠️ 제품명을 찾을 수 없습니다. 배치 탭에서 직접 등록해주세요.</span>`;
+      el.innerHTML = `<span style="color:var(--amber-text)">⚠️ 제품명을 찾을 수 없습니다. 직접 등록해주세요.<br><span style="font-size:11px">파일 내 "에이브릴팜 ○○비누" 형식이 있어야 자동 인식됩니다.</span></span>`;
     }
     await renderTab('manufacture');
-  } else if(isHygiene) {
+    return;
+  }
+
+  /* ── 위생점검 ── */
+  if(isHygiene) {
     const dateMatch = text.match(/20\d{2}[-./]\d{1,2}[-./]\d{1,2}/g);
     if(dateMatch) {
       const raw = dateMatch[0].replace(/[./]/g,'-');
@@ -615,15 +1030,24 @@ async function parseDocumentText(name, text, fileName, el) {
       const date = `${parts[0]}-${parts[1].padStart(2,'0')}-${parts[2].padStart(2,'0')}`;
       await DB.add('hygiene',{date,type:'청소점검',확인자:'변민정',status:'완료',
         items:{원료보관:'청결',부자재:'청결',완제품:'청결',작업대:'청결',도구류:'청결',포장실:'청결'}});
-      el.innerHTML = `<span style="color:var(--teal-dark)">✅ 위생점검 기록 등록 (${date})</span>`;
+      el.innerHTML = `<span style="color:var(--teal-dark)">✅ 위생점검 기록 등록 완료 (${date})</span>`;
     } else {
-      el.innerHTML = `<span style="color:var(--text3)">⚠️ 날짜 감지 실패. 위생점검 탭에서 직접 입력해주세요.</span>`;
+      el.innerHTML = `<span style="color:var(--amber-text)">⚠️ 날짜를 찾을 수 없습니다. 위생점검 탭에서 직접 입력해주세요.</span>`;
     }
-  } else if(isIng) {
-    el.innerHTML = `<span style="color:var(--teal-dark)">📦 원료입고 파일 감지 — 원료 재고 탭에서 확인해주세요.</span>`;
-  } else {
-    el.innerHTML = `<span style="color:var(--text3)">📄 <b>${fileName}</b> 분석 완료. 파일 유형 미확인 — 해당 탭에서 직접 확인해주세요.</span>`;
+    return;
   }
+
+  /* ── 원료입고 ── */
+  if(isIng) {
+    el.innerHTML = `<span style="color:var(--teal-dark)">📦 원료입고 파일로 인식됐습니다.<br><span style="font-size:11px">원료 재고 탭에서 확인·추가해주세요.</span></span>`;
+    return;
+  }
+
+  el.innerHTML = `<span style="color:var(--text3)">
+    📄 <b>${fileName}</b><br>
+    <span style="font-size:11px">파일 유형을 자동 인식하지 못했습니다.<br>
+    파일명에 <b>제품표준서·제조지시서·시험성적서·위생점검·원료</b> 중 하나가 포함되면 자동 분류됩니다.</span>
+  </span>`;
 }
 
 /* 과거 이력 */
@@ -726,75 +1150,127 @@ async function saveIng(id) {
   stockSubTab=type; closeSheet(); await renderTab('stock');
 }
 
-/* ════ 배치 폼 ════ */
+/* ════ 배치 폼 — 제품 마스터 선택 → 표준서 자동 참조 ════ */
 async function openBatchForm(id) {
-  const list = await DB.getAll('batches');
+  const [list, products] = await Promise.all([DB.getAll('batches'), DB.getAll('products')]);
   const item = id ? list.find(b=>b.id===id) : {};
-  let nextMI = '';
-  if(!id) {
-    const nums=list.map(b=>b.문서번호).filter(Boolean).map(n=>parseInt(n.replace(/[^0-9]/g,'')||'0')).filter(n=>!isNaN(n));
-    nextMI=`EF-MI-${String((nums.length?Math.max(...nums):5)+1).padStart(3,'0')}`;
-  }
 
   showSheet(`
     <div class="sheet-handle"></div>
     <div class="sheet-inner">
-    <div class="sheet-title">${id?'배치 수정 ('+((item&&item.제품명)||'')+')':'새 배치 추가'}</div>
-    <label>제품명<input id="b1" value="${(item&&item.제품명)||''}"></label>
-    <label>문서번호 (EF-MI)<input id="b2" value="${(item&&item.문서번호)||nextMI}" placeholder="${nextMI}"></label>
+    <div class="sheet-title">${id?'배치 수정':'새 배치 추가'}</div>
+
+    <div style="background:var(--teal-light);border-radius:var(--r-sm);padding:10px 12px;margin-bottom:14px;font-size:12px;color:var(--teal-dark)">
+      <i class="ti ti-info-circle"></i>
+      <b>제품 마스터 선택</b>하면 배합비·전성분·목표중량이 표준서에서 자동으로 참조됩니다.
+    </div>
+
+    <label>제품 마스터 (제품표준서 AF-PS)
+      <select id="b-prodid" onchange="onSelectProduct()">
+        <option value="">-- 제품 선택 (표준서 자동 연동) --</option>
+        ${products.map(p=>`<option value="${p.id}" ${item&&item.productId===p.id?'selected':''}>${p.제품명} (${p.문서번호})</option>`).join('')}
+        <option value="new">+ 신규 제품 마스터 등록</option>
+      </select>
+    </label>
+
+    <!-- 표준서에서 가져온 정보 (읽기 전용) -->
+    <div id="prod-ref-box" style="display:${item&&item.productId?'block':'none'};background:var(--gray-bg);border-radius:var(--r-sm);padding:10px 12px;margin-bottom:10px;font-size:11px;color:var(--text3)">
+      <div style="font-weight:700;color:var(--teal-dark);margin-bottom:4px">📋 표준서 참조 정보 (AF-PS — 수정 불가)</div>
+      <div id="prod-ref-content"></div>
+    </div>
+
+    <label>제품명 (표시용)<input id="b1" value="${(item&&item.제품명)||''}"></label>
+    <label>문서번호 (AF-MI)<input id="b2" value="${(item&&item.문서번호)||''}"></label>
     <label>제조번호<input id="b3" value="${(item&&item.제조번호)||''}"></label>
     <label>제조일<input type="date" id="b4" value="${(item&&item.date)||''}"></label>
-    <label>제조방법<select id="b5">
-      <option ${item&&item.제조방법==='CP법'?'selected':''}>CP법</option>
-      <option ${item&&item.제조방법==='MP법'?'selected':''}>MP법</option>
-    </select></label>
-    <label>투입량 (g)<input type="number" id="b6" value="${(item&&item.투입량)||''}"></label>
-    <label>이론수량 — 1kg 몰드 기준 (ea)<input type="number" id="b7" value="${(item&&item.이론수량)||''}"></label>
-    <label>실제수량 — 1kg 몰드 기준 (ea)<input type="number" id="b8" value="${(item&&item.실제수량)||''}"></label>
-    <label>상태<select id="b9">${['제조중','숙성중','판매중','완료','부적합'].map(s=>`<option ${item&&item.상태===s?'selected':''}>${s}</option>`).join('')}</select></label>
-    <label>바코드<input id="b15" value="${(item&&item.바코드)||''}"></label>
-    <label>목표 중량<input id="b16" value="${(item&&item.목표중량)||'90g ±5g'}"></label>
-    <label>실측 중량 (g)<input type="number" id="b17" placeholder="예: 100" value="${(item&&item.실측중량)||''}"></label>
-    <label>KCL 접수번호<input id="b10" value="${(item&&item.KCL)||''}"></label>
-    <label>KCL 성적서 파일<div style="margin-top:6px;display:flex;gap:8px;align-items:center">
-      <button type="button" class="btn-sm" onclick="document.getElementById('kcl-file').click()" style="flex-shrink:0">📎 파일 선택</button>
-      <span id="kcl-filename" style="font-size:12px;color:var(--text3)">${(item&&item.KCL파일명)||'선택 없음'}</span>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <label>투입량 (g)<input type="number" id="b6" value="${(item&&item.투입량)||''}"></label>
+      <label>실제수량 (ea)<input type="number" id="b8" value="${(item&&item.실제수량)||''}"></label>
     </div>
-    <input type="file" id="kcl-file" accept=".pdf,.jpg,.jpeg,.png,.docx" style="display:none" onchange="handleKCLUpload(event)"></label>
-    <label>내용량 결과 (%)<input id="b11" placeholder="예: 103" value="${(item&&item.내용량)||''}"></label>
-    <label>유리알칼리 결과<input id="b12" placeholder="예: 검출 안 됨" value="${(item&&item.유리알칼리)||''}"></label>
-    <label>전성분<textarea id="b26" rows="3">${(item&&item.전성분)||''}</textarea></label>
-    <label>이상여부<select id="b13">
-      <option ${item&&item.이상==='이상없음'?'selected':''}>이상없음</option>
-      <option ${item&&item.이상==='이상있음'?'selected':''}>이상있음</option>
-    </select></label>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <label>실측 중량 (g)<input type="number" id="b17" value="${(item&&item.실측중량)||''}" placeholder="예: 100"></label>
+      <label>색상 결과<input id="b-color" value="${(item&&item.색상결과)||''}"></label>
+    </div>
+
+    <label>상태<select id="b9">${['제조중','숙성중','판매중','완료','부적합'].map(s=>`<option ${item&&item.상태===s?'selected':''}>${s}</option>`).join('')}</select></label>
+
+    <div style="font-size:12px;font-weight:700;color:var(--text);margin:14px 0 6px;border-top:1px solid var(--border);padding-top:12px">KCL 시험 결과</div>
+    <label>KCL 접수번호<input id="b10" value="${(item&&item.KCL)||''}" placeholder="예: SC25-00244K"></label>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <label>내용량 (%)<input id="b11" value="${(item&&item.내용량)||''}" placeholder="97 이상"></label>
+      <label>유리알칼리<input id="b12" value="${(item&&item.유리알칼리)||''}" placeholder="0.1% 이하"></label>
+    </div>
+
+    <label>이상여부<select id="b13"><option ${item&&item.이상==='이상없음'?'selected':''}>이상없음</option><option ${item&&item.이상==='이상있음'?'selected':''}>이상있음</option></select></label>
     <label>비고<input id="b14" value="${(item&&item.비고)||''}"></label>
+
     <div class="sheet-btns">
       ${id?`<button class="btn-del" onclick="delItem('batches',${id})">삭제</button>`:''}
       <button onclick="closeSheet()">취소</button>
       <button class="btn-save" onclick="saveBatch(${id||'null'})">저장</button>
     </div>
     </div>`);
+
+  // 이미 제품 선택된 경우 참조 정보 표시
+  if(item && item.productId) {
+    const prod = products.find(p=>p.id===item.productId);
+    if(prod) showProdRef(prod);
+  }
+}
+
+function showProdRef(prod) {
+  const box = document.getElementById('prod-ref-box');
+  const content = document.getElementById('prod-ref-content');
+  if(!box||!content) return;
+  box.style.display = 'block';
+  content.innerHTML = `
+    <div>제조방법: <b>${prod.제조방법||'-'}</b></div>
+    <div>기준 투입량: <b>${prod.기준투입량||'-'}g</b> · 이론수량: <b>${prod.이론수량||'-'}ea</b></div>
+    <div>목표 중량: <b>${prod.목표중량||'-'}</b></div>
+    <div>색상 기준: <b>${prod.색상기준||'-'}</b></div>
+    <div>유통기한: <b>${prod.유통기한||'-'}</b></div>
+    <div style="margin-top:4px">전성분: <span style="font-size:10px">${(prod.전성분||'-').slice(0,80)}${prod.전성분&&prod.전성분.length>80?'…':''}</span></div>
+  `;
+  // 제품명 자동 채우기 (빈 경우에만)
+  const b1 = document.getElementById('b1');
+  if(b1 && !b1.value) b1.value = prod.제품명;
+}
+
+async function onSelectProduct() {
+  const sel = document.getElementById('b-prodid');
+  const val = sel?.value;
+  if(val === 'new') {
+    closeSheet();
+    openProductMasterForm(null);
+    return;
+  }
+  if(!val) {
+    const box = document.getElementById('prod-ref-box');
+    if(box) box.style.display = 'none';
+    return;
+  }
+  const products = await DB.getAll('products');
+  const prod = products.find(p=>String(p.id)===String(val));
+  if(prod) showProdRef(prod);
 }
 
 async function saveBatch(id) {
+  const prodId = document.getElementById('b-prodid')?.value;
   const data = {
-    제품명:v('b1'),문서번호:v('b2'),제조번호:v('b3'),date:v('b4'),
-    제조방법:v('b5'),투입량:+v('b6'),이론수량:+v('b7'),실제수량:+v('b8'),
-    상태:v('b9'),바코드:v('b15'),목표중량:v('b16'),
-    실측중량:v('b17')?+v('b17'):null,
-    KCL:v('b10'),
-    내용량:v('b11'),유리알칼리:v('b12'),
-    전성분:v('b26'),
-    이상:v('b13'),비고:v('b14')
+    productId: prodId && prodId !== 'new' ? +prodId : null,
+    제품명: v('b1'), 문서번호: v('b2'), 제조번호: v('b3'), date: v('b4'),
+    투입량: +v('b6'), 실제수량: +v('b8'),
+    상태: v('b9'),
+    실측중량: v('b17') ? +v('b17') : null,
+    색상결과: v('b-color'),
+    KCL: v('b10'),
+    내용량: v('b11'), 유리알칼리: v('b12'),
+    이상: v('b13'), 비고: v('b14')
   };
-  if(id){
-    const existing = await DB.getOne('batches',id);
-    if(existing&&existing.레시피) data.레시피=existing.레시피;
-    await DB.put('batches',{...data,id});
-  } else {
-    await DB.add('batches',data);
-  }
+  if(id) await DB.put('batches',{...data,id});
+  else    await DB.add('batches',data);
   closeSheet(); await renderTab('manufacture');
 }
 
@@ -1051,6 +1527,8 @@ window.switchStockTab=switchStockTab;
 window.openIngForm=openIngForm; window.saveIng=saveIng; window.updateIngCats=updateIngCats;
 window.openBatchForm=openBatchForm; window.saveBatch=saveBatch; window.handleKCLUpload=handleKCLUpload;
 window.quickPrintBatch=quickPrintBatch;
+window.openProductMasterForm=openProductMasterForm; window.saveProductMaster=saveProductMaster;
+window.onSelectProduct=onSelectProduct; window.showProdRef=showProdRef;
 window.openHygieneForm=openHygieneForm; window.openHygieneEditForm=openHygieneEditForm;
 window.updateHygExtra=updateHygExtra; window.saveHyg=saveHyg;
 window.closeSheet=closeSheet; window.delItem=delItem;
@@ -1061,4 +1539,7 @@ window.toggleAllBatches=toggleAllBatches; window.printSelectedMonth=printSelecte
 window.openProductionForm=openProductionForm; window.saveProd=saveProd;
 window.handleFileDrop=handleFileDrop; window.handleFileUpload=handleFileUpload;
 window.parseDocumentText=parseDocumentText; window.runParseSaved=runParseSaved;
+window.runGeneratePDF=runGeneratePDF; window.runPrintDoc=runPrintDoc;
+window.openStandardDoc=openStandardDoc;
+window.buildStdMMS001=buildStdMMS001; window.buildStdHMS001=buildStdHMS001; window.buildStdQCM001=buildStdQCM001;
 window.renderBarcode=renderBarcode;
