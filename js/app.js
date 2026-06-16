@@ -1,7 +1,7 @@
 'use strict';
 
 /* ════ 상태 ════ */
-let currentTab  = 'hygiene';
+let currentTab  = 'stock';
 let stockSubTab = '원료';
 let selectedDate = null;
 const today = new Date();
@@ -52,7 +52,6 @@ async function updateBadges() {
   const hyg = await DB.getAll('hygiene');
   const pending = ing.filter(i => i.판정 === '미기입').length;
   const hb = document.getElementById('badge-hygiene');
-  // 미기입 원료 수 or 밀린 점검 여부
   const overdue = checkOverdue(hyg);
   const cnt = pending + (overdue ? 1 : 0);
   if (hb) { hb.textContent = cnt > 0 ? cnt : ''; hb.style.display = cnt > 0 ? 'inline' : 'none'; }
@@ -69,7 +68,9 @@ function checkOverdue(hyg) {
   return !hasClean || !hasPest;
 }
 
-/* ════ 원료 재고 ════ */
+/* ═══════════════════════════════════
+   원료 재고 — 카테고리별 연속 번호
+════════════════════════════════════*/
 async function renderStock(el) {
   const all = await DB.getAll('ingredients');
   const ingList = all.filter(i => i.stockType !== '포장재');
@@ -78,6 +79,9 @@ async function renderStock(el) {
   const cats = [...new Set(list.map(i => i.category))];
   const ok = list.filter(i => i.판정 === '적합').length;
   const pending = list.filter(i => i.판정 === '미기입').length;
+
+  /* 카테고리별로 각각 1번부터 순서 번호 부여 */
+  const catCounters = {};
 
   el.innerHTML = `
     <div class="page-header">
@@ -93,18 +97,14 @@ async function renderStock(el) {
       ${pending > 0 ? `<div class="sum-chip sum-orange">미기입 ${pending}종</div>` : ''}
     </div>
     ${list.length === 0
-      ? `<div class="empty-hint">
-           <div class="empty-icon">📦</div>
-           등록된 ${stockSubTab}이 없습니다<br>
-           <small style="font-size:12px">아래 + 버튼으로 추가하세요</small>
-         </div>`
-      : cats.map(cat => `
+      ? `<div class="empty-hint"><div class="empty-icon">📦</div>등록된 ${stockSubTab}이 없습니다<br><small>아래 + 버튼으로 추가하세요</small></div>`
+      : cats.map(cat => {
+          const catItems = list.filter(i => i.category === cat);
+          return `
           <div class="group-header">${cat}</div>
-          ${list.filter(i => i.category === cat).map((i, idx) => {
-            const globalIdx = list.indexOf(i) + 1;
-            return `
+          ${catItems.map((i, catIdx) => `
             <div class="list-item" onclick="openIngForm(${i.id})">
-              <div class="item-no">${globalIdx}</div>
+              <div class="item-no">${catIdx + 1}</div>
               <div class="item-left">
                 <div class="item-title">${i.원료명}</div>
                 <div class="item-sub">${i.제조처||''}${i.수량?' · '+i.수량:''}${i.입고일?' · '+i.입고일:''}</div>
@@ -113,15 +113,17 @@ async function renderStock(el) {
                 <span class="badge ${badgeClass(i.판정)}">${i.판정}</span>
                 <span class="badge ${i.CoA==='수취'?'badge-green':'badge-orange'}">CoA ${i.CoA}</span>
               </div>
-            </div>`;
-          }).join('')}
-        `).join('')}
-    <button class="fab" onclick="openIngForm(null,'${stockSubTab}')"><i class="ti ti-plus"></i></button>`;
+            </div>`).join('')}
+          `;
+        }).join('')}
+    <button class="fab" onclick="openIngForm(null,'${stockSubTab}')"><i class="ti ti-plus"></i> 원료 추가</button>`;
 }
 
 function switchStockTab(tab) { stockSubTab = tab; renderTab('stock'); }
 
-/* ════ 제품 제조 ════ */
+/* ═══════════════════════════════════
+   제품 제조 — 바로 서류 출력 버튼 추가
+════════════════════════════════════*/
 async function renderManufacture(el) {
   const list = await DB.getAll('batches');
   el.innerHTML = `
@@ -170,9 +172,26 @@ async function renderManufacture(el) {
               </tbody>
             </table></div>` : ''}
           ${b.비고 ? drow('비고', b.비고) : ''}
+          <div style="padding:10px 0 4px;display:flex;gap:8px">
+            <button class="btn-sm solid" style="flex:1" onclick="quickPrintBatch(${b.id})">
+              <i class="ti ti-printer"></i> 이 배치 서류 출력
+            </button>
+          </div>
         </div>
       </div>`).join('')}
-    <button class="fab" onclick="openBatchForm()"><i class="ti ti-plus"></i></button>`;
+    <button class="fab" onclick="openBatchForm()"><i class="ti ti-plus"></i> 배치 추가</button>`;
+}
+
+/* 제품 제조 탭에서 바로 PDF 출력 */
+async function quickPrintBatch(batchId) {
+  const batch = await DB.getOne('batches', batchId);
+  if(!batch) return;
+  if(typeof generatePDF === 'function') {
+    // pdf.js의 generatePDF를 특정 배치만 대상으로 호출
+    await generatePDF({ singleBatchId: batchId });
+  } else {
+    alert('PDF 생성 기능을 불러오는 중입니다. 문서 출력 탭을 이용해 주세요.');
+  }
 }
 
 /* ════ 제조 점검 ════ */
@@ -203,7 +222,9 @@ async function renderMfCheck(el) {
     <button class="save-btn mt20" onclick="saveChecklist()">점검 완료 저장</button>`;
 }
 
-/* ════ 위생 점검 ════ */
+/* ═══════════════════════════════════
+   위생 점검 — 설비점검 항목 추가
+════════════════════════════════════*/
 async function renderHygiene(el) {
   const hyg = await DB.getAll('hygiene');
   const ym = `${calYear}-${String(calMonth+1).padStart(2,'0')}`;
@@ -214,7 +235,6 @@ async function renderHygiene(el) {
     ? monthRecs.filter(r=>r.date===selectedDate)
     : monthRecs;
 
-  // 밀린 점검 체크
   const now = new Date();
   const monday = new Date(now);
   monday.setDate(now.getDate() - ((now.getDay()+6)%7));
@@ -242,7 +262,7 @@ async function renderHygiene(el) {
       <i class="ti ti-plus-circle"></i>
       <div class="hb-text">
         <div class="hb-title">오늘 점검 기록 추가</div>
-        <div class="hb-sub">탭해서 청소·온도습도·방충 기록</div>
+        <div class="hb-sub">청소·온도습도·방충·설비 기록</div>
       </div>
       <i class="ti ti-chevron-right" style="color:var(--teal);margin-left:auto"></i>
     </div>
@@ -273,7 +293,7 @@ async function renderHygiene(el) {
              <br><small style="font-size:12px">위 + 버튼으로 기록하세요</small>
            </div>`}
     </div>
-    <button class="fab" onclick="openHygieneForm()"><i class="ti ti-plus"></i></button>`;
+    <button class="fab" onclick="openHygieneForm()"><i class="ti ti-plus"></i> 점검 기록</button>`;
 }
 
 function buildCalendar(year, month, hasRecord, hasIssue) {
@@ -298,9 +318,9 @@ function buildCalendar(year, month, hasRecord, hasIssue) {
 }
 
 function recordItem(r) {
-  const lbl = {'청소점검':'청소 점검','온도·습도':'온도·습도','제조위생':'제조 위생','방충방서':'방충·방서'}[r.type]||r.type;
+  const lbl = {'청소점검':'청소 점검','온도·습도':'온도·습도','제조위생':'제조 위생','방충방서':'방충·방서','설비점검':'설비 점검'}[r.type]||r.type;
   const title = r.type==='온도·습도' ? `온도 ${r.온도}°C / 습도 ${r.습도}%` : lbl;
-  const icon = {'청소점검':'ti-wash','온도·습도':'ti-temperature','제조위생':'ti-flask','방충방서':'ti-bug'}[r.type]||'ti-clipboard';
+  const icon = {'청소점검':'ti-wash','온도·습도':'ti-temperature','제조위생':'ti-flask','방충방서':'ti-bug','설비점검':'ti-tool'}[r.type]||'ti-clipboard';
   return `<div class="record-row" onclick="openHygieneEditForm(${r.id})">
     <div style="width:30px;height:30px;background:var(--teal-light);border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-right:10px">
       <i class="ti ${icon}" style="color:var(--teal);font-size:15px"></i>
@@ -316,63 +336,38 @@ function recordItem(r) {
   </div>`;
 }
 
-/* ════ 생산실적 ════ */
+/* ═══════════════════════════════════
+   생산실적 — 배치내역 제외, 판매채널 수정
+════════════════════════════════════*/
 async function renderProduction(el) {
-  const [prods, batches] = await Promise.all([DB.getAll('production'), DB.getAll('batches')]);
+  const prods = await DB.getAll('production');
 
-  const batchMap = {};
-  batches.forEach(b => {
-    const key = b.제품명;
-    if(!batchMap[key]) batchMap[key] = {이론:0, 실제:0, 배치수:0};
-    batchMap[key].이론 += (+b.이론수량||0);
-    batchMap[key].실제 += (+b.실제수량||0);
-    batchMap[key].배치수 += 1;
-  });
-  const prodMap = {};
+  const totalQty = prods.reduce((s,p)=>s+(+p.수량||0),0);
+  const byChannel = {};
   prods.forEach(p => {
-    const key = p.제품명;
-    if(!prodMap[key]) prodMap[key] = 0;
-    prodMap[key] += (+p.수량||0);
+    const ch = p.채널||'기타';
+    byChannel[ch] = (byChannel[ch]||0) + (+p.수량||0);
   });
-  const allKeys = [...new Set([...Object.keys(batchMap),...Object.keys(prodMap)])];
 
   el.innerHTML = `
     <div class="page-header"><h2 class="page-title">생산실적</h2></div>
     <div class="summary-row">
       <div class="sum-chip sum-mauve">기록 ${prods.length}건</div>
-      <div class="sum-chip sum-green">총 ${prods.reduce((s,p)=>s+(+p.수량||0),0)}개</div>
+      <div class="sum-chip sum-green">총 ${totalQty}개</div>
     </div>
-    <div class="section-label">배치 vs 생산실적 크로스체크</div>
-    <div style="padding:0 16px 8px;font-size:11px;color:var(--text3)">배치는 1kg 몰드 기준 · 생산실적은 실제 판매 단위</div>
-    <div style="overflow-x:auto;padding:0 0 12px">
-      <table style="width:100%;border-collapse:collapse;font-size:12px;min-width:320px">
-        <thead style="background:var(--teal-light)">
-          <tr>
-            <th style="padding:8px 12px;text-align:left;color:var(--teal-dark);border-bottom:2px solid var(--teal)">제품명</th>
-            <th style="padding:8px 8px;text-align:right;color:var(--teal-dark);border-bottom:2px solid var(--teal)">배치<br><span style="font-weight:400;font-size:10px">이론/실제</span></th>
-            <th style="padding:8px 8px;text-align:right;color:var(--teal-dark);border-bottom:2px solid var(--teal)">생산실적</th>
-            <th style="padding:8px 8px;text-align:right;color:var(--teal-dark);border-bottom:2px solid var(--teal)">차이</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${allKeys.length===0?`<tr><td colspan="4" style="padding:16px;text-align:center;color:var(--text3)">데이터 없음</td></tr>`:
-          allKeys.map(name => {
-            const bc = batchMap[name]||{이론:0,실제:0};
-            const pc = prodMap[name]||0;
-            const diff = pc - bc.실제;
-            return `<tr style="border-bottom:1px solid var(--border)">
-              <td style="padding:8px 12px;color:var(--text)">${name}</td>
-              <td style="padding:8px 8px;text-align:right;color:var(--text3)">${bc.이론}/${bc.실제}개</td>
-              <td style="padding:8px 8px;text-align:right;font-weight:600;color:var(--text)">${pc}개</td>
-              <td style="padding:8px 8px;text-align:right;font-weight:700;color:${diff===0?'var(--teal-dark)':diff>0?'var(--amber)':'var(--red)'}">${diff>0?'+':''}${diff}</td>
-            </tr>`;
-          }).join('')}
-        </tbody>
-      </table>
-    </div>
+
+    ${Object.keys(byChannel).length > 0 ? `
+    <div class="section-label">채널별 판매 현황</div>
+    <div style="padding:0 16px 12px;display:flex;flex-wrap:wrap;gap:8px">
+      ${Object.entries(byChannel).map(([ch,cnt])=>`
+        <div style="background:var(--teal-light);border-radius:20px;padding:6px 14px;font-size:12px;color:var(--teal-dark)">
+          ${ch} <strong>${cnt}개</strong>
+        </div>`).join('')}
+    </div>` : ''}
+
     <div class="section-label">생산실적 기록</div>
     ${prods.length===0?`<div class="empty-hint"><div class="empty-icon">📊</div>아직 생산실적이 없습니다<br><small>아래 + 버튼으로 추가하세요</small></div>`:''}
-    ${prods.map(p=>`
+    ${prods.slice().reverse().map(p=>`
       <div class="list-item" onclick="openProductionForm(${p.id})">
         <div class="item-left">
           <div class="item-title">${p.제품명||''}</div>
@@ -383,128 +378,136 @@ async function renderProduction(el) {
           <button class="icon-btn" onclick="event.stopPropagation();openProductionForm(${p.id})"><i class="ti ti-edit"></i></button>
         </div>
       </div>`).join('')}
-    <button class="fab" onclick="openProductionForm()"><i class="ti ti-plus"></i></button>`;
+    <button class="fab" onclick="openProductionForm()"><i class="ti ti-plus"></i> 실적 추가</button>`;
 }
 
-/* ════ 문서 출력 — 순서: 제품선택 → 기간설정 → 문서선택 ════ */
+/* ═══════════════════════════════════
+   문서 출력 — 이미지 순서대로
+   ① 제품별 서류 출력
+   ② 월별 위생점검 출력
+   ③ 파일 업로드 & 자동 등록 + 실행 버튼
+   ④ 과거 이력 조회
+════════════════════════════════════*/
 async function renderOutput(el) {
   const now = new Date();
   const y = now.getFullYear(), m = now.getMonth()+1;
   const [hyg, batches] = await Promise.all([DB.getAll('hygiene'), DB.getAll('batches')]);
-  const allDates = [...hyg.map(h=>h.date),...batches.map(b=>b.date)].filter(Boolean).sort();
-  const earliest = allDates[0]||`${y}-01`;
-  const ey = +earliest.slice(0,4), em = +earliest.slice(5,7);
-
-  const periodDocs = [
-    {key:'cover',icon:'ti-id-badge',      name:'정기감시 제출용 표지',  sub:'업체·기간 자동 기재',           def:true},
-    {key:'mh',  icon:'ti-clipboard-check',name:'위생점검기록서',         sub:'R-MH-01 청소 · R-MH-02 방충방서',def:true},
-    {key:'mms', icon:'ti-package',         name:'원료입고기록서',          sub:'R-MMS-01 · 전체 원료',           def:true},
-    {key:'qcm', icon:'ti-check',           name:'완제품출하검사기록서',   sub:'R-QCM-01/02 · 보관검체 포함',    def:true},
-  ];
-  const batchDocs = [
-    {key:'mi',icon:'ti-file-description',name:'제조지시서',  sub:'EF-MI · 원료배합표 포함'},
-    {key:'tr',icon:'ti-microscope',       name:'시험성적서',  sub:'EF-TR · KCL + 자사 육안검사'},
-    {key:'ps',icon:'ti-book',             name:'제품표준서',  sub:'EF-PS · 전성분 포함'},
-  ];
 
   el.innerHTML = `
     <div class="page-header"><h2 class="page-title">문서 출력</h2></div>
 
-    <div class="section-label">① 출력할 제품 선택</div>
-    <div style="display:flex;gap:8px;padding:0 16px 8px">
-      <button class="btn-sm solid" onclick="toggleAllBatches(true)">전체 선택</button>
-      <button class="btn-sm" onclick="toggleAllBatches(false)">전체 해제</button>
-    </div>
-    <div class="doc-select-list" style="margin-bottom:6px">
-      ${batches.length===0
-        ? `<div class="empty-hint" style="padding:14px">등록된 제품이 없습니다</div>`
-        : batches.map(b=>`
-          <label class="doc-check-row">
-            <input type="checkbox" class="batch-chk" data-id="${b.id}" checked>
-            <div class="doc-check-info">
-              <div class="doc-check-name">${b.제품명||''}</div>
-              <div class="doc-check-sub">${b.문서번호||''} · ${b.date||''} · <span class="badge ${badgeClass(b.상태)}" style="font-size:10px">${b.상태||''}</span></div>
-            </div>
+    <!-- ① 제품별 서류 출력 -->
+    <div class="output-section-card">
+      <div class="output-section-title">📄 제품별 서류 출력</div>
+      <label class="output-field-label">제품 선택</label>
+      <select id="out-product" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--card);color:var(--text);font-size:14px;margin-bottom:10px">
+        <option value="">-- 제품을 선택하세요 --</option>
+        ${batches.map(b=>`<option value="${b.id}">${b.제품명||''} (${b.date||''})</option>`).join('')}
+      </select>
+      <label class="output-field-label">출력할 서류 (1개 이상 선택)</label>
+      <div class="doc-check-inline">
+        ${[
+          {key:'mi', name:'제조지시서'},
+          {key:'tr', name:'시험성적서'},
+          {key:'ps', name:'제품표준서'},
+          {key:'mms', name:'원료입고기록서'},
+          {key:'qcm', name:'완제품출하검사'},
+          {key:'mh', name:'위생점검기록'},
+        ].map(d=>`
+          <label class="doc-check-pill">
+            <input type="checkbox" id="chk-${d.key}" checked>
+            <span>${d.name}</span>
           </label>`).join('')}
-    </div>
-
-    <div class="section-label mt16">② 출력 기간 설정</div>
-    <div class="output-range-card">
-      <div class="range-row">
-        <span class="range-label">시작</span>
-        <div class="range-inputs">
-          <input type="number" id="s-year"  value="${ey}" min="2024" max="${y+1}" style="width:68px">년
-          <input type="number" id="s-month" value="${em}" min="1" max="12" style="width:46px">월
-        </div>
       </div>
-      <div class="range-divider">~</div>
-      <div class="range-row">
-        <span class="range-label">종료</span>
-        <div class="range-inputs">
-          <input type="number" id="e-year"  value="${y}" min="2024" max="${y+1}" style="width:68px">년
-          <input type="number" id="e-month" value="${m}" min="1" max="12" style="width:46px">월
-        </div>
+      <button class="output-btn" onclick="generatePDF()">
+        <i class="ti ti-file-type-pdf"></i> PDF 생성
+      </button>
+    </div>
+
+    <!-- ② 월별 위생점검 기록 출력 -->
+    <div class="output-section-card">
+      <div class="output-section-title">🗒 월별 위생점검 기록 출력</div>
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
+        <select id="out-year" style="flex:1;padding:10px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--card);color:var(--text)">
+          ${Array.from({length:3},(_,i)=>y-i).map(yr=>`<option ${yr===y?'selected':''}>${yr}</option>`).join('')}
+        </select>
+        <span style="color:var(--text3)">년</span>
+        <select id="out-month" style="flex:1;padding:10px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--card);color:var(--text)">
+          ${Array.from({length:12},(_,i)=>i+1).map(mo=>`<option ${mo===m?'selected':''}>${mo}</option>`).join('')}
+        </select>
+        <span style="color:var(--text3)">월</span>
       </div>
+      <button class="output-btn-sec" onclick="printSelectedMonth()">
+        <i class="ti ti-printer"></i> 이달의 위생점검 출력
+      </button>
     </div>
 
-    <div class="section-label mt16">③ 기간별 문서 선택</div>
-    <div class="doc-select-list">
-      ${periodDocs.map(d=>`
-        <label class="doc-check-row">
-          <input type="checkbox" id="chk-${d.key}" ${d.def?'checked':''}>
-          <div class="doc-check-info">
-            <div class="doc-check-name"><i class="ti ${d.icon}" style="color:var(--teal)"></i> ${d.name}</div>
-            <div class="doc-check-sub">${d.sub}</div>
-          </div>
-        </label>`).join('')}
+    <!-- ③ 파일 업로드 & 자동 등록 -->
+    <div class="output-section-card">
+      <div class="output-section-title">📁 파일 업로드 & 자동 등록</div>
+      <div style="font-size:12px;color:var(--text3);margin-bottom:10px">기존 docx 파일을 업로드하면 내용을 자동으로 읽어 DB에 저장합니다</div>
+      <div class="dropzone" id="dropzone-area"
+           ondragover="event.preventDefault();this.classList.add('drag-over')"
+           ondragleave="this.classList.remove('drag-over')"
+           ondrop="handleFileDrop(event)">
+        <div class="dropzone-icon">📄</div>
+        <div class="dropzone-text">파일을 드래그하거나 탭해서 선택</div>
+        <div class="dropzone-sub">지원: .docx · 제조지시서, 위생점검, 원료입고기록서 · .json 백업</div>
+        <input type="file" id="file-upload" accept=".docx,.txt,.json,.pdf" style="position:absolute;inset:0;opacity:0;cursor:pointer" onchange="handleFileUpload(event)">
+      </div>
+      <div id="upload-result" style="padding:8px 0;font-size:12px;min-height:28px;color:var(--text3)">파일을 선택하면 자동으로 분석합니다</div>
+      <button class="output-btn-sec" id="btn-run-parse" onclick="runParseSaved()">
+        <i class="ti ti-bolt"></i> 자동 작성 실행
+      </button>
     </div>
 
-    <div class="section-label mt16">④ 품목별 문서 선택</div>
-    <div class="doc-select-list" style="margin-bottom:8px">
-      ${batchDocs.map(d=>`
-        <label class="doc-check-row">
-          <input type="checkbox" id="chk-${d.key}" checked>
-          <div class="doc-check-info">
-            <div class="doc-check-name"><i class="ti ${d.icon}" style="color:var(--teal)"></i> ${d.name}</div>
-            <div class="doc-check-sub">${d.sub}</div>
-          </div>
-        </label>`).join('')}
-    </div>
-
-    <button class="output-btn" onclick="generatePDF()">
-      <i class="ti ti-printer"></i> 선택한 문서 PDF 생성
-    </button>
-
-    <div class="section-label mt20">📁 파일 업로드로 자동 작성</div>
-    <div style="padding:0 16px 8px;font-size:12px;color:var(--text3)">기존 docx 파일을 업로드하면 내용을 자동으로 읽어 DB에 저장합니다</div>
-    <div class="dropzone" onclick="document.getElementById('file-upload').click()" id="dropzone-area"
-         ondragover="event.preventDefault();this.style.borderColor='var(--teal-dark)'"
-         ondrop="handleFileDrop(event)">
-      <div class="dropzone-icon">📄</div>
-      <div class="dropzone-text">파일을 드래그하거나 탭해서 선택</div>
-      <div class="dropzone-sub">지원: .docx · 제조지시서, 위생점검, 원료입고기록서 · .json 백업파일</div>
-    </div>
-    <input type="file" id="file-upload" accept=".docx,.txt,.json,.pdf" style="display:none" onchange="handleFileUpload(event)">
-    <div id="upload-result" style="padding:8px 16px;font-size:12px;color:var(--teal-dark)"></div>
-
-    <div class="section-label mt20">🗂 과거 이력 조회</div>
-    <div id="history-section"></div>`;
+    <!-- ④ 과거 이력 조회 -->
+    <div class="output-section-card">
+      <div class="output-section-title">🗂 과거 이력 조회</div>
+      <div id="history-section"></div>
+    </div>`;
 
   renderHistory(document.getElementById('history-section'), hyg, batches);
 }
 
+/* 선택한 월 위생점검 출력 */
+async function printSelectedMonth() {
+  const y = document.getElementById('out-year')?.value;
+  const m = document.getElementById('out-month')?.value;
+  if(!y||!m) return;
+  const ym = `${y}-${String(m).padStart(2,'0')}`;
+  await printRangeMonth(ym);
+}
+
 function toggleAllBatches(val) { document.querySelectorAll('.batch-chk').forEach(c=>c.checked=val); }
+
+/* 저장된 파일 자동 작성 실행 버튼 */
+let _savedFileForParse = null;
+function runParseSaved() {
+  if(_savedFileForParse) processUploadedFile(_savedFileForParse);
+}
 
 /* 파일 업로드 처리 */
 function handleFileDrop(e) {
   e.preventDefault();
+  e.currentTarget.classList.remove('drag-over');
   const file = e.dataTransfer.files[0];
-  if (file) processUploadedFile(file);
+  if (file) prepareFile(file);
 }
 function handleFileUpload(e) {
   const file = e.target.files[0];
-  if (file) processUploadedFile(file);
+  if (file) prepareFile(file);
 }
+
+function prepareFile(file) {
+  _savedFileForParse = file;
+  const el = document.getElementById('upload-result');
+  const btn = document.getElementById('btn-run-parse');
+  if(el) el.innerHTML = `<span style="color:var(--teal-dark)">📎 <b>${file.name}</b> 선택됨 — 분석 실행 중...</span>`;
+  // 자동 실행
+  processUploadedFile(file);
+}
+
 async function processUploadedFile(file) {
   const el = document.getElementById('upload-result');
   if(!el) return;
@@ -617,7 +620,7 @@ async function parseDocumentText(name, text, fileName, el) {
       el.innerHTML = `<span style="color:var(--text3)">⚠️ 날짜 감지 실패. 위생점검 탭에서 직접 입력해주세요.</span>`;
     }
   } else if(isIng) {
-    el.innerHTML = `<span style="color:var(--teal-dark)">📦 원료입고 파일 감지 — 재료·재고 탭에서 확인해주세요.</span>`;
+    el.innerHTML = `<span style="color:var(--teal-dark)">📦 원료입고 파일 감지 — 원료 재고 탭에서 확인해주세요.</span>`;
   } else {
     el.innerHTML = `<span style="color:var(--text3)">📄 <b>${fileName}</b> 분석 완료. 파일 유형 미확인 — 해당 탭에서 직접 확인해주세요.</span>`;
   }
@@ -671,29 +674,29 @@ function toggleHistory(row) {
 
 async function printRangeMonth(ym) {
   const [y,m]=ym.split('-').map(Number);
-  const [hyg,ing,batches]=await Promise.all([DB.getAll('hygiene'),DB.getAll('ingredients'),DB.getAll('batches')]);
-  const sep='<div class="page-break"></div>';
-  openPrint(buildCover(y,m,y,m)+sep+buildMH(hyg,y,m)+sep+buildMMS(ing)+sep+buildQCM(batches));
+  const hyg = await DB.getAll('hygiene');
+  const monthHyg = hyg.filter(h=>h.date&&h.date.startsWith(ym));
+  alert(`${y}년 ${m}월 위생점검 ${monthHyg.length}건 PDF 출력 (문서 출력 탭에서 상세 설정 가능)`);
 }
 
 /* ════ 원료 폼 ════ */
 async function openIngForm(id, defaultType) {
   const list = await DB.getAll('ingredients');
   const item = id ? list.find(i=>i.id===id) : {};
-  const type = (item&&item.stockType)||defaultType||stockSubTab||'원료';
-  const ingCats = ['베이스오일','버터·왁스','가성소다','정제수','첨가물·기능성','향료·색소','기타'];
-  const pkgCats = ['단상자','선물박스','크라프트박스','라벨·스티커','수축필름','포장지','리본·끈','완충재','기타포장'];
-  const cats = type==='포장재'?pkgCats:ingCats;
+  const type = (item&&item.stockType) || defaultType || '원료';
+  const ingCats=['베이스오일','버터·왁스','가성소다','정제수','첨가물·기능성','향료·색소','기타'];
+  const pkgCats=['단상자','선물박스','크라프트박스','라벨·스티커','수축필름','포장지','리본·끈','완충재','기타포장'];
+  const cats = type==='포장재' ? pkgCats : ingCats;
 
   showSheet(`
     <div class="sheet-handle"></div>
     <div class="sheet-inner">
-    <div class="sheet-title">${id?(type==='포장재'?'포장재 수정':'원료 수정'):(type==='포장재'?'포장재 추가':'원료 추가')}</div>
-    <label>구분<select id="f0" onchange="updateIngCats(this.value)">
-      <option ${type==='원료'?'selected':''}>원료</option>
+    <div class="sheet-title">${id?'원료 수정':'원료 추가'}</div>
+    <label>종류<select id="f0" onchange="updateIngCats(this.value)">
+      <option ${type!=='포장재'?'selected':''}>원료</option>
       <option ${type==='포장재'?'selected':''}>포장재</option>
     </select></label>
-    <label>원료명 / 포장재명<input id="f1" value="${(item&&item.원료명)||''}"></label>
+    <label>원료명 / 제품명<input id="f1" value="${(item&&item.원료명)||''}"></label>
     <label>제조처 / 공급처<input id="f2" value="${(item&&item.제조처)||''}"></label>
     <label>수량 / 재고<input id="f3" value="${(item&&item.수량)||''}" placeholder="예: 500g, 100개"></label>
     <label>입고일<input type="date" id="f8" value="${(item&&item.입고일)||''}"></label>
@@ -752,25 +755,14 @@ async function openBatchForm(id) {
     <label>바코드<input id="b15" value="${(item&&item.바코드)||''}"></label>
     <label>목표 중량<input id="b16" value="${(item&&item.목표중량)||'90g ±5g'}"></label>
     <label>실측 중량 (g)<input type="number" id="b17" placeholder="예: 100" value="${(item&&item.실측중량)||''}"></label>
-    <label>색상 기준<input id="b18" value="${(item&&item.색상기준)||''}"></label>
-    <label>색상 결과<input id="b19" value="${(item&&item.색상결과)||'이상없음'}"></label>
     <label>KCL 접수번호<input id="b10" value="${(item&&item.KCL)||''}"></label>
-    <label>KCL 성적서 파일 업로드 (선택)
-      <div style="margin-top:6px;display:flex;gap:8px;align-items:center">
-        <button type="button" class="btn-sm" onclick="document.getElementById('kcl-file').click()" style="flex-shrink:0">📎 파일 선택</button>
-        <span id="kcl-filename" style="font-size:12px;color:var(--text3)">${(item&&item.KCL파일명)||'선택된 파일 없음'}</span>
-      </div>
-      <input type="file" id="kcl-file" accept=".pdf,.jpg,.jpeg,.png,.docx" style="display:none" onchange="handleKCLUpload(event)">
-    </label>
-    <label>KCL 접수일<input type="date" id="b20" value="${(item&&item.KCL접수일)||''}"></label>
-    <label>KCL 발행번호<input id="b21" value="${(item&&item.KCL발행번호)||''}"></label>
-    <label>KCL 발행일<input type="date" id="b22" value="${(item&&item.KCL발행일)||''}"></label>
-    <label>CT 성적서번호<input id="b23" value="${(item&&item.CT)||''}"></label>
-    <label>CT 내용량 (g)<input id="b24" value="${(item&&item.CT내용량)||''}"></label>
-    <label>CT 발행일<input type="date" id="b25" value="${(item&&item.CT발행일)||''}"></label>
+    <label>KCL 성적서 파일<div style="margin-top:6px;display:flex;gap:8px;align-items:center">
+      <button type="button" class="btn-sm" onclick="document.getElementById('kcl-file').click()" style="flex-shrink:0">📎 파일 선택</button>
+      <span id="kcl-filename" style="font-size:12px;color:var(--text3)">${(item&&item.KCL파일명)||'선택 없음'}</span>
+    </div>
+    <input type="file" id="kcl-file" accept=".pdf,.jpg,.jpeg,.png,.docx" style="display:none" onchange="handleKCLUpload(event)"></label>
     <label>내용량 결과 (%)<input id="b11" placeholder="예: 103" value="${(item&&item.내용량)||''}"></label>
     <label>유리알칼리 결과<input id="b12" placeholder="예: 검출 안 됨" value="${(item&&item.유리알칼리)||''}"></label>
-    <label>알레르기 유발성분<input id="b30" value="${(item&&item.알레르기)||''}"></label>
     <label>전성분<textarea id="b26" rows="3">${(item&&item.전성분)||''}</textarea></label>
     <label>이상여부<select id="b13">
       <option ${item&&item.이상==='이상없음'?'selected':''}>이상없음</option>
@@ -791,11 +783,9 @@ async function saveBatch(id) {
     제조방법:v('b5'),투입량:+v('b6'),이론수량:+v('b7'),실제수량:+v('b8'),
     상태:v('b9'),바코드:v('b15'),목표중량:v('b16'),
     실측중량:v('b17')?+v('b17'):null,
-    색상기준:v('b18'),색상결과:v('b19'),
-    KCL:v('b10'),KCL접수일:v('b20'),KCL발행번호:v('b21'),KCL발행일:v('b22'),
-    CT:v('b23'),CT내용량:v('b24'),CT발행일:v('b25'),
+    KCL:v('b10'),
     내용량:v('b11'),유리알칼리:v('b12'),
-    알레르기:v('b30'),전성분:v('b26'),
+    전성분:v('b26'),
     이상:v('b13'),비고:v('b14')
   };
   if(id){
@@ -814,7 +804,9 @@ function handleKCLUpload(e) {
   if(fn && file) fn.textContent = file.name;
 }
 
-/* ════ 위생 폼 ════ */
+/* ═══════════════════════════════════
+   위생 폼 — 설비점검 항목 추가
+════════════════════════════════════*/
 function openHygieneForm(preDate) {
   const ds = preDate||today.toISOString().split('T')[0];
   showSheet(`
@@ -828,6 +820,7 @@ function openHygieneForm(preDate) {
         <option>온도·습도</option>
         <option>제조위생</option>
         <option>방충방서</option>
+        <option>설비점검</option>
       </select>
     </label>
     <div id="h-extra"></div>
@@ -852,7 +845,7 @@ async function openHygieneEditForm(id) {
     <label>점검일<input type="date" id="h1" value="${r.date||''}"></label>
     <label>점검 유형
       <select id="h2" onchange="updateHygExtra()">
-        ${['청소점검','온도·습도','제조위생','방충방서'].map(t=>`<option ${r.type===t?'selected':''}>${t}</option>`).join('')}
+        ${['청소점검','온도·습도','제조위생','방충방서','설비점검'].map(t=>`<option ${r.type===t?'selected':''}>${t}</option>`).join('')}
       </select>
     </label>
     <div id="h-extra"></div>
@@ -877,6 +870,11 @@ async function openHygieneEditForm(id) {
         const el2=document.getElementById('h-'+k);
         if(el2)el2.value=r.items[k]||'청결';
       });
+    } else if(r.type==='설비점검'&&r.items){
+      ['전자저울','온습도계','제조기기','포장기기'].forEach(k=>{
+        const el2=document.getElementById('h-equip-'+k);
+        if(el2)el2.value=r.items[k]||'정상';
+      });
     }
   },50);
 }
@@ -899,6 +897,12 @@ function updateHygExtra() {
       <label>작업대(칭량)<select id="h-작업대"><option>청결</option><option>불량</option></select></label>
       <label>도구류(조제)<select id="h-도구류"><option>청결</option><option>불량</option></select></label>
       <label>포장실<select id="h-포장실"><option>청결</option><option>불량</option></select></label>`;
+  } else if(sel.value==='설비점검') {
+    el.innerHTML=`
+      <label>전자저울<select id="h-equip-전자저울"><option>정상</option><option>이상</option><option>수리필요</option></select></label>
+      <label>온습도계<select id="h-equip-온습도계"><option>정상</option><option>이상</option><option>수리필요</option></select></label>
+      <label>제조기기<select id="h-equip-제조기기"><option>정상</option><option>이상</option><option>수리필요</option></select></label>
+      <label>포장기기<select id="h-equip-포장기기"><option>정상</option><option>이상</option><option>수리필요</option></select></label>`;
   } else {
     el.innerHTML='';
   }
@@ -924,25 +928,32 @@ async function saveHyg(id) {
       도구류:v('h-도구류')||'청결',
       포장실:v('h-포장실')||'청결'
     };
+  } else if(type==='설비점검'){
+    data.items={
+      전자저울:v('h-equip-전자저울')||'정상',
+      온습도계:v('h-equip-온습도계')||'정상',
+      제조기기:v('h-equip-제조기기')||'정상',
+      포장기기:v('h-equip-포장기기')||'정상'
+    };
+    const hasIssue = Object.values(data.items).some(v=>v!=='정상');
+    if(hasIssue) data.status='문제임박';
   }
   if(id) await DB.put('hygiene',{...data,id}); else await DB.add('hygiene',data);
   closeSheet(); await renderTab('hygiene');
 }
 
-/* ════ 생산실적 폼 ════ */
+/* ════ 생산실적 폼 — 판매채널 수정 가능 ════ */
 async function openProductionForm(id) {
-  const [list, batches] = await Promise.all([DB.getAll('production'), DB.getAll('batches')]);
+  const [list] = await Promise.all([DB.getAll('production')]);
   const item = id ? list.find(p=>p.id===id) : {};
   const ds = today.toISOString().split('T')[0];
+  const batches = await DB.getAll('batches');
   showSheet(`
     <div class="sheet-handle"></div><div class="sheet-inner">
     <div class="sheet-title">${id?'생산실적 수정':'생산실적 추가'}</div>
-    <div style="background:var(--amber-bg);border-radius:var(--r-sm);padding:8px 12px;font-size:11px;color:var(--amber-text);margin-bottom:14px">
-      ※ 배치(1kg 몰드)와 달리 실제 판매 단위로 입력하세요
-    </div>
     <label>날짜<input type="date" id="p1" value="${(item&&item.date)||ds}"></label>
     <label>제품명
-      <select id="p2">
+      <select id="p2" onchange="document.getElementById('p2-custom-wrap').style.display=this.value==='__custom'?'block':'none'">
         ${batches.map(b=>`<option ${item&&item.제품명===b.제품명?'selected':''}>${b.제품명}</option>`).join('')}
         <option value="__custom" ${item&&item.__customName?'selected':''}>직접입력</option>
       </select>
@@ -950,35 +961,35 @@ async function openProductionForm(id) {
     <div id="p2-custom-wrap" style="${item&&item.__customName?'':'display:none'}">
       <label>제품명 직접입력<input id="p2c" value="${(item&&item.__customName)||''}"></label>
     </div>
-    <label>수량 (실제 판매 단위 개수)<input type="number" id="p3" value="${(item&&item.수량)||''}" placeholder="예: 55"></label>
+    <label>수량 (판매 단위 개수)<input type="number" id="p3" value="${(item&&item.수량)||''}" placeholder="예: 55"></label>
     <label>유형<select id="p4">
       ${['생산','출하','반품','폐기'].map(t=>`<option ${item&&item.유형===t?'selected':''}>${t}</option>`).join('')}
     </select></label>
-    <label>판매 채널<select id="p5">
-      ${['아이디어스','스마트스토어','신세계 꿈상회','고향사랑기부제','직접판매','기타'].map(c=>`<option ${item&&item.채널===c?'selected':''}>${c}</option>`).join('')}
-    </select></label>
+    <label>판매 채널
+      <select id="p5" onchange="document.getElementById('p5-custom-wrap').style.display=this.value==='__custom'?'block':'none'">
+        ${['아이디어스','스마트스토어','신세계 꿈상회','고향사랑기부제','직접판매','기타','직접입력'].map(c=>`
+          <option value="${c==='직접입력'?'__custom':c}" ${item&&item.채널===c?'selected':''}>${c}</option>`).join('')}
+      </select>
+    </label>
+    <div id="p5-custom-wrap" style="display:none">
+      <label>채널 직접입력<input id="p5c" placeholder="예: 팝업스토어"></label>
+    </div>
     <label>비고<input id="p6" value="${(item&&item.비고)||''}"></label>
     <div class="sheet-btns">
       ${id?`<button class="btn-del" onclick="delItem('production',${id})">삭제</button>`:''}
       <button onclick="closeSheet()">취소</button>
       <button class="btn-save" onclick="saveProd(${id||'null'})">저장</button>
     </div></div>`);
-
-  setTimeout(()=>{
-    const sel = document.getElementById('p2');
-    if(sel) sel.addEventListener('change', ()=>{
-      const w = document.getElementById('p2-custom-wrap');
-      if(w) w.style.display = sel.value==='__custom'?'block':'none';
-    });
-  }, 50);
 }
 
 async function saveProd(id) {
   const selVal = v('p2');
   const prodName = selVal==='__custom' ? (v('p2c')||'기타') : selVal;
+  const chVal = v('p5');
+  const channel = chVal==='__custom' ? (v('p5c')||'기타') : chVal;
   const data = {
     date:v('p1'), 제품명:prodName, 수량:+v('p3'),
-    유형:v('p4'), 채널:v('p5'), 비고:v('p6'),
+    유형:v('p4'), 채널:channel, 비고:v('p6'),
     __customName: selVal==='__custom' ? v('p2c') : undefined
   };
   if(id) await DB.put('production',{...data,id}); else await DB.add('production',data);
@@ -1039,14 +1050,15 @@ async function delItem(store, id) {
 window.switchStockTab=switchStockTab;
 window.openIngForm=openIngForm; window.saveIng=saveIng; window.updateIngCats=updateIngCats;
 window.openBatchForm=openBatchForm; window.saveBatch=saveBatch; window.handleKCLUpload=handleKCLUpload;
+window.quickPrintBatch=quickPrintBatch;
 window.openHygieneForm=openHygieneForm; window.openHygieneEditForm=openHygieneEditForm;
 window.updateHygExtra=updateHygExtra; window.saveHyg=saveHyg;
 window.closeSheet=closeSheet; window.delItem=delItem;
 window.toggleCard=toggleCard; window.toggleCheck=toggleCheck; window.saveChecklist=saveChecklist;
 window.changeMonth=changeMonth; window.selectDate=selectDate; window.clearDateFilter=clearDateFilter;
 window.toggleHistory=toggleHistory; window.printRangeMonth=printRangeMonth;
-window.toggleAllBatches=toggleAllBatches;
+window.toggleAllBatches=toggleAllBatches; window.printSelectedMonth=printSelectedMonth;
 window.openProductionForm=openProductionForm; window.saveProd=saveProd;
 window.handleFileDrop=handleFileDrop; window.handleFileUpload=handleFileUpload;
-window.parseDocumentText=parseDocumentText;
+window.parseDocumentText=parseDocumentText; window.runParseSaved=runParseSaved;
 window.renderBarcode=renderBarcode;

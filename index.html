@@ -3,77 +3,96 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=yes">
-  <meta name="theme-color" content="#48997D">
+  <meta name="theme-color" content="#c084a4">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <meta name="apple-mobile-web-app-title" content="에이브릴팜">
-  <title>에이브릴팜 공방관리</title>
+  <meta name="apple-mobile-web-app-title" content="AVRIL'S FARM">
+  <title>AVRIL'S FARM 공방관리</title>
   <link rel="manifest" href="manifest.json">
   <link rel="stylesheet" href="css/style.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.6/JsBarcode.all.min.js"></script>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.0.0/tabler-icons.min.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,300;0,400;0,700&display=swap" rel="stylesheet">
   <style>
-    @keyframes spin { to { transform: rotate(360deg); } }
-    @keyframes fadeIn { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }
-    @keyframes pulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.05)} }
+    @keyframes spin   { to { transform: rotate(360deg); } }
+    @keyframes fadeUp { from { opacity:0; transform:translateY(14px); } to { opacity:1; transform:translateY(0); } }
 
-    /* ── 인트로 화면 ── */
     #intro-screen {
       position: fixed; inset: 0; z-index: 100;
-      background: linear-gradient(160deg, #F5EBE0 0%, #E8F5EE 50%, #F0E4EC 100%);
+      background: linear-gradient(155deg, #F7EDE2 0%, #EAF4EF 45%, #F2E8F0 100%);
       display: flex; flex-direction: column;
       align-items: center; justify-content: center;
-      padding: 40px 32px;
-    }
-    .intro-symbol {
-      width: 100px; height: 100px; object-fit: contain;
-      margin-bottom: 20px;
-      animation: pulse 3s ease-in-out infinite;
-      filter: drop-shadow(0 8px 20px rgba(72,153,125,.25));
-    }
-    .intro-logo {
-      width: 200px; object-fit: contain;
-      margin-bottom: 10px;
-      animation: fadeIn .8s ease .2s both;
-    }
-    .intro-tagline {
-      font-size: 13px; color: #48997D; font-weight: 600;
-      letter-spacing: 1px; margin-bottom: 4px;
-      animation: fadeIn .8s ease .35s both;
-    }
-    .intro-info {
-      font-size: 11px; color: #8B8680; text-align: center;
-      line-height: 1.9; margin-bottom: 40px;
-      animation: fadeIn .8s ease .5s both;
-    }
-    .intro-btn {
-      background: #48997D; color: #fff;
-      border: none; border-radius: 28px;
-      padding: 16px 48px; font-size: 16px; font-weight: 700;
-      cursor: pointer; font-family: inherit;
-      box-shadow: 0 6px 20px rgba(72,153,125,.4);
-      transition: transform .15s, box-shadow .15s;
-      animation: fadeIn .8s ease .65s both;
-    }
-    .intro-btn:active { transform: scale(.97); box-shadow: 0 3px 12px rgba(72,153,125,.3); }
-    .intro-reg {
-      font-size: 10px; color: #B0A8A0; margin-top: 28px;
-      text-align: center; line-height: 1.7;
-      animation: fadeIn .8s ease .8s both;
+      padding: 48px 32px; gap: 0;
     }
     #intro-screen.hidden { display: none; }
+
+    /* AVRIL'S FARM — Montserrat Light, #c084a4 단색 */
+    .intro-wordmark {
+      font-family: 'Montserrat', sans-serif;
+      font-weight: 300;
+      font-size: 36px;
+      color: #c084a4;
+      letter-spacing: 6px;
+      text-transform: uppercase;
+      line-height: 1;
+      margin-bottom: 10px;
+      animation: fadeUp .7s ease .2s both;
+    }
+
+    /* 공방 관리 시스템 — 원래 폰트, 더 크게 */
+    .intro-sub {
+      font-size: 13px;
+      font-weight: 500;
+      color: #8B8680;
+      letter-spacing: 3px;
+      margin-bottom: 32px;
+      animation: fadeUp .7s ease .35s both;
+    }
+
+    .intro-divider {
+      width: 36px; height: 1.5px;
+      background: linear-gradient(90deg, #AC839B, #48997D);
+      border-radius: 2px; margin-bottom: 22px;
+      animation: fadeUp .7s ease .45s both;
+    }
+
+    .intro-info {
+      font-size: 11.5px; color: #8B8680;
+      text-align: center; line-height: 2.1;
+      margin-bottom: 38px;
+      animation: fadeUp .7s ease .55s both;
+    }
+
+    .intro-btn {
+      background: linear-gradient(135deg, #48997D 0%, #3A8068 100%);
+      color: #fff; border: none; border-radius: 32px;
+      padding: 15px 52px; font-size: 15px; font-weight: 700;
+      cursor: pointer; font-family: inherit;
+      box-shadow: 0 8px 24px rgba(72,153,125,.38);
+      transition: transform .15s, box-shadow .15s;
+      animation: fadeUp .7s ease .7s both;
+      letter-spacing: .5px;
+    }
+    .intro-btn:hover  { transform: translateY(-1px); box-shadow: 0 10px 28px rgba(72,153,125,.45); }
+    .intro-btn:active { transform: scale(.97); }
+
+    .intro-reg {
+      font-size: 10px; color: #C0B8B0; margin-top: 28px;
+      text-align: center; line-height: 1.9;
+      animation: fadeUp .7s ease .85s both;
+    }
   </style>
 </head>
 <body>
 
 <!-- ══ 인트로 화면 ══ -->
 <div id="intro-screen">
-  <img src="에이브릴팜_비누심볼.png" alt="에이브릴팜 심볼" class="intro-symbol"
-       onerror="this.style.display='none'">
-  <img src="에이브릴팜_로고.png" alt="AVRIL'S FARM" class="intro-logo"
-       onerror="this.outerHTML='<div style=\'font-size:24px;font-weight:900;color:#AC839B;letter-spacing:2px;margin-bottom:10px\'>AVRIL\'S FARM</div>'">
-  <div class="intro-tagline">🌿 손바닥 위의 봄</div>
+  <div class="intro-wordmark">AVRIL'S FARM</div>
+  <div class="intro-sub">공방 관리 시스템</div>
+  <div class="intro-divider"></div>
   <div class="intro-info">
     에이브릴팜 공방 관리 시스템<br>
     화장품제조업 제6494호<br>
@@ -89,11 +108,8 @@
 <!-- ══ 메인 앱 ══ -->
 <div class="app" id="main-app" style="display:none">
   <div class="topbar">
-    <div class="topbar-logo">
-      <img src="에이브릴팜_비누심볼.png" alt="심볼" class="nav-symbol"
-           onerror="this.style.display='none'">
-      <img src="에이브릴팜_로고.png" alt="AVRIL'S FARM" class="nav-logo"
-           onerror="this.outerHTML='<span class=\'logo-text\'>AVRIL\'S FARM</span>'">
+    <div class="topbar-logo" onclick="goHygiene()" style="cursor:pointer" title="위생점검으로 이동">
+      <span class="nav-wordmark">AVRIL'S FARM</span>
     </div>
     <div class="tabs-wrap">
       <div class="tabs">
@@ -124,6 +140,13 @@
     document.getElementById('intro-screen').classList.add('hidden');
     document.getElementById('main-app').style.display = 'flex';
     init();
+  }
+  function goHygiene() {
+    currentTab = 'hygiene';
+    document.querySelectorAll('.tab-btn').forEach(b => {
+      b.classList.toggle('active', b.dataset.tab === 'hygiene');
+    });
+    renderTab('hygiene');
   }
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js').catch(()=>{});

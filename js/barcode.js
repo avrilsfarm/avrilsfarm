@@ -1,64 +1,62 @@
 'use strict';
 
 /* ════════════════════════════════════════
-   에이브릴팜 바코드 관리 모듈 v2
-   EAN-13 형식: 8739 + 소분류(3) + 비번호(3) + 개수(2) + 체크디짓(1)
-   제조번호: AP/JP + B + 색상코드 + 월(2) + 번호(3)
+   에이브릴팜 바코드 관리 모듈 v3
+   EAN-13: 대분류(4) + 소분류(3) + 비번호(3) + 개수(2) + 체크디짓(1)
 ════════════════════════════════════════ */
 
-/* ── 기존 32개 제품 마스터 데이터 ── */
+/* ── 마스터 데이터 (제이쏩 삭제, expiry 수정) ── */
 const BARCODE_MASTER = [
-  { no:1,  name:'캐롯숍',             sub:'071',seq:'001',qty:'09',chk:9, mfgNo:'',           mfgDate:'',        expiry:'',              status:'단종', year:2023, notes:'' },
-  { no:2,  name:'크리스마숍',          sub:'112',seq:'002',qty:'09',chk:2, mfgNo:'',           mfgDate:'',        expiry:'',              status:'단종', year:null, notes:'' },
-  { no:3,  name:'젤리베어숍',          sub:'113',seq:'003',qty:'20',chk:3, mfgNo:'',           mfgDate:'',        expiry:'',              status:'단종', year:null, notes:'' },
-  { no:4,  name:'새해비누',            sub:'011',seq:'004',qty:'50',chk:0, mfgNo:'',           mfgDate:'',        expiry:'',              status:'현행', year:null, notes:'' },
-  { no:5,  name:'카네이션비누',        sub:'004',seq:'005',qty:'24',chk:8, mfgNo:'',           mfgDate:'',        expiry:'',              status:'단종', year:null, notes:'' },
-  { no:6,  name:'아이스쿨바',          sub:'715',seq:'006',qty:'06',chk:0, mfgNo:'APBSF06006', mfgDate:'25.06.25',expiry:'제조일로부터 1년', status:'현행', year:2024, notes:'' },
-  { no:7,  name:'명절선물 비누',        sub:'815',seq:'007',qty:'09',chk:7, mfgNo:'APBFW08007', mfgDate:'24.08.15',expiry:'CP-2년',         status:'현행', year:2024, notes:'' },
-  { no:8,  name:'명절선물 비누세트',    sub:'815',seq:'008',qty:'02',chk:5, mfgNo:'',           mfgDate:'',        expiry:'',              status:'현행', year:2024, notes:'' },
-  { no:9,  name:'당근 비누',           sub:'101',seq:'009',qty:'09',chk:5, mfgNo:'APBO10001',  mfgDate:'',        expiry:'CP-2년',         status:'현행', year:2024, notes:'' },
-  { no:10, name:'가지 비누',           sub:'102',seq:'010',qty:'09',chk:0, mfgNo:'APBP10002',  mfgDate:'',        expiry:'CP-2년',         status:'현행', year:null, notes:'' },
-  { no:11, name:'크리스마스 비누',      sub:'112',seq:'811',qty:'09',chk:0, mfgNo:'APBFW11001', mfgDate:'',        expiry:'CP-2년',         status:'현행', year:null, notes:'' },
-  { no:12, name:'아보카도 비누',        sub:'020',seq:'412',qty:'09',chk:9, mfgNo:'APBYG10003', mfgDate:'',        expiry:'CP-2년',         status:'현행', year:null, notes:'' },
-  { no:13, name:'미나리 비누',          sub:'020',seq:'413',qty:'09',chk:6, mfgNo:'APBG10004',  mfgDate:'',        expiry:'CP-2년',         status:'현행', year:null, notes:'' },
-  { no:14, name:'선인장 컵비누',        sub:'021',seq:'915',qty:'07',chk:9, mfgNo:'APBSS02001', mfgDate:'25.02.17',expiry:'CP-2년',         status:'현행', year:null, notes:'' },
-  { no:15, name:'카네이션 컵비누',      sub:'021',seq:'916',qty:'07',chk:6, mfgNo:'APBSS02002', mfgDate:'25.02.19',expiry:'CP-2년',         status:'현행', year:null, notes:'' },
-  { no:16, name:'해로 굿즈 비누',       sub:'040',seq:'416',qty:'07',chk:7, mfgNo:'APBGS-104003',mfgDate:'25.04.17',expiry:'CP-2년',        status:'현행', year:null, notes:'' },
-  { no:17, name:'토로 굿즈 비누',       sub:'040',seq:'417',qty:'07',chk:4, mfgNo:'APBGS-204004',mfgDate:'25.04.21',expiry:'CP-2년',        status:'현행', year:null, notes:'' },
-  { no:18, name:'쿨 비누',             sub:'052',seq:'918',qty:'06',chk:4, mfgNo:'APBSF05005', mfgDate:'25.05.29',expiry:'CP-2년',         status:'현행', year:null, notes:'' },
-  { no:19, name:'제이쏩 쿨 비누',       sub:'401',seq:'527',qty:'05',chk:2, mfgNo:'JPBSF05006', mfgDate:'25.06.27',expiry:'CP-2년',         status:'현행', year:null, notes:'대분류 6590', biz:'6590' },
-  { no:20, name:'투명비누-핑크',        sub:'120',seq:'119',qty:'20',chk:1, mfgNo:'APBGS-312005',mfgDate:'25.12.02',expiry:'MP-1년',        status:'현행', year:null, notes:'' },
-  { no:21, name:'투명비누-옐로',        sub:'120',seq:'120',qty:'20',chk:7, mfgNo:'APBGS-412006',mfgDate:'25.12.02',expiry:'MP-1년',        status:'현행', year:null, notes:'' },
-  { no:22, name:'투명비누-블루',        sub:'120',seq:'121',qty:'20',chk:4, mfgNo:'APBGS-512007',mfgDate:'25.12.02',expiry:'MP-1년',        status:'현행', year:null, notes:'' },
-  { no:23, name:'투명비누 세트',        sub:'120',seq:'122',qty:'20',chk:1, mfgNo:'APBGS-612008',mfgDate:'25.12.02',expiry:'MP-1년',        status:'현행', year:null, notes:'' },
-  { no:24, name:'당근복비누',           sub:'012',seq:'223',qty:'09',chk:2, mfgNo:'APBFW12002', mfgDate:'26.01.22',expiry:'CP-2년',         status:'현행', year:2026, notes:'' },
-  { no:25, name:'말비누',              sub:'012',seq:'224',qty:'04',chk:4, mfgNo:'APBFW12003', mfgDate:'',        expiry:'CP-2년',         status:'현행', year:null, notes:'' },
-  { no:26, name:'새해 비누 2구세트',    sub:'012',seq:'225',qty:'04',chk:1, mfgNo:'APBFW12004', mfgDate:'',        expiry:'CP-2년',         status:'현행', year:null, notes:'' },
-  { no:27, name:'투명비누-화이트',      sub:'013',seq:'026',qty:'12',chk:8, mfgNo:'APBGS-701009',mfgDate:'26.01.30',expiry:'MP-1년',        status:'현행', year:null, notes:'세트는 개별 생산량에서 분배' },
-  { no:28, name:'카네이션 미니화분 비누',sub:'033',seq:'027',qty:'06',chk:8, mfgNo:'APBSS03003', mfgDate:'26.03.30',expiry:'CP-2년',         status:'현행', year:null, notes:'3/30-10  4/25-50' },
-  { no:29, name:'선인장 미니화분 비누', sub:'033',seq:'028',qty:'06',chk:5, mfgNo:'APBSS03004', mfgDate:'26.03.30',expiry:'CP-2년',         status:'현행', year:null, notes:'3/30-10  4/28-20' },
-  { no:30, name:'듀얼 세트(카네이션+선인장)',sub:'033',seq:'029',qty:'03',chk:1,mfgNo:'APBSS03005',mfgDate:'',   expiry:'CP-2년',         status:'현행', year:null, notes:'4/28-20' },
-  { no:31, name:'듀오 세트(카네이션)',  sub:'033',seq:'030',qty:'03',chk:7, mfgNo:'APBSS03003', mfgDate:'',        expiry:'CP-2년',         status:'현행', year:null, notes:'4/25-20' },
-  { no:32, name:'듀오 세트(선인장)',    sub:'033',seq:'031',qty:'03',chk:4, mfgNo:'APBSS03004', mfgDate:'',        expiry:'CP-2년',         status:'현행', year:null, notes:'3/30-10' },
+  { no:1,  name:'캐롯숍',                   sub:'071',seq:'001',qty:'09',chk:9, mfgNo:'',            mfgDate:'',         expiry:'',               status:'단종', notes:'' },
+  { no:2,  name:'크리스마숍',                sub:'112',seq:'002',qty:'09',chk:2, mfgNo:'',            mfgDate:'',         expiry:'',               status:'단종', notes:'' },
+  { no:3,  name:'젤리베어숍',                sub:'113',seq:'003',qty:'20',chk:3, mfgNo:'',            mfgDate:'',         expiry:'',               status:'단종', notes:'' },
+  { no:4,  name:'새해비누',                  sub:'011',seq:'004',qty:'50',chk:0, mfgNo:'',            mfgDate:'',         expiry:'',               status:'현행', notes:'' },
+  { no:5,  name:'카네이션비누',              sub:'004',seq:'005',qty:'24',chk:8, mfgNo:'',            mfgDate:'',         expiry:'',               status:'단종', notes:'' },
+  { no:6,  name:'아이스쿨바',               sub:'715',seq:'006',qty:'06',chk:0, mfgNo:'APBSF06006',  mfgDate:'25.06.25', expiry:'제조일로부터 1년', status:'현행', notes:'' },
+  { no:7,  name:'명절선물 비누',             sub:'815',seq:'007',qty:'09',chk:7, mfgNo:'APBFW08007',  mfgDate:'24.08.15', expiry:'제조일로부터 2년', status:'현행', notes:'' },
+  { no:8,  name:'명절선물 비누세트',         sub:'815',seq:'008',qty:'02',chk:5, mfgNo:'',            mfgDate:'',         expiry:'',               status:'현행', notes:'' },
+  { no:9,  name:'당근 비누',                sub:'101',seq:'009',qty:'09',chk:5, mfgNo:'APBO10001',   mfgDate:'',         expiry:'제조일로부터 2년', status:'현행', notes:'' },
+  { no:10, name:'가지 비누',                sub:'102',seq:'010',qty:'09',chk:0, mfgNo:'APBP10002',   mfgDate:'',         expiry:'제조일로부터 2년', status:'현행', notes:'' },
+  { no:11, name:'크리스마스 비누',           sub:'112',seq:'811',qty:'09',chk:0, mfgNo:'APBFW11001',  mfgDate:'',         expiry:'제조일로부터 2년', status:'현행', notes:'' },
+  { no:12, name:'아보카도 비누',             sub:'020',seq:'412',qty:'09',chk:9, mfgNo:'APBYG10003',  mfgDate:'',         expiry:'제조일로부터 2년', status:'현행', notes:'' },
+  { no:13, name:'미나리 비누',              sub:'020',seq:'413',qty:'09',chk:6, mfgNo:'APBG10004',   mfgDate:'',         expiry:'제조일로부터 2년', status:'현행', notes:'' },
+  { no:14, name:'선인장 컵비누',             sub:'021',seq:'915',qty:'07',chk:9, mfgNo:'APBSS02001',  mfgDate:'25.02.17', expiry:'제조일로부터 2년', status:'현행', notes:'' },
+  { no:15, name:'카네이션 컵비누',           sub:'021',seq:'916',qty:'07',chk:6, mfgNo:'APBSS02002',  mfgDate:'25.02.19', expiry:'제조일로부터 2년', status:'현행', notes:'' },
+  { no:16, name:'해로 굿즈 비누',            sub:'040',seq:'416',qty:'07',chk:7, mfgNo:'APBGS-104003',mfgDate:'25.04.17', expiry:'제조일로부터 2년', status:'현행', notes:'' },
+  { no:17, name:'토로 굿즈 비누',            sub:'040',seq:'417',qty:'07',chk:4, mfgNo:'APBGS-204004',mfgDate:'25.04.21', expiry:'제조일로부터 2년', status:'현행', notes:'' },
+  { no:18, name:'쿨 비누',                  sub:'052',seq:'918',qty:'06',chk:4, mfgNo:'APBSF05005',  mfgDate:'25.05.29', expiry:'제조일로부터 2년', status:'현행', notes:'' },
+  { no:19, name:'투명비누-핑크',             sub:'120',seq:'119',qty:'20',chk:1, mfgNo:'APBGS-312005',mfgDate:'25.12.02', expiry:'제조일로부터 1년', status:'현행', notes:'' },
+  { no:20, name:'투명비누-옐로',             sub:'120',seq:'120',qty:'20',chk:7, mfgNo:'APBGS-412006',mfgDate:'25.12.02', expiry:'제조일로부터 1년', status:'현행', notes:'' },
+  { no:21, name:'투명비누-블루',             sub:'120',seq:'121',qty:'20',chk:4, mfgNo:'APBGS-512007',mfgDate:'25.12.02', expiry:'제조일로부터 1년', status:'현행', notes:'' },
+  { no:22, name:'투명비누 세트',             sub:'120',seq:'122',qty:'20',chk:1, mfgNo:'APBGS-612008',mfgDate:'25.12.02', expiry:'제조일로부터 1년', status:'현행', notes:'' },
+  { no:23, name:'당근복비누',               sub:'012',seq:'223',qty:'09',chk:2, mfgNo:'APBFW12002',  mfgDate:'26.01.22', expiry:'제조일로부터 2년', status:'현행', notes:'' },
+  { no:24, name:'말비누',                   sub:'012',seq:'224',qty:'04',chk:4, mfgNo:'APBFW12003',  mfgDate:'',         expiry:'제조일로부터 2년', status:'현행', notes:'' },
+  { no:25, name:'새해 비누 2구세트',         sub:'012',seq:'225',qty:'04',chk:1, mfgNo:'APBFW12004',  mfgDate:'',         expiry:'제조일로부터 2년', status:'현행', notes:'' },
+  { no:26, name:'투명비누-화이트',           sub:'013',seq:'026',qty:'12',chk:8, mfgNo:'APBGS-701009',mfgDate:'26.01.30', expiry:'제조일로부터 1년', status:'현행', notes:'세트는 개별 생산량에서 분배' },
+  { no:27, name:'카네이션 미니화분 비누',    sub:'033',seq:'027',qty:'06',chk:8, mfgNo:'APBSS03003',  mfgDate:'26.03.30', expiry:'제조일로부터 2년', status:'현행', notes:'3/30-10  4/25-50' },
+  { no:28, name:'선인장 미니화분 비누',      sub:'033',seq:'028',qty:'06',chk:5, mfgNo:'APBSS03004',  mfgDate:'26.03.30', expiry:'제조일로부터 2년', status:'현행', notes:'3/30-10  4/28-20' },
+  { no:29, name:'듀얼 세트',                sub:'033',seq:'029',qty:'03',chk:1, mfgNo:'APBSS03005',  mfgDate:'',         expiry:'제조일로부터 2년', status:'현행', notes:'4/28-20' },
+  { no:30, name:'듀오 세트 카네이션',        sub:'033',seq:'030',qty:'03',chk:7, mfgNo:'APBSS03003',  mfgDate:'',         expiry:'제조일로부터 2년', status:'현행', notes:'4/25-20' },
+  { no:31, name:'듀오 세트 선인장',          sub:'033',seq:'031',qty:'03',chk:4, mfgNo:'APBSS03004',  mfgDate:'',         expiry:'제조일로부터 2년', status:'현행', notes:'3/30-10' },
 ];
 
-/* ── 색상 코드 매핑 (P 괄호 내용 제거) ── */
+/* ── 색상 코드 — 괄호 삭제, SS=Spring/Summer, SF=Summer/Fall, FW=Fall/Winter ── */
 const COLOR_CODES = [
-  {code:'O',  label:'O — 오렌지 (당근)'},
-  {code:'P',  label:'P — 핑크 (가지)'},
-  {code:'G',  label:'G — 그린 (미나리)'},
-  {code:'YG', label:'YG — 옐로우그린 (아보카도)'},
-  {code:'B',  label:'B — 블루'},
-  {code:'W',  label:'W — 화이트'},
-  {code:'Y',  label:'Y — 옐로'},
-  {code:'SS', label:'SS — 선인장솝'},
-  {code:'SF', label:'SF — 썸머프레시 (쿨)'},
-  {code:'FW', label:'FW — 폴윈터 (명절/크리스마스)'},
-  {code:'GS', label:'GS — 굿즈'},
-  {code:'직접입력', label:'직접입력'},
+  {code:'O',        label:'O — 오렌지'},
+  {code:'P',        label:'P — 퍼플'},
+  {code:'G',        label:'G — 그린'},
+  {code:'YG',       label:'YG — 옐로우그린'},
+  {code:'B',        label:'B — 블루'},
+  {code:'W',        label:'W — 화이트'},
+  {code:'Y',        label:'Y — 옐로'},
+  {code:'SS',       label:'SS — Spring / Summer'},
+  {code:'SF',       label:'SF — Summer / Fall'},
+  {code:'FW',       label:'FW — Fall / Winter'},
+  {code:'GS',       label:'GS — 굿즈'},
+  {code:'직접입력',  label:'직접입력'},
 ];
 
-/* ── EAN-13 체크디짓 계산 ── */
+/* ── EAN-13 체크디짓 ── */
 function calcCheckDigit(biz, sub, seq, qty) {
   const str = (biz||'8739') + sub + seq + qty;
   if (str.length !== 12) return '?';
@@ -69,8 +67,7 @@ function calcCheckDigit(biz, sub, seq, qty) {
 
 function buildBarcode(biz, sub, seq, qty) {
   const base = (biz||'8739') + sub + seq + qty;
-  const chk = calcCheckDigit(biz, sub, seq, qty);
-  return base + chk;
+  return base + calcCheckDigit(biz, sub, seq, qty);
 }
 
 function nextSeq() {
@@ -78,7 +75,7 @@ function nextSeq() {
   return String(Math.max(...seqs) + 1).padStart(3, '0');
 }
 
-/* ════ 바코드 탭 렌더링 ════ */
+/* ════ 탭 렌더링 ════ */
 function renderBarcodeTab(el) {
   const filter = window._bcFilter || '전체';
   const filtered = filter === '전체' ? BARCODE_MASTER : BARCODE_MASTER.filter(p => p.status === filter);
@@ -95,9 +92,34 @@ function renderBarcodeTab(el) {
       <div class="sum-chip sum-orange">단종 ${BARCODE_MASTER.length - active}개</div>
     </div>
 
-    <div class="info-banner" style="background:var(--teal-light);border-color:var(--teal);margin-bottom:2px">
+    <div class="bc-notice-card">
+      <div class="bc-notice-icon"><i class="ti ti-alert-circle"></i></div>
+      <div class="bc-notice-body">
+        <div class="bc-notice-title">자체 바코드 안내</div>
+        <div class="bc-notice-text">이 바코드는 <b>개인(자체) 바코드</b>로, 표준유통바코드(GS1)와 다릅니다.<br>
+        GS1 공식 바코드는 <b>대한상공회의소 유통물류진흥원</b>에서 별도 신청이 필요합니다.<br>
+        자체 바코드는 <b>내부 관리·재고 추적 용도</b>로 활용하세요.</div>
+      </div>
+    </div>
+
+    <div class="info-banner" style="background:var(--teal-light);border-color:var(--teal);margin-bottom:6px">
       <i class="ti ti-info-circle" style="color:var(--teal)"></i>
       <span style="color:var(--teal-dark);font-size:11px"><b>EAN-13:</b> 8739 + 소분류(3) + 비번호(3) + 개수(2) + 체크디짓(1) = 13자리</span>
+    </div>
+
+    <div class="bc-guide-card">
+      <div class="bc-guide-title"><i class="ti ti-book-2"></i> 바코드 부여 기준</div>
+      <div class="bc-guide-body">
+        <div class="bc-guide-row"><span class="bc-guide-label">대분류</span><span>8739 (에이브릴팜 고유번호) · 타 브랜드 제조 시 해당 브랜드 번호 사용</span></div>
+        <div class="bc-guide-row"><span class="bc-guide-label">소분류(3자리)</span><span>제조월 앞 2자리 + 색상코드 첫 자리 조합 <em>(예: 10월 O색 → 101)</em></span></div>
+        <div class="bc-guide-row"><span class="bc-guide-label">비번호(3자리)</span><span>전체 제품 등록 순서 누적 번호 <em>(예: 001, 002 …)</em></span></div>
+        <div class="bc-guide-row"><span class="bc-guide-label">개수(2자리)</span><span>1회 배치 예상 생산량 <em>(예: 09 = 9개, 20 = 20개)</em></span></div>
+        <div class="bc-guide-row"><span class="bc-guide-label">체크디짓</span><span>앞 12자리로 자동 계산 — 직접 입력 불필요</span></div>
+        <div class="bc-guide-row"><span class="bc-guide-label">제조번호</span><span>브랜드(AP) + B + 색상코드 + 월(2) + 순번(3) <em>(예: APBO10001)</em></span></div>
+        <div class="bc-guide-row" style="margin-top:4px"><span class="bc-guide-label">색상 코드</span>
+          <span>${COLOR_CODES.filter(c=>c.code!=='직접입력').map(c=>`<span class="bc-cc">${c.label}</span>`).join(' ')}</span>
+        </div>
+      </div>
     </div>
 
     <div style="display:flex;gap:6px;padding:8px 16px">
@@ -136,34 +158,31 @@ function renderBarcodeTab(el) {
 
     <div style="height:80px"></div>`;
 
-  // 바코드 이미지 렌더링
   setTimeout(() => {
     filtered.forEach(p => {
       const svgEl = document.getElementById('bc-svg-' + p.no);
       if (!svgEl || !window.JsBarcode) return;
       try {
-        const full = buildBarcode(p.biz||'8739', p.sub, p.seq, p.qty);
-        JsBarcode('#bc-svg-' + p.no, full, {
-          format: 'EAN13', width: 1.5, height: 50,
-          displayValue: true, fontSize: 11,
-          textMargin: 2, margin: 4,
+        JsBarcode('#bc-svg-' + p.no, buildBarcode(p.biz||'8739', p.sub, p.seq, p.qty), {
+          format:'EAN13', width:1.5, height:50,
+          displayValue:true, fontSize:11, textMargin:2, margin:4,
           lineColor: p.status==='단종' ? '#aaa' : '#111'
         });
-      } catch(e) {
-        const full = buildBarcode(p.biz||'8739', p.sub, p.seq, p.qty);
-        svgEl.parentElement.innerHTML = `<span style="color:var(--text3);font-size:11px">${full}</span>`;
-      }
+      } catch(e) {}
     });
   }, 100);
 }
 
 function setBcFilter(f) { window._bcFilter = f; renderBarcodeTab(document.getElementById('page-content')); }
 
-/* ════ 신규/수정 바코드 폼 ════ */
+/* ════ 신규/수정 폼 ════ */
 function openBarcodeForm(no) {
   const item = no ? BARCODE_MASTER.find(p => p.no === no) : null;
-  const nextNo = Math.max(...BARCODE_MASTER.map(p=>p.no)) + 1;
   const ns = nextSeq();
+
+  // 기존 항목의 대분류 — 숫자이면 직접입력
+  const itemBiz = item ? (item.biz || '8739') : '8739';
+  const bizIsCustom = itemBiz !== '8739';
 
   showSheet(`
     <div class="sheet-handle"></div>
@@ -178,13 +197,18 @@ function openBarcodeForm(no) {
 
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
       <label>대분류 (사업자번호)
-        <select id="bc2" onchange="updateBcPreview()">
-          <option value="8739" ${!item||item.biz!=='6590'?'selected':''}>8739 (에이브릴팜)</option>
-          <option value="6590" ${item&&item.biz==='6590'?'selected':''}>6590 (제이쏩)</option>
+        <select id="bc2" onchange="toggleBizCustom(); updateBcPreview()">
+          <option value="8739" ${!bizIsCustom?'selected':''}>8739 (에이브릴팜)</option>
+          <option value="직접입력" ${bizIsCustom?'selected':''}>직접입력</option>
         </select>
+        <div id="bc2-custom-wrap" style="margin-top:6px;${!bizIsCustom?'display:none':''}">
+          <input id="bc2c" maxlength="4" style="font-family:monospace;width:100%" 
+            value="${bizIsCustom?itemBiz:''}" placeholder="4자리 숫자" oninput="updateBcPreview()">
+        </div>
       </label>
       <label>소분류 (3자리)
-        <input id="bc3" maxlength="3" style="font-family:monospace" value="${item?item.sub:''}" placeholder="예: 033" oninput="updateBcPreview()">
+        <input id="bc3" maxlength="3" style="font-family:monospace" value="${item?item.sub:''}" 
+          placeholder="예: 033" oninput="updateBcPreview()">
         <div style="margin-top:5px;background:var(--amber-bg);border-radius:6px;padding:8px 10px;font-size:11px;color:var(--amber-text);line-height:1.7">
           앞 2자리 = 기획·제조 월 (01~12)<br>마지막 1자리 = 시리즈 구분
         </div>
@@ -193,14 +217,15 @@ function openBarcodeForm(no) {
 
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
       <label>비번호 (3자리) — 다음: ${ns}
-        <input id="bc4" maxlength="3" style="font-family:monospace" value="${item?item.seq:ns}" placeholder="${ns}" oninput="updateBcPreview()">
+        <input id="bc4" maxlength="3" style="font-family:monospace" value="${item?item.seq:ns}" 
+          placeholder="${ns}" oninput="updateBcPreview()">
       </label>
       <label>개수 (2자리)
-        <input id="bc5" maxlength="2" style="font-family:monospace" value="${item?item.qty:'09'}" placeholder="09" oninput="updateBcPreview()">
+        <input id="bc5" maxlength="2" style="font-family:monospace" value="${item?item.qty:'09'}" 
+          placeholder="09" oninput="updateBcPreview()">
       </label>
     </div>
 
-    <!-- 바코드 미리보기 -->
     <div class="bc-preview" id="bc-preview">
       <div class="bc-preview-label">바코드 미리보기</div>
       <svg id="bc-preview-svg" style="display:block;margin:0 auto"></svg>
@@ -210,32 +235,26 @@ function openBarcodeForm(no) {
 
     <div style="font-size:13px;font-weight:700;color:var(--text);margin:14px 0 8px">제조번호 생성</div>
     <div style="background:var(--mauve-light);border-radius:var(--r-sm);padding:10px 12px;margin-bottom:12px;font-size:11px;color:var(--mauve-dark)">
-      AP/JP + B + 색상코드 + 월(2자리) + 비누번호(3자리)
+      AP + B + 색상코드 + 월(2자리) + 비누번호(3자리)
     </div>
 
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-      <label>브랜드 접두어
-        <select id="bc6">
-          <option value="AP" ${!item||!(item.mfgNo||'').startsWith('JP')?'selected':''}>AP (에이브릴팜)</option>
-          <option value="JP" ${item&&(item.mfgNo||'').startsWith('JP')?'selected':''}>JP (제이쏩)</option>
-        </select>
-      </label>
-      <label>색상 코드
-        <select id="bc7" onchange="updateMfgPreview(); toggleBc7Custom()">
-          ${COLOR_CODES.map(c=>`<option value="${c.code}" ${item&&(item.mfgNo||'').includes(c.code)?'selected':''}>${c.label}</option>`).join('')}
-        </select>
-      </label>
-    </div>
-    <div id="bc7-custom" style="display:${item&&item.bc7c?'block':'none'}">
-      <label>색상코드 직접입력<input id="bc7c" value="${item&&item.bc7c||''}" placeholder="예: BK" oninput="updateMfgPreview()"></label>
+    <label>색상 코드
+      <select id="bc7" onchange="updateMfgPreview(); toggleBc7Custom()">
+        ${COLOR_CODES.map(c=>`<option value="${c.code}" ${item&&(item.mfgNo||'').includes(c.code)?'selected':''}>${c.label}</option>`).join('')}
+      </select>
+    </label>
+    <div id="bc7-custom" style="${item&&item.bc7c?'':'display:none'}">
+      <label>색상코드 직접입력<input id="bc7c" value="${item?.bc7c||''}" placeholder="예: BK" oninput="updateMfgPreview()"></label>
     </div>
 
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
       <label>기획 월 (2자리)
-        <input id="bc8" maxlength="2" style="font-family:monospace" value="${item?item.mfgNo?.match(/\d{2}(?=\d{3})/)?.[0]||'':''}" placeholder="예: 06" oninput="updateMfgPreview()">
+        <input id="bc8" maxlength="2" style="font-family:monospace" 
+          value="${item?item.mfgNo?.match(/\d{2}(?=\d{3})/)?.[0]||'':''}" placeholder="예: 06" oninput="updateMfgPreview()">
       </label>
       <label>비누번호 (3자리)
-        <input id="bc9" maxlength="3" style="font-family:monospace" value="${item?item.mfgNo?.match(/\d{3}$/)?.[0]||'':''}" placeholder="${ns}" oninput="updateMfgPreview()">
+        <input id="bc9" maxlength="3" style="font-family:monospace" 
+          value="${item?item.mfgNo?.match(/\d{3}$/)?.[0]||'':''}" placeholder="${ns}" oninput="updateMfgPreview()">
       </label>
     </div>
 
@@ -248,11 +267,14 @@ function openBarcodeForm(no) {
 
     <label>유통기한
       <select id="bc11" onchange="toggleBc11Custom()">
-        ${['CP-2년','MP-1년','제조일로부터 1년','제조일로부터 2년','직접입력'].map(e=>`<option ${item&&item.expiry===e?'selected':''}>${e}</option>`).join('')}
+        ${['제조일로부터 1년','제조일로부터 2년','직접입력'].map(e=>
+          `<option ${item&&item.expiry===e?'selected':''}>${e}</option>`).join('')}
       </select>
     </label>
-    <div id="bc11-custom" style="display:${item&&!['CP-2년','MP-1년','제조일로부터 1년','제조일로부터 2년'].includes(item.expiry)&&item.expiry?'block':'none'}">
-      <label>유통기한 직접입력<input id="bc11c" value="${item&&!['CP-2년','MP-1년','제조일로부터 1년','제조일로부터 2년'].includes(item.expiry)?item.expiry||'':''}" placeholder="예: 2027-12-31까지"></label>
+    <div id="bc11-custom" style="display:${item&&!['제조일로부터 1년','제조일로부터 2년'].includes(item.expiry)&&item.expiry?'block':'none'}">
+      <label>유통기한 직접입력<input id="bc11c" 
+        value="${item&&!['제조일로부터 1년','제조일로부터 2년'].includes(item.expiry)?item.expiry||'':''}" 
+        placeholder="예: 2027-12-31까지"></label>
     </div>
 
     <label>상태
@@ -278,13 +300,20 @@ function openBarcodeForm(no) {
   setTimeout(() => {
     updateBcPreview();
     updateMfgPreview();
-    // bc11 직접입력 초기 상태 체크
     const sel11 = document.getElementById('bc11');
-    if (sel11 && sel11.value === '직접입력') {
-      const wrap = document.getElementById('bc11-custom');
-      if(wrap) wrap.style.display = 'block';
+    if (sel11?.value === '직접입력') {
+      const w = document.getElementById('bc11-custom');
+      if(w) w.style.display = 'block';
     }
   }, 50);
+}
+
+/* 대분류 직접입력 토글 */
+function toggleBizCustom() {
+  const sel = document.getElementById('bc2');
+  const wrap = document.getElementById('bc2-custom-wrap');
+  if(wrap) wrap.style.display = sel?.value === '직접입력' ? 'block' : 'none';
+  updateBcPreview();
 }
 
 function toggleBc7Custom() {
@@ -301,18 +330,21 @@ function toggleBc11Custom() {
 }
 
 function updateBcPreview() {
-  const biz = document.getElementById('bc2')?.value || '8739';
+  const sel2 = document.getElementById('bc2');
+  const biz = sel2?.value === '직접입력'
+    ? (document.getElementById('bc2c')?.value || '8739')
+    : (sel2?.value || '8739');
   const sub = (document.getElementById('bc3')?.value || '').padEnd(3,'0').slice(0,3);
   const seq = (document.getElementById('bc4')?.value || '').padEnd(3,'0').slice(0,3);
   const qty = (document.getElementById('bc5')?.value || '').padEnd(2,'0').slice(0,2);
 
-  if (sub.length === 3 && seq.length === 3 && qty.length === 2) {
+  if (sub.length===3 && seq.length===3 && qty.length===2 && biz.length===4) {
     const chk = calcCheckDigit(biz, sub, seq, qty);
     const full = biz + sub + seq + qty + chk;
     document.getElementById('bc-preview-num').textContent = full;
     document.getElementById('bc-preview-chk').textContent = `체크디짓: ${chk} (자동계산)`;
     const svg = document.getElementById('bc-preview-svg');
-    if (svg && window.JsBarcode && full.length === 13) {
+    if (svg && window.JsBarcode && full.length===13) {
       try { JsBarcode('#bc-preview-svg', full, {format:'EAN13',width:1.5,height:45,displayValue:true,fontSize:11,margin:6}); }
       catch(e) {}
     }
@@ -325,80 +357,76 @@ function updateBcPreview() {
 }
 
 function updateMfgPreview() {
-  const prefix = document.getElementById('bc6')?.value || 'AP';
   const sel7 = document.getElementById('bc7');
-  const color = sel7?.value === '직접입력'
-    ? (document.getElementById('bc7c')?.value || '')
-    : (sel7?.value || '');
-  const mon = document.getElementById('bc8')?.value || '';
-  const num = document.getElementById('bc9')?.value || '';
-  const mfg = prefix + 'B' + color + mon + num;
+  const color = sel7?.value==='직접입력'
+    ? (document.getElementById('bc7c')?.value||'')
+    : (sel7?.value||'');
+  const mon = document.getElementById('bc8')?.value||'';
+  const num = document.getElementById('bc9')?.value||'';
+  const mfg = 'APB' + color + mon + num;
   const el = document.getElementById('mfg-preview-val');
-  if (el) el.textContent = mfg || '—';
+  if(el) el.textContent = mfg || '—';
 }
 
 function saveBarcodeNew(no) {
   const name = document.getElementById('bc1')?.value;
   if (!name) { alert('제품명을 입력하세요'); return; }
-  const biz = document.getElementById('bc2')?.value || '8739';
-  const sub = document.getElementById('bc3')?.value || '';
-  const seq = document.getElementById('bc4')?.value || '';
-  const qty = document.getElementById('bc5')?.value || '';
+
+  const sel2 = document.getElementById('bc2');
+  const biz = sel2?.value==='직접입력'
+    ? (document.getElementById('bc2c')?.value||'8739')
+    : (sel2?.value||'8739');
+
+  const sub = document.getElementById('bc3')?.value||'';
+  const seq = document.getElementById('bc4')?.value||'';
+  const qty = document.getElementById('bc5')?.value||'';
   const chk = calcCheckDigit(biz, sub, seq, qty);
+
   const sel7 = document.getElementById('bc7');
-  const color = sel7?.value === '직접입력' ? (document.getElementById('bc7c')?.value||'') : (sel7?.value||'');
-  const bc7c = sel7?.value === '직접입력' ? (document.getElementById('bc7c')?.value||'') : '';
-  const mfgNo = (document.getElementById('bc6')?.value||'AP') + 'B' + color + (document.getElementById('bc8')?.value||'') + (document.getElementById('bc9')?.value||'');
+  const color = sel7?.value==='직접입력' ? (document.getElementById('bc7c')?.value||'') : (sel7?.value||'');
+  const bc7c = sel7?.value==='직접입력' ? (document.getElementById('bc7c')?.value||'') : '';
+  const mfgNo = 'APB' + color + (document.getElementById('bc8')?.value||'') + (document.getElementById('bc9')?.value||'');
 
   const sel11 = document.getElementById('bc11');
-  const expiry = sel11?.value === '직접입력'
+  const expiry = sel11?.value==='직접입력'
     ? (document.getElementById('bc11c')?.value||'')
     : (sel11?.value||'');
 
+  const record = {
+    name,
+    biz: biz==='8739' ? undefined : biz,
+    sub, seq, qty, chk, bc7c, mfgNo,
+    mfgDate: document.getElementById('bc10')?.value||'',
+    expiry,
+    status: document.getElementById('bc12')?.value||'현행',
+    notes: document.getElementById('bc13')?.value||''
+  };
+
   if (no) {
-    // 기존 항목 수정
     const idx = BARCODE_MASTER.findIndex(p => p.no === no);
-    if (idx !== -1) {
-      BARCODE_MASTER[idx] = {
-        ...BARCODE_MASTER[idx],
-        name, biz: biz==='8739'?undefined:biz,
-        sub, seq, qty, chk,
-        mfgNo, bc7c,
-        mfgDate: document.getElementById('bc10')?.value||'',
-        expiry,
-        status: document.getElementById('bc12')?.value||'현행',
-        notes: document.getElementById('bc13')?.value||''
-      };
-    }
+    if (idx !== -1) BARCODE_MASTER[idx] = { ...BARCODE_MASTER[idx], ...record };
   } else {
-    // 신규 추가
-    const newItem = {
-      no: Math.max(...BARCODE_MASTER.map(p=>p.no)) + 1,
-      name, biz: biz==='8739'?undefined:biz,
-      sub, seq, qty, chk, bc7c,
-      mfgNo, mfgDate: document.getElementById('bc10')?.value||'',
-      expiry, status: document.getElementById('bc12')?.value||'현행',
-      notes: document.getElementById('bc13')?.value||''
-    };
-    BARCODE_MASTER.push(newItem);
+    record.no = Math.max(...BARCODE_MASTER.map(p=>p.no)) + 1;
+    BARCODE_MASTER.push(record);
   }
+
   closeSheet();
   renderBarcodeTab(document.getElementById('page-content'));
 }
 
 /* ── 라벨 출력 ── */
 function printBarcodeLabel() {
-  const biz = document.getElementById('bc2')?.value || '8739';
-  const sub = document.getElementById('bc3')?.value || '';
-  const seq = document.getElementById('bc4')?.value || '';
-  const qty = document.getElementById('bc5')?.value || '';
-  const name = document.getElementById('bc1')?.value || '';
-  const mfgEl = document.getElementById('mfg-preview-val');
-  const mfgNo = mfgEl?.textContent || '';
+  const sel2 = document.getElementById('bc2');
+  const biz = sel2?.value==='직접입력'
+    ? (document.getElementById('bc2c')?.value||'8739')
+    : (sel2?.value||'8739');
+  const sub = document.getElementById('bc3')?.value||'';
+  const seq = document.getElementById('bc4')?.value||'';
+  const qty = document.getElementById('bc5')?.value||'';
+  const name = document.getElementById('bc1')?.value||'';
+  const mfgNo = document.getElementById('mfg-preview-val')?.textContent||'';
   const sel11 = document.getElementById('bc11');
-  const expiry = sel11?.value === '직접입력'
-    ? (document.getElementById('bc11c')?.value||'')
-    : (sel11?.value||'');
+  const expiry = sel11?.value==='직접입력' ? (document.getElementById('bc11c')?.value||'') : (sel11?.value||'');
   const full = buildBarcode(biz, sub, seq, qty);
 
   const win = window.open('','_blank');
@@ -410,8 +438,7 @@ function printBarcodeLabel() {
     .label-wrap{display:flex;flex-wrap:wrap;gap:10px;}
     .label{border:1px solid #ccc;border-radius:6px;padding:12px 16px;width:220px;text-align:center;}
     .label-name{font-size:13px;font-weight:700;margin-bottom:6px;}
-    .label-mfg{font-size:10px;color:#555;margin-bottom:4px;}
-    .label-expiry{font-size:10px;color:#555;margin-bottom:4px;}
+    .label-mfg,.label-expiry{font-size:10px;color:#555;margin-bottom:4px;}
     .label-biz{font-size:9px;color:#888;}
     @media print{body{padding:4mm}button{display:none}}
   </style></head><body>
@@ -420,18 +447,20 @@ function printBarcodeLabel() {
     <button onclick="window.close()" style="padding:8px 16px;background:#eee;border:none;border-radius:6px;cursor:pointer">닫기</button>
   </div>
   <div class="label-wrap">
-    ${[1,2,3,4].map(()=>`
-      <div class="label">
+    ${[1,2,3,4].map(i=>{
+      const uid='lbc'+i+Math.random().toString(36).slice(2);
+      return `<div class="label">
         <div class="label-name">${name}</div>
-        <svg id="lbc-${Math.random().toString(36).slice(2)}"></svg>
+        <svg id="${uid}"></svg>
         <div class="label-mfg">${mfgNo}</div>
         <div class="label-expiry">${expiry}</div>
-        <div class="label-biz">에이브릴팜 · 화장품제조업 제6494호</div>
-      </div>`).join('')}
+        <div class="label-biz">AVRIL'S FARM · 화장품제조업 제6494호</div>
+      </div>`;
+    }).join('')}
   </div>
   <script>
     window.onload=()=>{
-      document.querySelectorAll('[id^="lbc-"]').forEach(svg=>{
+      document.querySelectorAll('.label svg').forEach(svg=>{
         try{JsBarcode(svg,'${full}',{format:'EAN13',width:1.5,height:45,displayValue:true,fontSize:10,margin:4});}catch(e){}
       });
     };
@@ -439,31 +468,30 @@ function printBarcodeLabel() {
   win.document.close();
 }
 
-/* ── 전체 바코드 일괄 출력 ── */
+/* ── 전체 출력 ── */
 function printAllBarcodes() {
   const items = BARCODE_MASTER.filter(p => p.status === '현행');
   const win = window.open('','_blank');
   win.document.write(`<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8">
-  <title>에이브릴팜 바코드 목록</title>
+  <title>AVRIL'S FARM 바코드 목록</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.6/JsBarcode.all.min.js"><\/script>
   <style>
     body{font-family:'Apple SD Gothic Neo',sans-serif;padding:16px;font-size:10px;}
     table{width:100%;border-collapse:collapse;}
     th,td{border:0.5px solid #ccc;padding:5px 7px;vertical-align:middle;}
     th{background:#f5f5f0;font-weight:700;text-align:center;}
-    td.c{text-align:center;}
-    .barcode-cell{text-align:center;min-width:160px;}
+    td.c{text-align:center;} .bc-cell{text-align:center;min-width:160px;}
     @media print{button{display:none}@page{size:A4;margin:8mm}}
   </style></head><body>
   <div style="margin-bottom:12px">
     <button onclick="window.print()" style="padding:8px 20px;background:#48997D;color:#fff;border:none;border-radius:6px;cursor:pointer;margin-right:6px">🖨 인쇄/PDF</button>
     <button onclick="window.close()" style="padding:8px 16px;background:#eee;border:none;border-radius:6px;cursor:pointer">닫기</button>
   </div>
-  <h2 style="margin-bottom:12px;font-size:16px">에이브릴팜 바코드·제조번호 관리표</h2>
+  <h2 style="margin-bottom:12px;font-size:16px">AVRIL'S FARM 바코드·제조번호 관리표</h2>
   <table>
     <thead><tr>
       <th>No</th><th>제품명</th><th>바코드 번호</th><th>체크디짓</th>
-      <th class="barcode-cell">바코드</th>
+      <th class="bc-cell">바코드</th>
       <th>제조번호</th><th>제조일자</th><th>유통기한</th><th>상태</th>
     </tr></thead>
     <tbody>
@@ -471,11 +499,10 @@ function printAllBarcodes() {
         const full = buildBarcode(p.biz||'8739',p.sub,p.seq,p.qty);
         const bc12 = `${p.biz||'8739'}/${p.sub}/${p.seq}/${p.qty}`;
         return `<tr>
-          <td class="c">${p.no}</td>
-          <td>${p.name}</td>
+          <td class="c">${p.no}</td><td>${p.name}</td>
           <td style="font-family:monospace">${bc12}</td>
           <td class="c">${p.chk}</td>
-          <td class="barcode-cell"><svg id="tbc-${p.no}"></svg></td>
+          <td class="bc-cell"><svg id="tbc-${p.no}"></svg></td>
           <td style="font-family:monospace">${p.mfgNo||''}</td>
           <td class="c">${p.mfgDate||''}</td>
           <td>${p.expiry||''}</td>
@@ -500,6 +527,7 @@ window.setBcFilter = setBcFilter;
 window.openBarcodeForm = openBarcodeForm;
 window.updateBcPreview = updateBcPreview;
 window.updateMfgPreview = updateMfgPreview;
+window.toggleBizCustom = toggleBizCustom;
 window.toggleBc7Custom = toggleBc7Custom;
 window.toggleBc11Custom = toggleBc11Custom;
 window.saveBarcodeNew = saveBarcodeNew;

@@ -3,6 +3,7 @@
    Brand: #AC839B (mauve) · #48997D (teal)
    Cream: #F5EBE0 · Taupe: #8B8680
 ════════════════════════════════════════ */
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@700;800;900&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap');
 
 :root {
@@ -80,17 +81,24 @@ html, body { height: 100%; font-family: 'Noto Sans KR', -apple-system, 'Apple SD
   box-shadow: var(--shadow);
 }
 .topbar-logo {
-  display: flex; align-items: center; gap: 4px;
-  padding-right: 6px; flex-shrink: 0;
+  display: flex; align-items: center;
+  padding-right: 8px; flex-shrink: 0;
+  cursor: pointer;
 }
-.nav-symbol {
-  height: 28px; width: auto;
-  object-fit: contain;
+/* 텍스트 워드마크 */
+.nav-wordmark {
+  font-family: 'Montserrat', sans-serif;
+  font-size: 13px; font-weight: 900;
+  color: #c084a4;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  line-height: 1;
+  user-select: none;
 }
-.nav-logo {
-  height: 20px; width: auto;
-  object-fit: contain; max-width: 90px;
-}
+.nav-ap { color: #c084a4; }
+/* (구) 이미지 참조 무효화 */
+.nav-symbol { display: none; }
+.nav-logo   { display: none; }
 /* fallback 텍스트 */
 .logo-text { font-size: 13px; font-weight: 700; color: var(--mauve); letter-spacing: .5px; }
 .logo-leaf { font-size: 20px; }
@@ -334,15 +342,19 @@ html, body { height: 100%; font-family: 'Noto Sans KR', -apple-system, 'Apple SD
 .fab {
   position: fixed; bottom: 24px;
   right: calc(50% - 240px + 16px);
-  width: 54px; height: 54px; border-radius: 50%;
+  height: 48px;
+  padding: 0 20px;
+  border-radius: 24px;
   background: var(--teal); color: #fff; border: none;
-  font-size: 24px;
-  display: flex; align-items: center; justify-content: center;
+  font-size: 14px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center; gap: 6px;
   box-shadow: 0 4px 14px rgba(72,153,125,.45);
   cursor: pointer; z-index: 30;
   transition: transform .15s;
+  white-space: nowrap;
+  letter-spacing: .3px;
 }
-.fab:active { transform: scale(.93); }
+.fab:active { transform: scale(.95); }
 @media (max-width: 480px) { .fab { right: 16px; } }
 
 /* ── 캘린더 ── */
@@ -611,3 +623,180 @@ label textarea { resize: vertical; min-height: 72px; }
   #sheet { max-width: 480px; left: 50%; }
   .fab { right: calc(50% - 224px); }
 }
+
+/* ═══ 문서 출력 섹션 카드 ═══ */
+.output-section-card {
+  margin: 0 16px 16px;
+  background: var(--card);
+  border-radius: var(--r-md);
+  padding: 16px;
+  border: 1px solid var(--border);
+  box-shadow: 0 1px 4px rgba(0,0,0,.06);
+}
+.output-section-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 12px;
+}
+.output-field-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text3);
+  margin-bottom: 4px;
+  text-transform: uppercase;
+  letter-spacing: .4px;
+}
+.doc-check-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.doc-check-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: var(--bg);
+  border-radius: var(--r-sm);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--text);
+}
+.doc-check-box input { accent-color: var(--teal); }
+.output-btn-sec {
+  width: 100%;
+  padding: 10px;
+  background: var(--white);
+  border: 1.5px solid var(--teal);
+  border-radius: var(--r-sm);
+  color: var(--teal-dark);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.output-btn-sec:hover { background: var(--teal-light); }
+
+/* dropzone 개선 */
+.dropzone { position: relative; }
+.dropzone.drag-over { border-color: var(--teal-dark); background: var(--teal-light); }
+
+/* ═══ 바코드 부여기준 카드 ═══ */
+.bc-guide-card {
+  margin: 0 16px 12px;
+  background: var(--card);
+  border-radius: var(--r-md);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+.bc-guide-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--teal-dark);
+  background: var(--teal-light);
+  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.bc-guide-body { padding: 10px 12px; }
+.bc-guide-row {
+  display: flex;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--text);
+  padding: 3px 0;
+  border-bottom: 1px solid var(--border);
+  line-height: 1.5;
+}
+.bc-guide-row:last-child { border-bottom: none; }
+.bc-guide-label {
+  font-weight: 700;
+  color: var(--teal-dark);
+  flex-shrink: 0;
+  width: 80px;
+}
+.bc-guide-row em { color: var(--text3); font-style: normal; }
+.bc-cc {
+  display: inline-block;
+  background: var(--mauve-light);
+  color: var(--mauve-dark);
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-size: 10px;
+  margin: 1px 2px;
+}
+
+/* ═══ 생산실적 채널 현황 ═══ */
+.section-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text3);
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  padding: 6px 16px 2px;
+}
+
+/* ═══ 제품 제조 바로출력 버튼 ═══ */
+.card-detail .btn-sm.solid {
+  background: var(--teal);
+  color: #fff;
+  font-size: 12px;
+}
+
+/* ═══ 바코드 자체 안내 카드 ═══ */
+.bc-notice-card {
+  margin: 0 16px 10px;
+  background: #fff8e7;
+  border: 1.5px solid #f0b429;
+  border-radius: var(--r-md);
+  padding: 12px 14px;
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+@media (prefers-color-scheme: dark) {
+  .bc-notice-card { background: #2a2210; border-color: #a07c10; }
+  .bc-notice-title { color: #f5d080; }
+  .bc-notice-text { color: #c9b06a; }
+}
+.bc-notice-icon { color: #e09800; font-size: 18px; flex-shrink: 0; margin-top: 1px; }
+.bc-notice-title { font-size: 12px; font-weight: 700; color: #7a5c00; margin-bottom: 4px; }
+.bc-notice-text { font-size: 11px; color: #6b5300; line-height: 1.6; }
+.bc-notice-text b { color: #7a5c00; }
+
+/* ═══ 서류 선택 가로 pill 스타일 ═══ */
+.doc-check-inline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.doc-check-pill {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 12px;
+  background: var(--bg);
+  border: 1.5px solid var(--border);
+  border-radius: 20px;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--text);
+  transition: border-color .15s, background .15s;
+  white-space: nowrap;
+}
+.doc-check-pill:has(input:checked) {
+  background: var(--teal-light);
+  border-color: var(--teal);
+  color: var(--teal-dark);
+  font-weight: 600;
+}
+.doc-check-pill input { accent-color: var(--teal); width: 13px; height: 13px; }
