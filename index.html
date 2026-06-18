@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=yes">
+  <meta name="theme-color" content="#c084a4">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="AVRIL'S FARM">
+  <title>AVRIL'S FARM 공방관리</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="stylesheet" href="css/style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.6/JsBarcode.all.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script>if(typeof pdfjsLib!=='undefined')pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';</script>
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.0.0/tabler-icons.min.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,300;0,400;0,700&display=swap" rel="stylesheet">
+  <style>
+    @keyframes spin   { to { transform: rotate(360deg); } }
+    @keyframes fadeUp { from { opacity:0; transform:translateY(14px); } to { opacity:1; transform:translateY(0); } }
+
+    #intro-screen {
+      position: fixed; inset: 0; z-index: 100;
+      background: linear-gradient(155deg, #F7EDE2 0%, #EAF4EF 45%, #F2E8F0 100%);
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      padding: 48px 32px; gap: 0;
+      text-align: center;
+    }
+    #intro-screen.hidden { display: none; }
+
+    /* AVRIL'S FARM — Montserrat Light, #c084a4 단색 */
+    .intro-wordmark {
+      font-family: 'Montserrat', sans-serif;
+      font-weight: 300;
+      font-size: 36px;
+      color: #c084a4;
+      letter-spacing: 6px;
+      text-transform: uppercase;
+      line-height: 1;
+      margin-bottom: 10px;
+      animation: fadeUp .7s ease .2s both;
+    }
+
+    /* 공방 관리 시스템 — 원래 폰트, 더 크게 */
+    .intro-sub {
+      font-size: 13px;
+      font-weight: 500;
+      color: #8B8680;
+      letter-spacing: 3px;
+      margin-bottom: 32px;
+      animation: fadeUp .7s ease .35s both;
+    }
+
+    .intro-divider {
+      width: 36px; height: 1.5px;
+      background: linear-gradient(90deg, #AC839B, #48997D);
+      border-radius: 2px; margin-bottom: 22px;
+      animation: fadeUp .7s ease .45s both;
+    }
+
+    .intro-info {
+      font-size: 11.5px; color: #8B8680;
+      text-align: center; line-height: 2.1;
+      margin-bottom: 38px;
+      animation: fadeUp .7s ease .55s both;
+    }
+
+    .intro-btn {
+      background: linear-gradient(135deg, #48997D 0%, #3A8068 100%);
+      color: #fff; border: none; border-radius: 32px;
+      padding: 15px 52px; font-size: 15px; font-weight: 700;
+      cursor: pointer; font-family: inherit;
+      box-shadow: 0 8px 24px rgba(72,153,125,.38);
+      transition: transform .15s, box-shadow .15s;
+      animation: fadeUp .7s ease .7s both;
+      letter-spacing: .5px;
+    }
+    .intro-btn:hover  { transform: translateY(-1px); box-shadow: 0 10px 28px rgba(72,153,125,.45); }
+    .intro-btn:active { transform: scale(.97); }
+
+    .intro-reg {
+      font-size: 10px; color: #C0B8B0; margin-top: 28px;
+      text-align: center; line-height: 1.9;
+      animation: fadeUp .7s ease .85s both;
+    }
+  </style>
+</head>
+<body>
+
+<!-- ══ 인트로 화면 ══ -->
+<div id="intro-screen">
+  <div class="intro-wordmark">AVRIL'S FARM</div>
+  <div class="intro-sub">공방 관리 시스템</div>
+  <div class="intro-divider"></div>
+  <div class="intro-info">
+    화장품제조업 제6494호<br>
+    책임판매업 제18216호
+  </div>
+  <button class="intro-btn" onclick="enterApp()">시작하기 →</button>
+  <div class="intro-reg">
+    대표: 변민정 · 경기도 시흥시 진말1로 18, 에스엠타워 303호<br>
+    Tel: 0507-1346-8739
+  </div>
+</div>
+
+<!-- ══ 메인 앱 ══ -->
+<div class="app" id="main-app" style="display:none">
+  <div class="topbar">
+    <div class="topbar-logo" onclick="goHygiene()" style="cursor:pointer" title="위생점검으로 이동">
+      <span class="nav-wordmark">AVRIL'S FARM</span>
+    </div>
+    <div class="tabs-wrap">
+      <div class="tabs">
+        <button class="tab-btn active" data-tab="hygiene">위생 점검<span id="badge-hygiene" class="tab-dot"></span></button>
+        <button class="tab-btn" data-tab="mfcheck">제조 점검</button>
+        <button class="tab-btn" data-tab="manufacture">제품 제조</button>
+        <button class="tab-btn" data-tab="production">생산 실적</button>
+        <button class="tab-btn" data-tab="stock">원료 재고</button>
+        <button class="tab-btn" data-tab="output">문서 출력</button>
+        <button class="tab-btn" data-tab="barcode">바코드</button>
+        <button class="tab-btn" data-tab="notify">알림·설정</button>
+      </div>
+    </div>
+  </div>
+  <div id="page-content"></div>
+</div>
+
+<div id="sheet-overlay" class="hide" onclick="closeSheet()"></div>
+<div id="sheet" class="hide"><div id="sheet-body"></div></div>
+
+<script src="js/db.js"></script>
+<script src="js/notify.js"></script>
+<script src="js/pdf.js"></script>
+<script src="js/barcode.js"></script>
+<script src="js/app.js"></script>
+<script>
+  function enterApp() {
+    document.getElementById('intro-screen').classList.add('hidden');
+    document.getElementById('main-app').style.display = 'flex';
+    init();
+  }
+  function goHygiene() {
+    currentTab = 'hygiene';
+    document.querySelectorAll('.tab-btn').forEach(b => {
+      b.classList.toggle('active', b.dataset.tab === 'hygiene');
+    });
+    renderTab('hygiene');
+  }
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js').catch(()=>{});
+  }
+</script>
+</body>
+</html>
