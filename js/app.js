@@ -1808,31 +1808,75 @@ async function parseDocumentText(name, text, fileName, el) {
     const baseYear = headerYearMatch ? headerYearMatch[0] : String(new Date().getFullYear());
     const bodyText = fullText.replace(/제정일자\s*[:：]?\s*20\d{2}[.\-/년]\s*\d{1,2}[.\-/월]\s*\d{1,2}\.?/, '');
 
-    // 공통 헬퍼: 텍스트에서 YYMMDD 6자리 날짜를 모두 추출 (1순위 표준 형식)
-    const extractYmd6 = text => [...new Set(
-      [...text.matchAll(/\b(\d{2})(\d{2})(\d{2})\b/g)]
-        .map(m => ({yy:+m[1], mo:+m[2], d:+m[3]}))
-        .filter(x => x.mo >= 1 && x.mo <= 12 && x.d >= 1 && x.d <= 31)
-        .map(x => `20${String(x.yy).padStart(2,'0')}-${String(x.mo).padStart(2,'0')}-${String(x.d).padStart(2,'0')}`)
-    )];
+    // 공통 헬퍼: 텍스트에서 날짜를 모두 추출 (다양한 형식 지원)
+    const extractYmd6 = text => {
+      const results = [];
+      // 1) YYYY-MM-DD / YYYY.MM.DD / YYYY/MM/DD (Word 자동 변환 포함)
+      for (const m of text.matchAll(/(20\d{2})[.\-\/\s]+(\d{1,2})[.\-\/\s]+(\d{1,2})/g)) {
+        const mo = +m[2], d = +m[3];
+        if (mo >= 1 && mo <= 12 && d >= 1 && d <= 31) {
+          results.push(`${m[1]}-${String(mo).padStart(2,'0')}-${String(d).padStart(2,'0')}`);
+        }
+      }
+      // 2) YYMMDD 6자리 (비-숫자 경계 사용, \b 대신 lookaround)
+      for (const m of text.matchAll(/(?:^|[^\d])(\d{2})(\d{2})(\d{2})(?=[^\d]|$)/gm)) {
+        const yy = +m[1], mo = +m[2], d = +m[3];
+        if (yy >= 20 && yy <= 40 && mo >= 1 && mo <= 12 && d >= 1 && d <= 31) {
+          results.push(`20${String(yy).padStart(2,'0')}-${String(mo).padStart(2,'0')}-${String(d).padStart(2,'0')}`);
+        }
+      }
+      return [...new Set(results)];
+    };
 
     if(isMmsRecord) {
-      // R-MMS-01 원료입고기록서: 입고일이 "251229" 같은 6자리 YYMMDD
-      const dates = extractYmd6(bodyText);
+      // R-MMS-01 원료입고기록서: 행 단위로 입고일+원료명 파싱 → ingredients 업데이트
+      const allIng = await DB.getAll('ingredients');
+      const lines = bodyText.split('\n').map(l => l.trim()).filter(l => l);
+      let ingCnt = 0;
 
-      if(dates.length > 0) {
-        let cnt = 0;
-        for(const d of dates.slice(0, 60)) {
+      for (const line of lines) {
+        // 행에서 날짜 추출
+        let lineDate = '';
+        const fullMatch = line.match(/(20\d{2})[.\-\/\s]+(\d{1,2})[.\-\/\s]+(\d{1,2})/);
+        if (fullMatch) {
+          lineDate = `${fullMatch[1]}-${String(+fullMatch[2]).padStart(2,'0')}-${String(+fullMatch[3]).padStart(2,'0')}`;
+        } else {
+          const yyMatch = line.match(/(?:^|[^\d])(\d{2})(\d{2})(\d{2})(?=[^\d]|$)/);
+          if (yyMatch) {
+            const yy=+yyMatch[1], mo=+yyMatch[2], d=+yyMatch[3];
+            if (yy>=20 && yy<=40 && mo>=1 && mo<=12 && d>=1 && d<=31) {
+              lineDate = `20${String(yy).padStart(2,'0')}-${String(mo).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+            }
+          }
+        }
+        if (!lineDate) continue;
+
+        // 행에서 원료명 매칭 (DB에 등록된 원료명 중 포함된 것 찾기)
+        const matched = allIng.find(ing => ing.원료명 && line.includes(ing.원료명));
+        if (matched) {
+          await DB.put('ingredients', {...matched, 입고일: lineDate});
+          ingCnt++;
+        }
+      }
+
+      // 설비 관련 날짜도 추출
+      const dates = extractYmd6(bodyText);
+      let hygCnt = 0;
+      if (dates.length > 0) {
+        for (const d of dates.slice(0, 60)) {
           try {
             await DB.add('hygiene', {date: d, type:'제조점검', 확인자:'변민정', status:'완료',
               items:{원료입고:'확인', 설비점검:'완료'}});
-            cnt++;
+            hygCnt++;
           } catch(e) {}
         }
-        el.innerHTML = `<span style="color:var(--teal-dark)">✅ 제조관리기준서 기록서 인식 — ${cnt}건 날짜 기록 등록됨<br>
-          <span style="font-size:11px">· 원료 상세 내역은 원료 재고 탭에서 직접 입력해주세요</span></span>`;
+      }
+
+      if (ingCnt > 0 || hygCnt > 0) {
+        el.innerHTML = `<span style="color:var(--teal-dark)">✅ 제조관리기준서 기록서 인식 — 원료 입고일 ${ingCnt}건 업데이트, 날짜 기록 ${hygCnt}건 등록<br>
+          <span style="font-size:11px">원료 재고 탭에서 확인하세요.</span></span>`;
       } else {
-        el.innerHTML = `<span style="color:var(--amber-text)">⚠️ 제조관리기준서 기록서 인식됨 — 날짜를 찾지 못했습니다. 위생점검 탭에서 직접 입력해주세요.</span>`;
+        el.innerHTML = `<span style="color:var(--amber-text)">⚠️ 제조관리기준서 기록서 인식됨 — 날짜를 찾지 못했습니다. 원료 재고 탭에서 직접 입력해주세요.</span>`;
       }
     } else if(isMhRecord) {
       // R-MH-01(청소점검)과 R-MH-02(방충방서) 구간을 나눠서 처리. 두 구간 모두
@@ -1883,28 +1927,59 @@ async function parseDocumentText(name, text, fileName, el) {
         el.innerHTML = `<span style="color:var(--amber-text)">⚠️ 날짜를 찾지 못했습니다. 위생점검 탭에서 직접 입력해주세요.</span>`;
       }
     } else if(isQcmRecord) {
-      // R-QCM-01/02는 검사일·등록일 칸이 비어있는 경우가 많음 — 실제 표 데이터에
-      // 날짜가 있을 때만 등록하고, 없으면 가짜 배치를 만들지 않는다.
-      const dates = extractYmd6(bodyText);
+      // R-QCM: 행 단위로 제품명+날짜+제조번호 파싱 → 기존 배치 매칭 또는 신규 등록
+      const allBatches = await DB.getAll('batches');
+      const allProducts = await DB.getAll('products');
+      const lines = bodyText.split('\n').map(l => l.trim()).filter(l => l);
+      let cnt = 0;
 
-      if(dates.length > 0) {
-        const prodMatch = fullText.match(/에이브릴팜\s*([가-힣]{2,10}(?:비누|솝|크림|로션))/);
-        const pName = prodMatch ? prodMatch[0] : '';
-        let cnt = 0;
-        for(const d of dates.slice(0, 30)) {
-          try {
-            await DB.add('batches', {
-              제품명: pName || '(QCM 기록)',
-              date: d, 상태: '완료', 비고: '품질관리기준서 기록서 자동등록'
-            });
-            cnt++;
-          } catch(e) {}
+      for (const line of lines) {
+        // 행에서 제품명 찾기 (DB 제품 또는 배치의 제품명과 매칭)
+        let matchedProduct = allProducts.find(p => p.제품명 && line.includes(p.제품명));
+        let matchedBatch = null;
+        if (!matchedProduct) {
+          // 배치 이름으로도 시도
+          matchedBatch = allBatches.find(b => b.제조번호 && line.includes(b.제조번호));
+          if (matchedBatch) matchedProduct = allProducts.find(p => p.id === matchedBatch.productId);
         }
-        el.innerHTML = `<span style="color:var(--teal-dark)">✅ 품질관리기준서 기록서 인식${pName?' — '+pName:''} — ${cnt}건 출하 기록 등록<br>
+        if (!matchedProduct && !matchedBatch) continue;
+
+        // 행에서 날짜 추출
+        let lineDate = '';
+        const fullMatch = line.match(/(20\d{2})[.\-\/\s]+(\d{1,2})[.\-\/\s]+(\d{1,2})/);
+        if (fullMatch) {
+          lineDate = `${fullMatch[1]}-${String(+fullMatch[2]).padStart(2,'0')}-${String(+fullMatch[3]).padStart(2,'0')}`;
+        } else {
+          const yyMatch = line.match(/(?:^|[^\d])(\d{2})(\d{2})(\d{2})(?=[^\d]|$)/);
+          if (yyMatch) {
+            const yy=+yyMatch[1], mo=+yyMatch[2], d=+yyMatch[3];
+            if (yy>=20 && yy<=40 && mo>=1 && mo<=12 && d>=1 && d<=31) {
+              lineDate = `20${String(yy).padStart(2,'0')}-${String(mo).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+            }
+          }
+        }
+
+        // 기존 배치 업데이트 (검사일 추가) 또는 날짜 있으면 신규 등록
+        if (matchedBatch) {
+          await DB.put('batches', {...matchedBatch, 검사일: lineDate || matchedBatch.검사일, 상태: '완료'});
+          cnt++;
+        } else if (lineDate) {
+          await DB.add('batches', {
+            제품명: matchedProduct?.제품명 || '(QCM 기록)',
+            productId: matchedProduct?.id,
+            date: lineDate, 검사일: lineDate, 상태: '완료',
+            비고: '품질관리기준서 기록서 자동등록'
+          });
+          cnt++;
+        }
+      }
+
+      if (cnt > 0) {
+        el.innerHTML = `<span style="color:var(--teal-dark)">✅ 품질관리기준서 기록서 인식 — ${cnt}건 출하검사 기록 등록/업데이트<br>
           <span style="font-size:11px">제품 제조 탭에서 확인·수정해주세요.</span></span>`;
       } else {
-        el.innerHTML = `<span style="color:var(--amber-text)">⚠️ 품질관리기준서 기록서 인식됨 — 표에 기재된 검사일·등록일이 없습니다.<br>
-          <span style="font-size:11px">완제품 출하검사는 출력 탭의 완제품출하검사 양식에 직접 기재해주세요.</span></span>`;
+        el.innerHTML = `<span style="color:var(--amber-text)">⚠️ 품질관리기준서 기록서 인식됨 — 매칭되는 제품/배치를 찾지 못했습니다.<br>
+          <span style="font-size:11px">제품 제조 탭에서 직접 입력해주세요.</span></span>`;
       }
     }
     return;
