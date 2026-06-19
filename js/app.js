@@ -344,8 +344,8 @@ async function extractDocxLines(file) {
     .replace(/<w:tab[^>]*>/g, ' ')
     .replace(/<[^>]+>/g, '')
     .replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>')
-    .replace(/&nbsp;/g,' ').replace(/&#xD;/g,'\n')
-    .replace(/\n\s*\n/g,'\n').trim();
+    .replace(/&nbsp;/g,' ').replace(/&#xD;/g,' ')
+    .replace(/\n[\s]*\n/g,'\n').trim();
   return toLines(text);
 }
 
@@ -1416,13 +1416,13 @@ async function processUploadedFile(file) {
             text = xml
               .replace(/<w:tr[ >]/g, '\n')   // 표 행 → 새줄
               .replace(/<w:tc[ >]/g, '\t')   // 표 셀 → 탭 구분
-              .replace(/<w:p[ >]/g, '\n')    // 단락 → 새줄
-              .replace(/<w:br[^>]*>/g, '\n') // 줄바꿈
+              .replace(/<w:p[ >]/g, ' ')      // 단락 → 공백 (셀 내부 단락 보존)
+              .replace(/<w:br[^>]*>/g, ' ')   // 줄바꿈 → 공백
               .replace(/<w:tab[^>]*>/g, ' ') // 탭 → 공백
               .replace(/<[^>]+>/g, '')
               .replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>')
               .replace(/&nbsp;/g,' ').replace(/&#xD;/g,'\n')
-              .replace(/[ \t]+/g,' ')         // 중복 공백 압축
+              .replace(/ +/g,' ')             // 공백만 압축 (탭 보존)
               .replace(/\n\s*\n/g,'\n').trim();
           }
         } catch(zipErr) {
@@ -1856,6 +1856,18 @@ async function parseDocumentText(name, text, fileName, el) {
         if (matched) {
           await DB.put('ingredients', {...matched, 입고일: lineDate});
           ingCnt++;
+        } else {
+          // DB에 없는 원료: 탭으로 분리된 셀에서 원료명 추출 (2번째 셀)
+          const cells = line.split('\t').map(c => c.trim()).filter(c => c);
+          if (cells.length >= 2) {
+            const ingName = cells[1]; // 2번째 셀 = 원료명
+            if (ingName && ingName.length >= 2 && !/^[■□]/.test(ingName) && !/입고일|원료명|확인자|판정/.test(ingName)) {
+              const mfr = cells[2] || '';
+              const qty = cells[3] || '';
+              await DB.add('ingredients', {원료명: ingName, 제조처: mfr, 수량: qty, 입고일: lineDate, category:'기타', CoA:'미수취', 판정:'적합', createdAt: new Date().toISOString()});
+              ingCnt++;
+            }
+          }
         }
       }
 
@@ -1881,7 +1893,7 @@ async function parseDocumentText(name, text, fileName, el) {
     } else if(isMhRecord) {
       // R-MH-01(청소점검)과 R-MH-02(방충방서) 구간을 나눠서 처리. 두 구간 모두
       // YYMMDD 6자리를 1순위로 찾고, 못 찾으면 예전 방식(M.DD / N월)을 보조로 시도.
-      const splitIdx = bodyText.search(/R-MH-02|방충\s*[·.]?\s*방서/);
+      const splitIdx = bodyText.search(/■\s*R-MH-02|(?:^|\n)[^\n]*R-MH-02/);
       const section1 = splitIdx === -1 ? bodyText : bodyText.slice(0, splitIdx);
       const section2 = splitIdx === -1 ? '' : bodyText.slice(splitIdx);
 
