@@ -1914,8 +1914,12 @@ async function parseDocumentText(name, text, fileName, el) {
       if (!pestDates.length) {
         // 보조: "N월" — 방충방서 월간 점검표 (일자 없음). 한글 문자는 JS \b로 인식되지 않으므로
         // 앞쪽만 숫자 경계로 확인하고 뒤쪽은 리터럴 '월'로 충분히 구분한다.
+        const now = new Date();
+        const curYear = now.getFullYear();
+        const curMonth = now.getMonth() + 1;
         const monthMatches = [...section2.matchAll(/(?<!\d)(\d{1,2})\s*월(?!\d)/g)]
-          .map(m => +m[1]).filter(mo => mo >= 1 && mo <= 12);
+          .map(m => +m[1]).filter(mo => mo >= 1 && mo <= 12)
+          .filter(mo => +baseYear < curYear || (+baseYear === curYear && mo <= curMonth));
         pestDates = [...new Set(monthMatches)].map(mo => `${baseYear}-${String(mo).padStart(2,'0')}-01`);
       }
 
