@@ -968,8 +968,10 @@ async function cloudLoad() {
   const st = document.getElementById('sync-status');
   if(st) st.textContent = '⏳ 불러오는 중...';
   try {
-    // 공개 repo라면 raw로 직접 접근 가능
-    const res = await fetch(`https://raw.githubusercontent.com/avrilsfarm/avrilsfarm/main/sync-data.json?t=${Date.now()}`);
+    // GitHub API로 직접 접근 (CDN 캐시 우회)
+    const token = localStorage.getItem('gh_token');
+    const headers = token ? {'Authorization': 'token ' + token, 'Accept': 'application/vnd.github.v3.raw'} : {'Accept': 'application/vnd.github.v3.raw'};
+    const res = await fetch('https://api.github.com/repos/avrilsfarm/avrilsfarm/contents/sync-data.json', {headers});
     if(!res.ok) throw new Error('sync-data.json 없음 — 먼저 저장해주세요');
     const data = await res.json();
     if(!confirm('클라우드 데이터로 덮어쓸까요?\n현재 기기 데이터는 사라집니다.')) {
@@ -2253,7 +2255,13 @@ function updateHygExtra() {
 
 async function saveHyg(id) {
   const type=v('h2');
-  const data={date:v('h1'),type,확인자:v('h6'),이슈:v('h5'),status:'완료'};
+  let rawDate = v('h1');
+  // 날짜 YYYY-MM-DD 정규화
+  if (rawDate && /^\d{4}-\d{1,2}-\d{1,2}$/.test(rawDate)) {
+    const [yy,mm,dd] = rawDate.split('-');
+    rawDate = `${yy}-${mm.padStart(2,'0')}-${dd.padStart(2,'0')}`;
+  }
+  const data={date:rawDate,type,확인자:v('h6'),이슈:v('h5'),status:'완료'};
   if(type==='온도·습도'){
     data.온도=+v('h3'); data.습도=+v('h4');
     if(data.온도>35||data.습도>80) data.status='문제임박';

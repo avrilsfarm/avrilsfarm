@@ -40,6 +40,27 @@ const BARCODE_MASTER = [
   { no:31, name:'듀오 세트 선인장',          sub:'033',seq:'031',qty:'03',chk:4, mfgNo:'APBSS03004',  mfgDate:'',         expiry:'제조일로부터 2년', status:'현행', notes:'3/30-10' },
 ];
 
+/* ── DB 동기화 ── */
+let _barcodeData = [...BARCODE_MASTER]; // 런타임 데이터 (DB 로드 후 교체)
+
+async function loadBarcodesFromDB() {
+  try {
+    const stored = await DB.getAll('barcodes');
+    if (stored && stored.length > 0) {
+      _barcodeData = stored;
+    } else {
+      // DB 비어있으면 마스터 데이터로 시드
+      for (const item of BARCODE_MASTER) {
+        await DB.add('barcodes', {...item});
+      }
+      _barcodeData = await DB.getAll('barcodes');
+    }
+  } catch(e) {
+    console.warn('[barcode] DB 로드 실패, 인메모리 사용:', e);
+    _barcodeData = [...BARCODE_MASTER];
+  }
+}
+
 /* ── 색상 코드 — 괄호 삭제, SS=Spring/Summer, SF=Summer/Fall, FW=Fall/Winter ── */
 const COLOR_CODES = [
   {code:'O',        label:'O — 오렌지'},
@@ -72,15 +93,16 @@ function buildBarcode(biz, sub, seq, qty) {
 }
 
 function nextSeq() {
-  const seqs = BARCODE_MASTER.map(p => parseInt(p.seq)).filter(n => !isNaN(n));
+  const seqs = _barcodeData.map(p => parseInt(p.seq)).filter(n => !isNaN(n));
   return String(Math.max(...seqs) + 1).padStart(3, '0');
 }
 
 /* ════ 탭 렌더링 ════ */
-function renderBarcodeTab(el) {
+async function renderBarcodeTab(el) {
+  await loadBarcodesFromDB();
   const filter = window._bcFilter || '전체';
-  const filtered = filter === '전체' ? BARCODE_MASTER : BARCODE_MASTER.filter(p => p.status === filter);
-  const active = BARCODE_MASTER.filter(p => p.status === '현행').length;
+  const filtered = filter === '전체' ? BARCODE_MASTER : _barcodeData.filter(p => p.status === filter);
+  const active = _barcodeData.filter(p => p.status === '현행').length;
 
   el.innerHTML = `
     <div class="page-header">
@@ -88,9 +110,9 @@ function renderBarcodeTab(el) {
       <button class="header-btn" onclick="openBarcodeForm()"><i class="ti ti-plus"></i> 신규</button>
     </div>
     <div class="summary-row">
-      <div class="sum-chip sum-mauve">전체 ${BARCODE_MASTER.length}개</div>
+      <div class="sum-chip sum-mauve">전체 ${_barcodeData.length}개</div>
       <div class="sum-chip sum-green">현행 ${active}개</div>
-      <div class="sum-chip sum-orange">단종 ${BARCODE_MASTER.length - active}개</div>
+      <div class="sum-chip sum-orange">단종 ${_barcodeData.length - active}개</div>
     </div>
 
     <div class="bc-notice-card" style="background:var(--gray-bg);border:none">
@@ -182,7 +204,7 @@ function setBcFilter(f) { window._bcFilter = f; renderBarcodeTab(document.getEle
 
 /* ════ 신규/수정 폼 ════ */
 function openBarcodeForm(no) {
-  const item = no ? BARCODE_MASTER.find(p => p.no === no) : null;
+  const item = no ? _barcodeData.find(p => p.no === no) : null;
   const ns = nextSeq();
 
   // 기존 항목의 대분류 — 숫자이면 직접입력
@@ -408,11 +430,11 @@ function saveBarcodeNew(no) {
   };
 
   if (no) {
-    const idx = BARCODE_MASTER.findIndex(p => p.no === no);
+    const idx = _barcodeData.findIndex(p => p.no === no);
     if (idx !== -1) BARCODE_MASTER[idx] = { ...BARCODE_MASTER[idx], ...record };
   } else {
-    record.no = Math.max(...BARCODE_MASTER.map(p=>p.no)) + 1;
-    BARCODE_MASTER.push(record);
+    record.no = Math.max(..._barcodeData.map(p=>p.no)) + 1;
+    _barcodeData.push(record);
   }
 
   closeSheet();
@@ -475,7 +497,7 @@ function printBarcodeLabel() {
 
 /* ── 전체 출력 ── */
 function printAllBarcodes() {
-  const items = BARCODE_MASTER.filter(p => p.status === '현행');
+  const items = _barcodeData.filter(p => p.status === '현행');
   const win = window.open('','_blank');
   win.document.write(`<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8">
   <title>AVRIL'S FARM 바코드 목록</title>
@@ -527,6 +549,7 @@ function printAllBarcodes() {
   win.document.close();
 }
 
+window.loadBarcodesFromDB = loadBarcodesFromDB;
 window.renderBarcodeTab = renderBarcodeTab;
 window.setBcFilter = setBcFilter;
 window.openBarcodeForm = openBarcodeForm;

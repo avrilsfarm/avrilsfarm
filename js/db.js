@@ -12,7 +12,7 @@ function openDB() {
       const schema = {
         products:    [{n:'제품명',k:'제품명'}],
         ingredients: [],
-        batches:     [{n:'status',k:'status'},{n:'productId',k:'productId'}],
+        batches:     [{n:'상태',k:'상태'},{n:'productId',k:'productId'}],
         hygiene:     [{n:'date',k:'date'},{n:'type',k:'type'}],
         equipment:   [{n:'year',k:'year'}],
         production:  [{n:'date',k:'date'}],
@@ -280,14 +280,16 @@ async function exportAll() {
 
 async function importAll(data) {
   await openDB();
+  if (data._version && data._version !== DB_VER) {
+    console.warn(`[importAll] 데이터 버전(\${data._version}) ≠ 현재 DB 버전(\${DB_VER}) — 필드 누락 가능`);
+  }
   const stores = ['products','ingredients','batches','hygiene','equipment','production','barcodes'];
   for (const s of stores) {
     if (!data[s] || !data[s].length) continue;
     const st = _db.transaction(s,'readwrite').objectStore(s);
     await new Promise((res,rej) => { const r=st.clear(); r.onsuccess=res; r.onerror=rej; });
     for (const item of data[s]) {
-      const {id, createdAt, updatedAt, ...rest} = item;
-      await new Promise((res,rej) => { const r=st.add(rest); r.onsuccess=res; r.onerror=rej; });
+      await new Promise((res,rej) => { const r=st.put(item); r.onsuccess=res; r.onerror=rej; });
     }
   }
 }
