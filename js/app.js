@@ -1851,10 +1851,13 @@ async function parseDocumentText(name, text, fileName, el) {
     if(isMmsRecord) {
       // R-MMS-01 원료입고기록서: 행 단위로 입고일+원료명 파싱 → ingredients 업데이트
       const allIng = await DB.getAll('ingredients');
-      const lines = bodyText.split('\n').map(l => l.trim()).filter(l => l);
+      const mmsLines = bodyText.split('\n').filter(l => l.replace(/\s/g,''));
       let ingCnt = 0;
 
-      for (const line of lines) {
+      for (const line of mmsLines) {
+        // 설비관리기록서(R-MMS-02) 행 제외
+        if (/분기|정상.*이상|이상.*정상|점검 분기|전자저울|스틱|블렌더|^※|원\s*료\s*명/.test(line)) continue;
+
         // 행에서 날짜 추출
         let lineDate = '';
         const fullMatch = line.match(/(20\d{2})[.\-\/\s]+(\d{1,2})[.\-\/\s]+(\d{1,2})/);
@@ -1869,22 +1872,21 @@ async function parseDocumentText(name, text, fileName, el) {
             }
           }
         }
-        if (!lineDate) continue;
 
         // 행에서 원료명 매칭 (DB에 등록된 원료명 중 포함된 것 찾기)
         const matched = allIng.find(ing => ing.원료명 && line.includes(ing.원료명));
         if (matched) {
-          await DB.put('ingredients', {...matched, 입고일: lineDate});
+          if (lineDate) await DB.put('ingredients', {...matched, 입고일: lineDate});
           ingCnt++;
         } else {
           // DB에 없는 원료: 탭으로 분리된 셀에서 원료명 추출 (2번째 셀)
           const cells = line.split('\t').map(c => c.trim());
-          if (cells.length >= 2) {
-            const ingName = cells[1]; // 2번째 셀 = 원료명
-            if (ingName && ingName.length >= 2 && !/^[■□]/.test(ingName) && !/입고일|원료명|확인자|판정|제정일자|개정번호|작성자|관리구분/.test(ingName)) {
-              const mfr = cells[2] || '';
-              const qty = cells[3] || '';
-              await DB.add('ingredients', {원료명: ingName, 제조처: mfr, 수량: qty, 입고일: lineDate, category:'기타', CoA:'미수취', 판정:'적합', createdAt: new Date().toISOString()});
+          if (cells.length >= 3) {
+            const ingName = cells[2]; // 3번째 셀 = 원료명 (cells[0]=빈칸, [1]=입고일, [2]=원료명)
+            if (ingName && ingName.length >= 2 && !/^[■□]/.test(ingName) && !/입고일|원료명|확인자|판정|제정일자|개정번호|작성자|관리구분|변민정|^※/.test(ingName)) {
+              const mfr = cells[3] || '';
+              const qty = cells[4] || '';
+              await DB.add('ingredients', {원료명: ingName, 제조처: mfr, 수량: qty, 입고일: lineDate, category:'기타', CoA:'미수취', 판정:'미기입', createdAt: new Date().toISOString()});
               ingCnt++;
             }
           }
