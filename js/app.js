@@ -1908,7 +1908,8 @@ async function parseDocumentText(name, text, fileName, el) {
 
       if (ingCnt > 0 || hygCnt > 0) {
         el.innerHTML = `<span style="color:var(--teal-dark)">✅ 제조관리기준서 기록서 인식 — 원료 입고일 ${ingCnt}건 업데이트, 날짜 기록 ${hygCnt}건 등록<br>
-          <span style="font-size:11px">원료 재고 탭에서 확인하세요.</span></span>`;
+          <span style="font-size:11px">2초 후 원료 재고 탭으로 이동합니다.</span></span>`;
+        setTimeout(() => renderTab('stock'), 2000);
       } else {
         el.innerHTML = `<span style="color:var(--amber-text)">⚠️ 제조관리기준서 기록서 인식됨 — 날짜를 찾지 못했습니다. 원료 재고 탭에서 직접 입력해주세요.</span>`;
       }
@@ -1960,7 +1961,8 @@ async function parseDocumentText(name, text, fileName, el) {
 
       if(cnt > 0 || pestCnt > 0) {
         el.innerHTML = `<span style="color:var(--teal-dark)">✅ 제조위생관리기준서 기록서 인식 — 청소점검 ${cnt}건, 방충방서 ${pestCnt}건 등록 완료<br>
-          <span style="font-size:11px">위생 점검 탭에서 내역을 확인하세요.</span></span>`;
+          <span style="font-size:11px">2초 후 위생 점검 탭으로 이동합니다.</span></span>`;
+        setTimeout(() => renderTab('hygiene'), 2000);
       } else {
         el.innerHTML = `<span style="color:var(--amber-text)">⚠️ 날짜를 찾지 못했습니다. 위생점검 탭에서 직접 입력해주세요.</span>`;
       }
@@ -2014,7 +2016,8 @@ async function parseDocumentText(name, text, fileName, el) {
 
       if (cnt > 0) {
         el.innerHTML = `<span style="color:var(--teal-dark)">✅ 품질관리기준서 기록서 인식 — ${cnt}건 출하검사 기록 등록/업데이트<br>
-          <span style="font-size:11px">제품 제조 탭에서 확인·수정해주세요.</span></span>`;
+          <span style="font-size:11px">2초 후 제품 제조 탭으로 이동합니다.</span></span>`;
+        setTimeout(() => renderTab('production'), 2000);
       } else {
         el.innerHTML = `<span style="color:var(--amber-text)">⚠️ 품질관리기준서 기록서 인식됨 — 매칭되는 제품/배치를 찾지 못했습니다.<br>
           <span style="font-size:11px">제품 제조 탭에서 직접 입력해주세요.</span></span>`;
