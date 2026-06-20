@@ -259,10 +259,15 @@ function buildMMS(ing, hyg){
 /* ─────────────────────────────────────
    위생점검기록서 (R-MH-01 + R-MH-02)
 ───────────────────────────────────── */
-function buildMH(hyg, year, month){
-  const ym = `${year}-${String(month).padStart(2,'0')}`;
-  const clean = hyg.filter(h=>h.type==='청소점검'&&h.date?.startsWith(ym));
+function buildMH(hyg, year, month, monthEnd){
+  const startMo = month, endMo = monthEnd || month;
+  const clean = hyg.filter(h=>{
+    if(h.type!=='청소점검'||!h.date) return false;
+    const m = +h.date.slice(5,7);
+    return h.date.startsWith(String(year)) && m >= startMo && m <= endMo;
+  }).sort((a,b)=>(a.date||'').localeCompare(b.date||''));
   const pest  = hyg.filter(h=>h.type==='방충방서');
+  const monthLabel = startMo === endMo ? `${month}월` : `${startMo}~${endMo}월`;
 
   const cleanRows = clean.map(r=>`<tr>
     <td class="c">${r.date?.slice(5).replace('-','.')}</td>
@@ -294,7 +299,7 @@ function buildMH(hyg, year, month){
 
   return hd('제조위생관리기준서 기록서','R-MH · 작업장청소점검표 + 방충방서점검표','R-MH','Rev.00','2026.05.27') + `
 
-  <div class="sec">■ R-MH-01 &nbsp;작업장청소점검표 &nbsp;✓청결 &nbsp;✗불량 &nbsp;·&nbsp; ${year}년 ${month}월</div>
+  <div class="sec">■ R-MH-01 &nbsp;작업장청소점검표 &nbsp;✓청결 &nbsp;✗불량 &nbsp;·&nbsp; ${year}년 ${monthLabel}</div>
   <p class="note">※ 제조 작업 전·후 매회 기록.</p>
   <table>
     <thead><tr>

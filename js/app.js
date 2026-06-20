@@ -167,6 +167,8 @@ async function renderManufacture(el) {
           ${drow('KCL 성적서 (표준서)', prod.KCL||'미등록')}
           ${drow('내용량', prod.KCL내용량?prod.KCL내용량+'% (기준 97% 이상)':'-')}
           ${drow('유리알칼리', prod.KCL유리알칼리?prod.KCL유리알칼리+' (기준 0.1% 이하)':'-')}
+          ${drow('건조중량', prod.KCL건조중량?prod.KCL건조중량+'g':'-')}
+          ${drow('CT 성적서', prod.CT접수번호||'-')}
           ${drow('알레르기 유발성분 (표준서)', prod.알레르기||b.알레르기||'-')}
           ${drow('이상 여부', b.이상||'-')}
           ${prod.전성분 ? drow('전성분 (표준서)', prod.전성분) : ''}
@@ -843,14 +845,13 @@ async function renderOutput(el) {
     <!-- ⑥ 클라우드 동기화 -->
     <div class="output-section-card">
       <div class="output-section-title">☁️ 웹·모바일 데이터 동기화</div>
-      <div style="margin-bottom:10px">
-        <div style="font-size:11px;font-weight:600;color:var(--text3);margin-bottom:4px">GitHub Token</div>
-        <div style="display:flex;gap:6px;align-items:center">
-          <input type="password" id="sync-token" placeholder="ghp_..." value="${localStorage.getItem('gh_token')||''}"
-            style="flex:1;padding:8px 10px;border:1.5px solid var(--border);border-radius:var(--r-sm);background:var(--bg);color:var(--text);font-size:13px;font-family:monospace">
-          <button class="btn-sm solid" onclick="const v=document.getElementById('sync-token').value.trim();if(v){localStorage.setItem('gh_token',v);document.getElementById('sync-status').innerHTML='<span style=color:var(--teal-dark)>✅ 토큰 저장됨</span>'}else{localStorage.removeItem('gh_token');document.getElementById('sync-status').textContent='토큰 삭제됨'}">저장</button>
-        </div>
-        <div style="font-size:10px;color:var(--text3);margin-top:4px">모바일에서도 동일한 토큰을 입력해야 동기화됩니다</div>
+      <div style="font-size:11px;color:var(--text2);line-height:1.8;margin-bottom:10px;background:var(--gray-bg);border-radius:var(--r-sm);padding:10px 12px">
+        <b>사용 방법</b><br>
+        ① GitHub에 <b>avrilsfarm/avrilsfarm</b> 저장소가 있어야 해요 (지금 쓰시는 GitHub Pages 사이트 저장소).<br>
+        ② <b>알림·설정 탭</b>에서 GitHub Personal Access Token을 입력 후 저장.<br>
+        ③ 현재 기기에서 <b>클라우드에 저장</b> 클릭 → 데이터가 저장소의 sync-data.json 파일로 업로드됨.<br>
+        ④ 다른 기기(모바일 등)에서 같은 앱 열고 <b>클라우드에서 불러오기</b> 클릭 → 데이터 받아옴.<br>
+        <span style="color:var(--amber-text)">⚠️ 양쪽에서 동시에 입력하면 나중에 저장한 쪽이 덮어써요. 한쪽에서만 입력 후 동기화하는 걸 권장해요.</span>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
         <button class="output-btn-sec" onclick="cloudSave()" style="background:var(--teal-light)!important;border-color:var(--teal)!important">
@@ -896,14 +897,10 @@ async function printSelectedMonth() {
       }
       return h;
     });
-    const sep = '<div class="page-break"></div>';
-    const pages = [];
     const start = Math.min(ms||1, me||ms||1), end = Math.max(ms||1, me||ms||1);
-    for(let mo = start; mo <= end; mo++) {
-      pages.push(buildMH(hygNorm, y, mo));
-    }
-    if(!pages.length) { alert('출력할 데이터가 없습니다'); return; }
-    const w = open$(pages.join(sep));
+    const page = buildMH(hygNorm, y, start, end);
+    if(!page) { alert('출력할 데이터가 없습니다'); return; }
+    const w = open$(page);
     if(!w) {
       alert('팝업이 차단되었습니다.\n브라우저 주소창 오른쪽의 팝업 허용 버튼을 클릭한 후 다시 시도해주세요.');
     }
@@ -1423,7 +1420,7 @@ async function processUploadedFile(file) {
               .replace(/<w:tc[ >]/g, '\t')   // 표 셀 → 탭 구분
               .replace(/<w:p[ >]/g, ' ')      // 단락 → 공백 (셀 내부 단락 보존)
               .replace(/<w:br[^>]*>/g, ' ')   // 줄바꿈 → 공백
-              .replace(/<w:tab[^>]*>/g, ' ') // 탭 → 공백
+              .replace(/<w:tab[^>]*>/g, ' ')  // 탭 → 공백
               .replace(/<[^>]+>/g, '')
               .replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>')
               .replace(/&nbsp;/g,' ').replace(/&#xD;/g,' ')
@@ -1863,10 +1860,10 @@ async function parseDocumentText(name, text, fileName, el) {
           ingCnt++;
         } else {
           // DB에 없는 원료: 탭으로 분리된 셀에서 원료명 추출 (2번째 셀)
-          const cells = line.split('\t').map(c => c.trim()).filter(c => c);
+          const cells = line.split('\t').map(c => c.trim());
           if (cells.length >= 2) {
             const ingName = cells[1]; // 2번째 셀 = 원료명
-            if (ingName && ingName.length >= 2 && !/^[■□]/.test(ingName) && !/입고일|원료명|확인자|판정/.test(ingName)) {
+            if (ingName && ingName.length >= 2 && !/^[■□]/.test(ingName) && !/입고일|원료명|확인자|판정|제정일자|개정번호|작성자|관리구분/.test(ingName)) {
               const mfr = cells[2] || '';
               const qty = cells[3] || '';
               await DB.add('ingredients', {원료명: ingName, 제조처: mfr, 수량: qty, 입고일: lineDate, category:'기타', CoA:'미수취', 판정:'적합', createdAt: new Date().toISOString()});

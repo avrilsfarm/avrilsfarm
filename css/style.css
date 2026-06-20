@@ -636,24 +636,24 @@ label textarea { resize: vertical; min-height: 72px; }
   .info-banner { padding: 12px 24px; }
   .hygiene-banner { margin: 10px 24px 8px; }
   .empty-hint { padding: 36px 24px; font-size: 14px; }
-  .output-section-card { margin: 0 24px 16px; }
+  .output-section-card { margin: 0 24px 16px; padding: 20px; }
   .records-month { padding: 14px 24px 8px; }
   .item-title { font-size: 15px; }
   .fab { right: calc(50% - 464px); }
-  #sheet { max-width: 960px; }
+  #sheet { max-width: 640px; }
+  .sheet-inner { padding: 0 24px 40px; }
   .topbar { padding: 0 16px; height: 56px; }
   .tab-btn { padding: 7px 14px; font-size: 12.5px; }
+  .output-btn, .output-btn-sec { max-width: 400px; margin: 0 auto; }
 }
 
-/* ── 태블릿+ 그리드 ── */
+/* ── 태블릿+ 2열 그리드 ── */
 @media (min-width: 768px) {
   .records-section .record-row { display: grid; grid-template-columns: 1fr auto; }
   .doc-check-grid { grid-template-columns: 1fr 1fr 1fr; }
   .doc-check-inline { gap: 8px; }
   .modal-body { max-width: 640px; }
-}
-  #sheet { max-width: 480px; left: 50%; }
-  .fab { right: calc(50% - 224px); }
+  .output-section-card { max-width: 700px; margin-left: auto; margin-right: auto; }
 }
 
 /* ═══ 문서 출력 섹션 카드 ═══ */
