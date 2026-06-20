@@ -3,6 +3,8 @@
 /* ════ 상태 ════ */
 let currentTab  = 'hygiene';
 let stockSubTab = '원료';
+let stockSearchQ = '';
+let stockCollapsed = {};
 let selectedDate = null;
 const today = new Date();
 let calYear = today.getFullYear();
@@ -75,8 +77,10 @@ async function renderStock(el) {
   const all = await DB.getAll('ingredients');
   const ingList = all.filter(i => i.stockType !== '포장재');
   const pkgList = all.filter(i => i.stockType === '포장재');
-  const list = stockSubTab === '원료' ? ingList : pkgList;
-  const cats = [...new Set(list.map(i => i.category))];
+  const baseList = stockSubTab === '원료' ? ingList : pkgList;
+  const q = stockSearchQ.trim().toLowerCase();
+  const list = q ? baseList.filter(i => (i.원료명||'').toLowerCase().includes(q) || (i.제조처||'').toLowerCase().includes(q) || (i.category||'').toLowerCase().includes(q)) : baseList;
+  const cats = [...new Set(list.map(i => i.category||'기타'))];
   const ok = list.filter(i => i.판정 === '적합').length;
   const pending = list.filter(i => i.판정 === '미기입').length;
 
@@ -88,18 +92,26 @@ async function renderStock(el) {
       <button class="subtab ${stockSubTab==='원료'?'on':''}" onclick="switchStockTab('원료')">원료 <span class="subtab-cnt">${ingList.length}</span></button>
       <button class="subtab ${stockSubTab==='포장재'?'on':''}" onclick="switchStockTab('포장재')">포장재 <span class="subtab-cnt">${pkgList.length}</span></button>
     </div>
+    <div style="padding:8px 16px">
+      <input type="text" id="stock-search" placeholder="원료명, 제조처, 카테고리 검색..." value="${stockSearchQ}" oninput="stockSearchQ=this.value;renderTab('stock')"
+        style="width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:20px;background:var(--white);font-size:13px;outline:none;font-family:inherit;color:var(--text)">
+    </div>
     <div class="summary-row">
       <div class="sum-chip sum-mauve">전체 ${list.length}종</div>
       <div class="sum-chip sum-green">적합 ${ok}종</div>
       ${pending > 0 ? `<div class="sum-chip sum-orange">미기입 ${pending}종</div>` : ''}
     </div>
     ${list.length === 0
-      ? `<div class="empty-hint"><div class="empty-icon">📦</div>등록된 ${stockSubTab}이 없습니다<br><small>아래 + 버튼으로 추가하세요</small></div>`
+      ? `<div class="empty-hint"><div class="empty-icon">📦</div>${q ? '검색 결과가 없습니다' : '등록된 '+stockSubTab+'이 없습니다<br><small>아래 + 버튼으로 추가하세요</small>'}</div>`
       : cats.map(cat => {
-          const catItems = list.filter(i => i.category === cat);
+          const catItems = list.filter(i => (i.category||'기타') === cat);
+          const collapsed = stockCollapsed[stockSubTab+'_'+cat];
           return `
-          <div class="group-header">${cat}</div>
-          ${catItems.map((i, catIdx) => `
+          <div class="group-header" style="display:flex;align-items:center;justify-content:space-between;cursor:pointer" onclick="toggleStockCat('${stockSubTab}_${cat}')">
+            <span>${cat} <span style="font-weight:400;font-size:10px;color:var(--text3)">(${catItems.length})</span></span>
+            <i class="ti ti-chevron-${collapsed?'right':'down'}" style="font-size:14px;color:var(--text3)"></i>
+          </div>
+          ${collapsed ? '' : catItems.map((i, catIdx) => `
             <div class="list-item" onclick="openIngForm(${i.id})">
               <div class="item-no">${catIdx + 1}</div>
               <div class="item-left">
@@ -114,9 +126,11 @@ async function renderStock(el) {
           `;
         }).join('')}
     <button class="fab" onclick="openIngForm(null,'${stockSubTab}')"><i class="ti ti-plus"></i> 원료 추가</button>`;
+  if(q) { const se=document.getElementById('stock-search'); if(se){se.focus();se.setSelectionRange(q.length,q.length);} }
 }
 
-function switchStockTab(tab) { stockSubTab = tab; renderTab('stock'); }
+function switchStockTab(tab) { stockSubTab = tab; stockSearchQ=''; renderTab('stock'); }
+function toggleStockCat(key) { stockCollapsed[key] = !stockCollapsed[key]; renderTab('stock'); }
 
 /* ═══════════════════════════════════
    제품 제조 — 제품 마스터(표준서) 연동
@@ -2493,7 +2507,7 @@ async function delItem(store, id) {
 }
 
 /* ════ window 노출 ════ */
-window.switchStockTab=switchStockTab;
+window.switchStockTab=switchStockTab; window.toggleStockCat=toggleStockCat;
 window.openIngForm=openIngForm; window.saveIng=saveIng; window.updateIngCats=updateIngCats;
 window.openBatchForm=openBatchForm; window.saveBatch=saveBatch;
 window.pmRecipeEdit=pmRecipeEdit; window.pmRecipeDel=pmRecipeDel; window.pmRecipeAdd=pmRecipeAdd;

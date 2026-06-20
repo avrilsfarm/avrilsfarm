@@ -1,4 +1,6 @@
 'use strict';
+let bcSearchQ = '';
+let bcCollapsed = {};
 
 /* ════════════════════════════════════════
    에이브릴팜 바코드 관리 모듈 v3
@@ -101,7 +103,9 @@ function nextSeq() {
 async function renderBarcodeTab(el) {
   await loadBarcodesFromDB();
   const filter = window._bcFilter || '전체';
-  const filtered = filter === '전체' ? BARCODE_MASTER : _barcodeData.filter(p => p.status === filter);
+  const bq = bcSearchQ.trim().toLowerCase();
+  const preFiltered = filter === '전체' ? _barcodeData : _barcodeData.filter(p => p.status === filter);
+  const filtered = bq ? preFiltered.filter(p => (p.name||'').toLowerCase().includes(bq) || (p.mfgNo||'').toLowerCase().includes(bq) || (p.notes||'').toLowerCase().includes(bq)) : preFiltered;
   const active = _barcodeData.filter(p => p.status === '현행').length;
 
   el.innerHTML = `
@@ -113,6 +117,10 @@ async function renderBarcodeTab(el) {
       <div class="sum-chip sum-mauve">전체 ${_barcodeData.length}개</div>
       <div class="sum-chip sum-green">현행 ${active}개</div>
       <div class="sum-chip sum-orange">단종 ${_barcodeData.length - active}개</div>
+    </div>
+    <div style="padding:4px 16px 8px">
+      <input type="text" id="bc-search" placeholder="제품명, 제조번호 검색..." value="${bcSearchQ}" oninput="bcSearchQ=this.value;renderBarcodeTab(document.getElementById('tab-content'))"
+        style="width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:20px;background:var(--white);font-size:13px;outline:none;font-family:inherit;color:var(--text)">
     </div>
 
     <div class="bc-notice-card" style="background:var(--gray-bg);border:none">
@@ -157,33 +165,50 @@ async function renderBarcodeTab(el) {
       </button>
     </div>
 
-    ${filtered.map(p => {
-      const full = buildBarcode(p.biz||'8739', p.sub, p.seq, p.qty);
-      const bc12 = `${p.biz||'8739'}/${p.sub}/${p.seq}/${p.qty}`;
-      return `
-        <div class="bc-card">
-          <div class="bc-card-head" onclick="openBarcodeForm(${p.no})" style="cursor:pointer">
-            <div class="bc-no">${String(p.no).padStart(2,'0')}</div>
-            <div class="bc-info">
-              <div class="bc-name">${p.name}</div>
-              <div class="bc-num">${bc12} <span class="bc-chk">체크: ${p.chk}</span></div>
-              ${p.mfgNo?`<div class="bc-mfg">${p.mfgNo} ${p.mfgDate?'· MFG '+p.mfgDate:''}</div>`:''}
-            </div>
-            <div class="bc-meta">
-              <span class="badge ${p.status==='현행'?'badge-green':'badge-gray'}">${p.status}</span>
-              ${p.expiry?`<div class="bc-expiry">${p.expiry}</div>`:''}
-              <i class="ti ti-edit" style="font-size:13px;color:var(--text3);margin-top:2px"></i>
-            </div>
+    ${(() => {
+      // Group by status for accordion
+      const groups = {};
+      filtered.forEach(p => {
+        const gk = p.status || '기타';
+        if(!groups[gk]) groups[gk] = [];
+        groups[gk].push(p);
+      });
+      const order = ['현행','단종','기타'];
+      return order.filter(g => groups[g] && groups[g].length).map(gk => {
+        const items = groups[gk];
+        const coll = bcCollapsed['bc_'+gk];
+        return `
+          <div class="group-header" style="display:flex;align-items:center;justify-content:space-between;cursor:pointer" onclick="toggleBcCat('bc_${gk}')">
+            <span>${gk} <span style="font-weight:400;font-size:10px;color:var(--text3)">(${items.length})</span></span>
+            <i class="ti ti-chevron-${coll?'right':'down'}" style="font-size:14px;color:var(--text3)"></i>
           </div>
-          <div class="bc-barcode-wrap" id="bcwrap-${p.no}">
-            <svg class="bc-svg" id="bc-svg-${p.no}"></svg>
-            <div class="bc-full-num">${full}</div>
-            ${p.notes?`<div class="bc-note">${p.notes}</div>`:''}
-          </div>
-        </div>`;
-    }).join('')}
+          ${coll ? '' : items.map(p => {
+            const full = buildBarcode(p.biz||'8739', p.sub, p.seq, p.qty);
+            const bc12 = (p.biz||'8739')+'/'+p.sub+'/'+p.seq+'/'+p.qty;
+            return '<div class="bc-card">'
+              +'<div class="bc-card-head" onclick="openBarcodeForm('+p.no+')" style="cursor:pointer">'
+              +'<div class="bc-no">'+String(p.no).padStart(2,'0')+'</div>'
+              +'<div class="bc-info">'
+              +'<div class="bc-name">'+p.name+'</div>'
+              +'<div class="bc-num">'+bc12+' <span class="bc-chk">체크: '+p.chk+'</span></div>'
+              +(p.mfgNo?'<div class="bc-mfg">'+p.mfgNo+(p.mfgDate?' · MFG '+p.mfgDate:'')+'</div>':'')
+              +'</div>'
+              +'<div class="bc-meta">'
+              +'<span class="badge '+(p.status==='현행'?'badge-green':'badge-gray')+'">'+p.status+'</span>'
+              +(p.expiry?'<div class="bc-expiry">'+p.expiry+'</div>':'')
+              +'<i class="ti ti-edit" style="font-size:13px;color:var(--text3);margin-top:2px"></i>'
+              +'</div></div>'
+              +'<div class="bc-barcode-wrap" id="bcwrap-'+p.no+'">'
+              +'<svg class="bc-svg" id="bc-svg-'+p.no+'"></svg>'
+              +'<div class="bc-full-num">'+full+'</div>'
+              +(p.notes?'<div class="bc-note">'+p.notes+'</div>':'')
+              +'</div></div>';
+          }).join('')}`;
+      }).join('');
+    })()}
 
     <div style="height:80px"></div>`;
+  if(bq) { const se=document.getElementById('bc-search'); if(se){se.focus();se.setSelectionRange(bq.length,bq.length);} }
 
   setTimeout(() => {
     filtered.forEach(p => {
@@ -199,6 +224,8 @@ async function renderBarcodeTab(el) {
     });
   }, 100);
 }
+
+function toggleBcCat(key) { bcCollapsed[key] = !bcCollapsed[key]; renderBarcodeTab(document.getElementById('tab-content')); }
 
 function setBcFilter(f) { window._bcFilter = f; renderBarcodeTab(document.getElementById('page-content')); }
 
