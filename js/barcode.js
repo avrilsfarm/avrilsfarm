@@ -119,7 +119,7 @@ async function renderBarcodeTab(el) {
       <div class="sum-chip sum-orange">단종 ${_barcodeData.length - active}개</div>
     </div>
     <div style="padding:4px 16px 8px">
-      <input type="text" id="bc-search" placeholder="제품명, 제조번호 검색..." value="${bcSearchQ}" oninput="bcSearchQ=this.value;renderBarcodeTab(document.getElementById('tab-content'))"
+      <input type="text" id="bc-search" placeholder="제품명, 제조번호 검색..." value="${bcSearchQ}" oninput="bcSearchQ=this.value;renderBarcodeTab(document.getElementById('page-content'))"
         style="width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:20px;background:var(--white);font-size:13px;outline:none;font-family:inherit;color:var(--text)">
     </div>
 
@@ -225,7 +225,7 @@ async function renderBarcodeTab(el) {
   }, 100);
 }
 
-function toggleBcCat(key) { bcCollapsed[key] = !bcCollapsed[key]; renderBarcodeTab(document.getElementById('tab-content')); }
+function toggleBcCat(key) { bcCollapsed[key] = !bcCollapsed[key]; renderBarcodeTab(document.getElementById('page-content')); }
 
 function setBcFilter(f) { window._bcFilter = f; renderBarcodeTab(document.getElementById('page-content')); }
 
