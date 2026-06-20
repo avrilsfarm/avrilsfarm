@@ -119,8 +119,13 @@ async function renderBarcodeTab(el) {
       <div class="sum-chip sum-orange">단종 ${_barcodeData.length - active}개</div>
     </div>
     <div style="padding:4px 16px 8px">
-      <input type="text" id="bc-search" placeholder="제품명, 제조번호 검색..." value="${bcSearchQ}" oninput="bcSearchQ=this.value;renderBarcodeTab(document.getElementById('page-content'))"
-        style="width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:20px;background:var(--white);font-size:13px;outline:none;font-family:inherit;color:var(--text)">
+      <div style="display:flex;gap:6px;align-items:center">
+        <input type="text" id="bc-search" placeholder="제품명, 제조번호 검색..." value="${bcSearchQ}"
+          style="flex:1;padding:10px 14px;border:1.5px solid var(--border);border-radius:20px;background:var(--white);font-size:13px;outline:none;font-family:inherit;color:var(--text)"
+          onkeydown="if(event.key==='Enter'){bcSearchQ=this.value;renderBarcodeTab(document.getElementById('page-content'))}">
+        <button onclick="bcSearchQ=document.getElementById('bc-search').value;renderBarcodeTab(document.getElementById('page-content'))" style="flex-shrink:0;padding:8px 14px;border:none;border-radius:20px;background:var(--green);color:#fff;font-size:13px;cursor:pointer;font-family:inherit"><i class="ti ti-search"></i> 검색</button>
+        ${bcSearchQ ? '<button onclick="bcSearchQ=\'\';renderBarcodeTab(document.getElementById(\'page-content\'))" style="flex-shrink:0;padding:8px 10px;border:1.5px solid var(--border);border-radius:20px;background:var(--white);font-size:13px;cursor:pointer;font-family:inherit;color:var(--text3)"><i class="ti ti-x"></i></button>' : ''}
+      </div>
     </div>
 
     <div class="bc-notice-card" style="background:var(--gray-bg);border:none">
@@ -208,7 +213,6 @@ async function renderBarcodeTab(el) {
     })()}
 
     <div style="height:80px"></div>`;
-  if(bq) { const se=document.getElementById('bc-search'); if(se){se.focus();se.setSelectionRange(bq.length,bq.length);} }
 
   setTimeout(() => {
     filtered.forEach(p => {
@@ -588,3 +592,4 @@ window.toggleBc11Custom = toggleBc11Custom;
 window.saveBarcodeNew = saveBarcodeNew;
 window.printBarcodeLabel = printBarcodeLabel;
 window.printAllBarcodes = printAllBarcodes;
+window.toggleBcCat = toggleBcCat;

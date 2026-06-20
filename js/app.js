@@ -93,8 +93,13 @@ async function renderStock(el) {
       <button class="subtab ${stockSubTab==='포장재'?'on':''}" onclick="switchStockTab('포장재')">포장재 <span class="subtab-cnt">${pkgList.length}</span></button>
     </div>
     <div style="padding:8px 16px">
-      <input type="text" id="stock-search" placeholder="원료명, 제조처, 카테고리 검색..." value="${stockSearchQ}" oninput="stockSearchQ=this.value;renderTab('stock')"
-        style="width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:20px;background:var(--white);font-size:13px;outline:none;font-family:inherit;color:var(--text)">
+      <div style="display:flex;gap:6px;align-items:center">
+        <input type="text" id="stock-search" placeholder="원료명, 제조처, 카테고리 검색..." value="${stockSearchQ}"
+          style="flex:1;padding:10px 14px;border:1.5px solid var(--border);border-radius:20px;background:var(--white);font-size:13px;outline:none;font-family:inherit;color:var(--text)"
+          onkeydown="if(event.key==='Enter'){stockSearchQ=this.value;renderTab('stock')}">
+        <button onclick="stockSearchQ=document.getElementById('stock-search').value;renderTab('stock')" style="flex-shrink:0;padding:8px 14px;border:none;border-radius:20px;background:var(--green);color:#fff;font-size:13px;cursor:pointer;font-family:inherit"><i class="ti ti-search"></i> 검색</button>
+        ${stockSearchQ ? '<button onclick="stockSearchQ=\'\';renderTab(\'stock\')" style="flex-shrink:0;padding:8px 10px;border:1.5px solid var(--border);border-radius:20px;background:var(--white);font-size:13px;cursor:pointer;font-family:inherit;color:var(--text3)"><i class="ti ti-x"></i></button>' : ''}
+      </div>
     </div>
     <div class="summary-row">
       <div class="sum-chip sum-mauve">전체 ${list.length}종</div>
@@ -126,7 +131,6 @@ async function renderStock(el) {
           `;
         }).join('')}
     <button class="fab" onclick="openIngForm(null,'${stockSubTab}')"><i class="ti ti-plus"></i> 원료 추가</button>`;
-  if(q) { const se=document.getElementById('stock-search'); if(se){se.focus();se.setSelectionRange(q.length,q.length);} }
 }
 
 function switchStockTab(tab) { stockSubTab = tab; stockSearchQ=''; renderTab('stock'); }
