@@ -843,13 +843,14 @@ async function renderOutput(el) {
     <!-- ⑥ 클라우드 동기화 -->
     <div class="output-section-card">
       <div class="output-section-title">☁️ 웹·모바일 데이터 동기화</div>
-      <div style="font-size:11px;color:var(--text2);line-height:1.8;margin-bottom:10px;background:var(--gray-bg);border-radius:var(--r-sm);padding:10px 12px">
-        <b>사용 방법</b><br>
-        ① GitHub에 <b>avrilsfarm/avrilsfarm</b> 저장소가 있어야 해요 (지금 쓰시는 GitHub Pages 사이트 저장소).<br>
-        ② <b>알림·설정 탭</b>에서 GitHub Personal Access Token을 입력 후 저장.<br>
-        ③ 현재 기기에서 <b>클라우드에 저장</b> 클릭 → 데이터가 저장소의 sync-data.json 파일로 업로드됨.<br>
-        ④ 다른 기기(모바일 등)에서 같은 앱 열고 <b>클라우드에서 불러오기</b> 클릭 → 데이터 받아옴.<br>
-        <span style="color:var(--amber-text)">⚠️ 양쪽에서 동시에 입력하면 나중에 저장한 쪽이 덮어써요. 한쪽에서만 입력 후 동기화하는 걸 권장해요.</span>
+      <div style="margin-bottom:10px">
+        <div style="font-size:11px;font-weight:600;color:var(--text3);margin-bottom:4px">GitHub Token</div>
+        <div style="display:flex;gap:6px;align-items:center">
+          <input type="password" id="sync-token" placeholder="ghp_..." value="${localStorage.getItem('gh_token')||''}"
+            style="flex:1;padding:8px 10px;border:1.5px solid var(--border);border-radius:var(--r-sm);background:var(--bg);color:var(--text);font-size:13px;font-family:monospace">
+          <button class="btn-sm solid" onclick="const v=document.getElementById('sync-token').value.trim();if(v){localStorage.setItem('gh_token',v);document.getElementById('sync-status').innerHTML='<span style=color:var(--teal-dark)>✅ 토큰 저장됨</span>'}else{localStorage.removeItem('gh_token');document.getElementById('sync-status').textContent='토큰 삭제됨'}">저장</button>
+        </div>
+        <div style="font-size:10px;color:var(--text3);margin-top:4px">모바일에서도 동일한 토큰을 입력해야 동기화됩니다</div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
         <button class="output-btn-sec" onclick="cloudSave()" style="background:var(--teal-light)!important;border-color:var(--teal)!important">
