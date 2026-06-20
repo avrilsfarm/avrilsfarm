@@ -67,7 +67,7 @@
 html, body { height: 100%; font-family: 'Noto Sans KR', -apple-system, 'Apple SD Gothic Neo', sans-serif; background: var(--bg); color: var(--text); font-size: 14px; line-height: 1.5; }
 
 /* ── 앱 레이아웃 ── */
-.app { display: flex; flex-direction: column; height: 100%; max-width: 480px; margin: 0 auto; background: var(--bg); }
+.app { display: flex; flex-direction: column; height: 100%; max-width: 960px; margin: 0 auto; background: var(--bg); }
 
 /* ── 탑바 ── */
 .topbar {
@@ -513,7 +513,7 @@ html, body { height: 100%; font-family: 'Noto Sans KR', -apple-system, 'Apple SD
 #sheet-overlay.hide { display: none; }
 #sheet {
   position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
-  width: 100%; max-width: 480px;
+  width: 100%; max-width: 640px;
   background: var(--white);
   border-radius: 20px 20px 0 0;
   padding: 8px 0 0;
@@ -618,8 +618,40 @@ label textarea { resize: vertical; min-height: 72px; }
 .bc-mfg-preview { background:var(--mauve-light);border-radius:var(--r-sm);padding:10px 14px;margin-bottom:14px;text-align:center; }
 
 /* ── PC 반응형 ── */
-@media (min-width: 481px) {
+@media (min-width: 600px) {
   .app { box-shadow: 0 0 40px rgba(0,0,0,.12); }
+  .page-header { padding: 20px 24px 12px; }
+  .list-item, .check-item, .record-row { padding: 14px 24px; }
+  .card-top { padding: 16px 24px; }
+  .card-detail { padding: 12px 24px 16px; }
+  .summary-row { padding: 6px 24px 14px; }
+  .section-label { padding: 16px 24px 8px; }
+  .calendar { padding: 10px 16px 8px; }
+  .cal-nav { padding: 16px 24px 10px; }
+  .cal-day { min-height: 52px; padding: 8px 4px; }
+  .cal-num { font-size: 14px; }
+  .cal-dow { font-size: 12px; padding: 6px 0 10px; }
+  .cal-dot { width: 7px; height: 7px; }
+  .subtab-row { padding: 0 24px; }
+  .info-banner { padding: 12px 24px; }
+  .hygiene-banner { margin: 10px 24px 8px; }
+  .empty-hint { padding: 36px 24px; font-size: 14px; }
+  .output-section-card { margin: 0 24px 16px; }
+  .records-month { padding: 14px 24px 8px; }
+  .item-title { font-size: 15px; }
+  .fab { right: calc(50% - 464px); }
+  #sheet { max-width: 960px; }
+  .topbar { padding: 0 16px; height: 56px; }
+  .tab-btn { padding: 7px 14px; font-size: 12.5px; }
+}
+
+/* ── 태블릿+ 그리드 ── */
+@media (min-width: 768px) {
+  .records-section .record-row { display: grid; grid-template-columns: 1fr auto; }
+  .doc-check-grid { grid-template-columns: 1fr 1fr 1fr; }
+  .doc-check-inline { gap: 8px; }
+  .modal-body { max-width: 640px; }
+}
   #sheet { max-width: 480px; left: 50%; }
   .fab { right: calc(50% - 224px); }
 }
