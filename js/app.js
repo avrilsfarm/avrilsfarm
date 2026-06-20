@@ -627,10 +627,10 @@ async function renderHygiene(el) {
 function buildCalendar(year, month, hasRecord, hasIssue) {
   const firstDay = new Date(year, month, 1).getDay();
   const days = new Date(year, month+1, 0).getDate();
-  const dow = ['월','화','수','목','금','토','일'];
+  const dow = ['일','월','화','수','목','금','토'];
   let html = `<div class="cal-grid">`;
   dow.forEach(d => html += `<div class="cal-dow">${d}</div>`);
-  const offset = (firstDay+6)%7;
+  const offset = firstDay;
   for (let i=0;i<offset;i++) html += `<div class="cal-day empty"></div>`;
   const todayStr = today.toISOString().split('T')[0];
   for (let d=1;d<=days;d++) {
