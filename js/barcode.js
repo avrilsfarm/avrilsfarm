@@ -347,7 +347,7 @@ function openBarcodeForm(no) {
     </div>`}
 
     <div class="sheet-btns">
-      <button onclick="closeSheet()">취소</button>
+      ${item ? '<button onclick="deleteBarcode('+no+')" style="color:var(--red);border-color:var(--red)"><i class="ti ti-trash"></i> 삭제</button>' : '<button onclick="closeSheet()">취소</button>'}
       <button class="btn-save" onclick="printBarcodeLabel()" style="background:var(--mauve)!important;border-color:var(--mauve)!important">
         <i class="ti ti-printer"></i> 출력
       </button>
@@ -426,7 +426,7 @@ function updateMfgPreview() {
   if(el) el.textContent = mfg || '—';
 }
 
-function saveBarcodeNew(no) {
+async function saveBarcodeNew(no) {
   const name = document.getElementById('bc1')?.value;
   if (!name) { alert('제품명을 입력하세요'); return; }
 
@@ -461,16 +461,40 @@ function saveBarcodeNew(no) {
   };
 
   if (no) {
-    const idx = _barcodeData.findIndex(p => p.no === no);
-    if (idx !== -1) BARCODE_MASTER[idx] = { ...BARCODE_MASTER[idx], ...record };
+    record.no = no;
+    const existing = _barcodeData.find(p => p.no === no);
+    if (existing && existing.id) record.id = existing.id;
+    try { await DB.put('barcodes', record); } catch(e) { console.warn('DB put:', e); }
   } else {
-    record.no = Math.max(..._barcodeData.map(p=>p.no)) + 1;
-    _barcodeData.push(record);
+    record.no = Math.max(..._barcodeData.map(p=>p.no), 0) + 1;
+    try { await DB.add('barcodes', record); } catch(e) { console.warn('DB add:', e); }
   }
 
   closeSheet();
   renderBarcodeTab(document.getElementById('page-content'));
 }
+
+
+
+/* ── 바코드 삭제 ── */
+async function deleteBarcode(no) {
+  if (!confirm('이 바코드를 삭제하시겠습니까?')) return;
+  const item = _barcodeData.find(p => p.no === no);
+  if (item) {
+    try {
+      if (item.id) await DB.remove('barcodes', item.id);
+      else {
+        // id 없으면 전체에서 찾아서 삭제
+        const all = await DB.getAll('barcodes');
+        const match = all.find(b => b.no === no);
+        if (match) await DB.remove('barcodes', match.id);
+      }
+    } catch(e) { console.warn('DB remove:', e); }
+  }
+  closeSheet();
+  renderBarcodeTab(document.getElementById('page-content'));
+}
+window.deleteBarcode = deleteBarcode;
 
 /* ── 라벨 출력 ── */
 function printBarcodeLabel() {
@@ -593,3 +617,4 @@ window.saveBarcodeNew = saveBarcodeNew;
 window.printBarcodeLabel = printBarcodeLabel;
 window.printAllBarcodes = printAllBarcodes;
 window.toggleBcCat = toggleBcCat;
+window.calcCheckDigit = calcCheckDigit;

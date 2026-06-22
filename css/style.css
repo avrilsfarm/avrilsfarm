@@ -637,6 +637,7 @@ label textarea { resize: vertical; min-height: 72px; }
   .cal-dot { width: 7px; height: 7px; }
   .subtab-row { padding: 0 24px; }
   .info-banner { padding: 12px 24px; margin: 4px 24px; }
+  .overdue-banner { margin: 4px 24px; }
   .hygiene-banner { margin: 10px 24px 8px; }
   .empty-hint { padding: 36px 24px; font-size: 14px; }
   .output-section-card { margin: 0 24px 16px; padding: 20px; }

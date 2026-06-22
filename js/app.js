@@ -842,7 +842,8 @@ async function renderOutput(el) {
         · <b>.docx</b> 제조지시서(AF-MI) → 배치 자동 등록<br>
         · <b>.docx</b> 기록서(R-MMS) → 원료·설비 자동 등록<br>
         · <b>.docx</b> 기록서(R-MH) → 위생점검 자동 등록<br>
-        · <b>.docx</b> 기록서(R-QCM) → 완제품출하 인식
+        · <b>.docx</b> 기록서(R-QCM) → 완제품출하 인식<br>
+        · <b>.csv</b> 바코드 목록 → 자동 등록
       </div>
       <div class="dropzone" id="dropzone-area"
            ondragover="event.preventDefault();this.classList.add('drag-over')"
@@ -851,7 +852,7 @@ async function renderOutput(el) {
         <div class="dropzone-icon">📄</div>
         <div class="dropzone-text">파일을 드래그하거나 탭해서 선택</div>
         <div class="dropzone-sub">AF-PS, AF-MI .docx / .json 백업</div>
-        <input type="file" id="file-upload" accept=".docx,.txt,.json,.pdf"
+        <input type="file" id="file-upload" accept=".docx,.txt,.json,.pdf,.csv,.xlsx"
           style="position:absolute;inset:0;opacity:0;cursor:pointer"
           onchange="handleFileUpload(event)">
       </div>
@@ -1467,7 +1468,79 @@ async function processUploadedFile(file) {
       return;
     }
 
-    /* ── PDF ── */
+    /* ── CSV/바코드 ── */
+    if(name.endsWith('.csv') || name.endsWith('.xlsx')) {
+      const text = await file.text();
+      const lines = text.split('\n').map(l => l.trim()).filter(l => l);
+      if (lines.length < 2) {
+        el.innerHTML = '<span style="color:var(--amber-text)">⚠️ 파일이 비어있습니다.</span>';
+        return;
+      }
+      // 헤더 확인 — 바코드 관련 컬럼이 있으면 바코드 등록
+      const header = lines[0].toLowerCase();
+      if (/바코드|barcode|제품명.*소분류|소분류.*비번호|ean/.test(header)) {
+        const cols = lines[0].split(',').map(c => c.trim());
+        const ci = (keyword) => cols.findIndex(c => c.includes(keyword));
+        const iName = Math.max(ci('제품명'), ci('name'));
+        const iSub = Math.max(ci('소분류'), ci('sub'));
+        const iSeq = Math.max(ci('비번호'), ci('seq'));
+        const iQty = Math.max(ci('개수'), ci('qty'));
+        const iStatus = Math.max(ci('상태'), ci('status'));
+        const iMfg = Math.max(ci('제조번호'), ci('mfgNo'));
+        const iMfgDate = Math.max(ci('제조일'), ci('mfgDate'));
+        const iExpiry = Math.max(ci('유통기한'), ci('expiry'));
+        const iNotes = Math.max(ci('비고'), ci('notes'));
+
+        if (iName === -1) {
+          el.innerHTML = '<span style="color:var(--amber-text)">⚠️ "제품명" 컬럼을 찾을 수 없습니다.</span>';
+          return;
+        }
+
+        let cnt = 0;
+        const existing = await DB.getAll('barcodes');
+        const maxNo = existing.length > 0 ? Math.max(...existing.map(b => b.no || 0)) : 0;
+
+        for (let i = 1; i < lines.length; i++) {
+          const vals = lines[i].split(',').map(v => v.trim().replace(/^"|"$/g, ''));
+          const pname = vals[iName] || '';
+          if (!pname) continue;
+
+          const record = {
+            no: maxNo + i,
+            name: pname,
+            sub: iSub >= 0 ? (vals[iSub]||'').padStart(3,'0') : '000',
+            seq: iSeq >= 0 ? (vals[iSeq]||'').padStart(3,'0') : String(maxNo+i).padStart(3,'0'),
+            qty: iQty >= 0 ? (vals[iQty]||'09').padStart(2,'0') : '09',
+            chk: 0,
+            mfgNo: iMfg >= 0 ? vals[iMfg]||'' : '',
+            mfgDate: iMfgDate >= 0 ? vals[iMfgDate]||'' : '',
+            expiry: iExpiry >= 0 ? vals[iExpiry]||'제조일로부터 2년' : '제조일로부터 2년',
+            status: iStatus >= 0 ? vals[iStatus]||'현행' : '현행',
+            notes: iNotes >= 0 ? vals[iNotes]||'' : '',
+            createdAt: new Date().toISOString()
+          };
+          // 체크디짓 계산
+          if (window.calcCheckDigit) record.chk = calcCheckDigit('8739', record.sub, record.seq, record.qty);
+
+          // 중복 체크 (같은 이름이면 스킵)
+          if (!existing.some(b => b.name === pname)) {
+            try { await DB.add('barcodes', record); cnt++; } catch(e) {}
+          }
+        }
+
+        el.innerHTML = cnt > 0
+          ? '<span style="color:var(--teal-dark)">✅ 바코드 ' + cnt + '건 등록 완료<br><span style="font-size:11px">2초 후 바코드 탭으로 이동합니다.</span></span>'
+          : '<span style="color:var(--amber-text)">⚠️ 새로 등록할 바코드가 없습니다 (이미 등록됨).</span>';
+        if (cnt > 0) setTimeout(() => renderTab('barcode'), 2000);
+        return;
+      }
+
+      // 바코드 관련이 아니면 일반 텍스트로 처리
+      await parseDocumentText(name.replace('.csv','.txt'), text, file.name, el);
+      return;
+    }
+
+        /* ── PDF ── */
     if(name.endsWith('.pdf')) {
       el.innerHTML = `<span style="color:var(--amber-text)">📋 PDF는 자동 인식이 어려워요.<br><span style="font-size:11px">제품 제조 탭 → 제품표준서 수정에서 직접 입력하거나, .docx 파일로 업로드해주세요.</span></span>`;
       return;
@@ -1608,7 +1681,7 @@ function parseKclFromLines(lines) {
   }
 
   // 날짜: 같은 줄 우선 추출 (valueAfterLabelLoose 대신 extractKclDate 사용)
-  const rcvDate   = extractKclDate(lines, '접수연월일', '접수일');
+  const rcvDate   = extractKclDate(lines, '접수연월일', '접수일자', '접수일');
   const issueDate = extractKclDate(lines, '발행일자', '발행일');
   const normDate = d => {
     if(!d) return '';
