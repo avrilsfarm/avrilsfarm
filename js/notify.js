@@ -207,6 +207,15 @@ function renderNotifySettings(el) {
       </div>
     </div>
 
+    <div class="group-header mt16">데이터 관리</div>
+    <div class="list-item" style="flex-direction:column;align-items:flex-start;gap:8px;cursor:default">
+      <div class="item-sub">모든 데이터(원료·배치·위생·제품·생산·바코드)를 삭제합니다.</div>
+      <button class="output-btn" style="background:var(--red-light)!important;border-color:var(--red)!important;color:var(--red-text)!important;width:100%" onclick="resetAllData()">
+        <i class="ti ti-trash"></i> 데이터 전체 삭제
+      </button>
+      <div id="reset-status" style="font-size:11px;color:var(--text3);min-height:16px"></div>
+    </div>
+
     <div class="group-header mt16">앱 정보</div>
     <div class="list-item" style="cursor:default">
       <div class="item-left">
@@ -410,3 +419,23 @@ function saveGhToken() {
 }
 window.saveGhToken = saveGhToken;
 window.confirmReset = confirmReset;
+
+async function resetAllData() {
+  if(!confirm('⚠️ 모든 데이터가 삭제됩니다.\n(원료·배치·위생·제품·생산·바코드)\n\n정말 삭제할까요?')) return;
+  if(!confirm('정말로 전체 삭제합니까? 이 작업은 되돌릴 수 없습니다.')) return;
+  const st = document.getElementById('reset-status');
+  if(st) st.textContent = '⏳ 삭제 중...';
+  try {
+    const stores = ['ingredients','batches','hygiene','equipment','products','production','barcodes'];
+    for (const s of stores) {
+      const all = await DB.getAll(s);
+      for (const item of all) await DB.remove(s, item.id);
+    }
+    localStorage.setItem('skip_seed', 'true');
+    if(st) st.innerHTML = '<span style="color:var(--teal-dark)">✅ 전체 데이터 삭제 완료</span>';
+    setTimeout(() => { if(typeof renderTab === 'function') renderTab('notify'); }, 1500);
+  } catch(e) {
+    if(st) st.innerHTML = '<span style="color:var(--red-text)">❌ 오류: ' + e.message + '</span>';
+  }
+}
+window.resetAllData = resetAllData;
