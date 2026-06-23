@@ -183,13 +183,14 @@ function renderNotifySettings(el) {
       <i class="ti ti-upload" style="color:var(--teal)"></i>
     </div>
     <input type="file" id="restore-file" accept=".json" style="display:none" onchange="restoreData(event)">
-    <div class="list-item" onclick="confirmReset()" style="cursor:pointer;border-top:2px solid var(--red-bg)">
+    <div class="list-item" onclick="resetAllData()" style="cursor:pointer;border-top:2px solid var(--red-bg)">
       <div class="item-left">
-        <div class="item-title" style="color:var(--red)">🗑 데이터 완전 초기화</div>
-        <div class="item-sub">모든 기록 삭제 후 기본 데이터로 재시작</div>
+        <div class="item-title" style="color:var(--red)">🗑 데이터 전체 삭제</div>
+        <div class="item-sub">모든 기록을 완전히 삭제합니다</div>
       </div>
       <i class="ti ti-trash" style="color:var(--red)"></i>
     </div>
+    <div id="reset-status" style="padding:0 16px;font-size:11px;color:var(--text3);min-height:8px"></div>
 
 
     <div class="group-header mt16">클라우드 동기화</div>
@@ -205,15 +206,6 @@ function renderNotifySettings(el) {
       <div style="font-size:10px;color:var(--text3)">
         github.com → Settings → Developer Settings → Personal access tokens → Tokens (classic) → repo 체크
       </div>
-    </div>
-
-    <div class="group-header mt16">데이터 관리</div>
-    <div class="list-item" style="flex-direction:column;align-items:flex-start;gap:8px;cursor:default">
-      <div class="item-sub">모든 데이터(원료·배치·위생·제품·생산·바코드)를 삭제합니다.</div>
-      <button class="output-btn" style="background:var(--red-light)!important;border-color:var(--red)!important;color:var(--red-text)!important;width:100%" onclick="resetAllData()">
-        <i class="ti ti-trash"></i> 데이터 전체 삭제
-      </button>
-      <div id="reset-status" style="font-size:11px;color:var(--text3);min-height:16px"></div>
     </div>
 
     <div class="group-header mt16">앱 정보</div>
