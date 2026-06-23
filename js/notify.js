@@ -211,7 +211,7 @@ function renderNotifySettings(el) {
     <div class="list-item" style="cursor:default">
       <div class="item-left">
         <div class="item-title">에이브릴팜 공방관리 시스템</div>
-        <div class="item-sub">v2.0 · 화장품제조업 제6494호 · 책임판매업 제18216호</div>
+        <div class="item-sub">V1.0 · 화장품제조업 제6494호 · 책임판매업 제18216호</div>
       </div>
     </div>
     <div class="list-item" style="cursor:default">
