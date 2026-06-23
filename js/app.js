@@ -175,7 +175,7 @@ async function renderManufacture(el) {
         </div>
         <div class="card-detail hide">
           ${drow('제조방법', prod.제조방법||b.제조방법||'-')}
-          ${drow('투입량', b.투입량+'g')}
+          ${drow('투입량', b.투입량 ? b.투입량+'g' : '-')}
           ${drow('이론수량 (표준서 기준)', prod.이론수량?prod.이론수량+'ea':'-')}
           ${drow('실제수량 (이번 배치)', b.실제수량?b.실제수량+'ea':'-')}
           ${drow('목표 중량 (표준서)', prod.목표중량||'90g ±5g')}
@@ -1728,10 +1728,53 @@ function parseKclFromLines(lines) {
   const joined = lines.join(' ');
   const joinedNoSp = joined.replace(/\s/g,'');
 
-  // 접수번호: SC, CT 등 — 공백 제거 후 검색
-  const kclNoMatch = joinedNoSp.match(/[A-Z]{1,3}\d{2,3}-\d{5,6}[A-Z]/i)
-    || joined.match(/성적서\s*번호\s*[:\s]*([A-Z0-9\-]{6,15})/i);
-  if (kclNoMatch) result.KCL = (kclNoMatch[1] || kclNoMatch[0]).toUpperCase().trim();
+  // 접수번호: SC 우선, CT 폴백 — 공백 제거 후 검색
+  const allKclNos = [...joinedNoSp.matchAll(/[A-Z]{1,3}\d{2,3}-\d{5,6}[A-Z]/gi)].map(m => m[0].toUpperCase());
+  const scNo = allKclNos.find(n => n.startsWith('SC'));
+  const ctNo = allKclNos.find(n => n.startsWith('CT'));
+  if (scNo) result.KCL = scNo;
+  else if (allKclNos.length) result.KCL = allKclNos[0];
+  if (ctNo && ctNo !== result.KCL) result.CT접수번호 = ctNo;
+
+  // docx 탭 구분 테이블에서 내용량/유리알칼리 파싱
+  for (const l of lines) {
+    if (!l.includes('\t')) continue;
+    const cells = l.split('\t').map(c => c.trim());
+    const noSp = l.replace(/\s/g,'');
+    // 내용량 행: "내용량 (건조)\t%\t97 이상\t103\t■ 적합"
+    if (/내용량/.test(noSp) && !/참고용/.test(l)) {
+      for (const c of cells) {
+        const num = c.replace(/\s/g,'').match(/^(\d{2,3}\.?\d*)$/);
+        if (num && +num[1] > 50 && +num[1] < 300) {
+          if (!result.KCL내용량) result.KCL내용량 = num[1];
+        }
+      }
+    }
+    // 유리알칼리 행: "유리알칼리\t%\t0.1 이하\t검출 안 됨\t■ 적합"
+    if (/유리알칼리/.test(noSp)) {
+      for (const c of cells) {
+        if (/검출\s*안\s*됨|불검출/.test(c)) {
+          if (!result.KCL유리알칼리) result.KCL유리알칼리 = '검출 안 됨';
+        }
+        const numM = c.replace(/\s/g,'').match(/^(0\.\d+|\d+\.?\d*)$/);
+        if (numM && +numM[1] < 1 && +numM[1] > 0) {
+          if (!result.KCL유리알칼리) result.KCL유리알칼리 = numM[1];
+        }
+      }
+    }
+    // 접수일/발행일 탭 구분: "접수일\t2024.10.22\t발행일\t2024.11.01"
+    for (let ci = 0; ci < cells.length; ci++) {
+      const cNoSp = cells[ci].replace(/\s/g,'');
+      if (/^접수일$|^접수연월일$/.test(cNoSp) && cells[ci+1]) {
+        const dm = cells[ci+1].match(/(\d{4})[.\-\/](\d{1,2})[.\-\/](\d{1,2})/);
+        if (dm && !result.KCL접수일) result.KCL접수일 = `${dm[1]}-${dm[2].padStart(2,'0')}-${dm[3].padStart(2,'0')}`;
+      }
+      if (/^발행일$|^발행일자$/.test(cNoSp) && cells[ci+1]) {
+        const dm = cells[ci+1].match(/(\d{4})[.\-\/](\d{1,2})[.\-\/](\d{1,2})/);
+        if (dm && !result.KCL발행일) result.KCL발행일 = `${dm[1]}-${dm[2].padStart(2,'0')}-${dm[3].padStart(2,'0')}`;
+      }
+    }
+  }
 
   // 발행번호: 9자리 숫자 (같은 줄에서 추출)
   const issueNoLine = lines.find(l => /발행\s*번호/.test(l));
@@ -1848,11 +1891,37 @@ async function parseDocumentText(name, text, fileName, el) {
   const productName  = rawProdName || fileName.replace(/^\d+[-_].*?[-_]/,'').replace(/\.[^.]+$/,'').replace(/[-_]/g,' ').trim();
   const docNoMatch   = fullText.match(/[AE]F-[A-Z]{2,3}-\d{3}/i);
   const docNo        = docNoMatch ? docNoMatch[0].toUpperCase().replace(/^EF-/,'AF-') : '';
-  const barcodeMatch = fullText.match(/87[0-9]{11}/);
+  // 바코드: 공백 포함 가능 "8 7 3 9 1 0 1 0 0 9 0 9 5"
+  const barcodeText = fullText.replace(/\s/g,'');
+  const barcodeMatch = barcodeText.match(/87[0-9]{11}/);
   const barcode      = barcodeMatch ? barcodeMatch[0] : '';
   const weightMatch  = fullText.match(/(\d+)\s*g\s*[±＋\-]\s*\d+\s*g/);
   const expiryMatch  = fullText.match(/제조일(?:로부터)?\s*(\d+)\s*년/);
+  // 알레르기: "※ ... 알레르기 유발성분" 또는 "알레르기: ..." 패턴
   const allergyMatch = fullText.match(/알레르기[^:：]*[:：]\s*([가-힣a-zA-Z,\s]+?)(?:\.|$)/);
+  // "※ 부틸페닐메틸프로피오날, 리날룰, 리모넨 (향료 유래) (향료 유래 알레르기 유발성분)" 형태
+  let parsedAllergy = allergyMatch ? allergyMatch[1].trim() : '';
+  if (!parsedAllergy) {
+    for (const l of lines) {
+      if (/알레르기\s*유발/.test(l) && /※/.test(l)) {
+        const m = l.match(/※\s*([가-힣a-zA-Z,\s·]+?)\s*\(향료/);
+        if (m) { parsedAllergy = m[1].replace(/,\s*/g, ', ').trim(); break; }
+      }
+    }
+  }
+  // 전성분 파싱: "전 성 분\t올리브오일, 정제수, ..."
+  let parsedIngredients = '';
+  for (const l of lines) {
+    const noSp = l.replace(/\s/g, '');
+    if (noSp.includes('전성분') && l.includes('\t')) {
+      const cells = l.split('\t').map(c => c.trim());
+      const labelIdx = cells.findIndex(c => /전\s*성\s*분/.test(c));
+      if (labelIdx !== -1 && cells[labelIdx + 1]) {
+        parsedIngredients = cells[labelIdx + 1].trim();
+        break;
+      }
+    }
+  }
   const recipe = parseRecipeFromLines(lines);
   const kclInfo = parseKclFromLines(lines);
 
@@ -1889,9 +1958,26 @@ async function parseDocumentText(name, text, fileName, el) {
   };
   parsedBaseWeight = findTabVal('기준투입량') || findTabVal('기준\\s*투입');
   parsedYield = findTabVal('이론수량') || findTabVal('이론\\s*수량');
+  // 합계행에서 기준투입량 파싱: "합 계\t\t1,205g"
+  if (!parsedBaseWeight) {
+    for (const l of lines) {
+      if (/합\s*계/.test(l) && l.includes('\t')) {
+        const m = l.match(/([0-9,]+\.?\d*)\s*g/);
+        if (m) { parsedBaseWeight = parseFloat(m[1].replace(/,/g,'')); break; }
+      }
+    }
+  }
   // 레시피 합계로 기준투입량 추정 (파싱 실패시)
   if (!parsedBaseWeight && recipe.length) {
-    parsedBaseWeight = recipe.reduce((s,r) => s + (r.이론량||0), 0);
+    parsedBaseWeight = Math.round(recipe.reduce((s,r) => s + (r.이론량||0), 0) * 100) / 100;
+  }
+  // 이론수량: "9ea" / "9개" 근처 "몰드" or "커팅" or "이론수량" / "배치 약 9ea"
+  if (!parsedYield) {
+    const flat = fullText.replace(/\s/g,'');
+    const yieldM = flat.match(/(?:배치약|배치당|이론수량|커팅)\s*(\d+)\s*(?:ea|개)/i)
+      || flat.match(/(\d+)\s*(?:ea|개)\s*$/m)
+      || fullText.match(/몰드\s*기준\s*(\d+)\s*개/);
+    if (yieldM) parsedYield = parseInt(yieldM[1]);
   }
 
   // 제조방법 파싱
@@ -1921,6 +2007,8 @@ async function parseDocumentText(name, text, fileName, el) {
         ...(parsedBaseWeight && {기준투입량: parsedBaseWeight}),
         ...(parsedYield && {이론수량: parsedYield}),
         ...(parsedMethod && {제조방법: parsedMethod}),
+        ...(parsedAllergy && {알레르기: parsedAllergy}),
+        ...(parsedIngredients && {전성분: parsedIngredients}),
         ...kclInfo,
       };
       await DB.put('products', updated);
@@ -1941,12 +2029,12 @@ async function parseDocumentText(name, text, fileName, el) {
         바코드: barcode,
         목표중량: weightMatch ? weightMatch[0] : '90g ±5g',
         유통기한: expiryMatch ? `제조일로부터 ${expiryMatch[1]}년` : '제조일로부터 2년',
-        알레르기: allergyMatch ? allergyMatch[1].trim() : '',
+        알레르기: parsedAllergy || '',
         제조방법: parsedMethod || 'CP법',
         기준투입량: parsedBaseWeight || 0,
         이론수량: parsedYield || 0,
         품질기준: {내용량:'97% 이상', 유리알칼리:'0.1% 이하'},
-        레시피: recipe, 전성분: '',
+        레시피: recipe, 전성분: parsedIngredients || '',
         보관방법: '직사광선 차단, 서늘하고 건조한 곳 보관',
         ...kclInfo,
       };
@@ -1972,6 +2060,50 @@ async function parseDocumentText(name, text, fileName, el) {
       return keyname && (pn.includes(keyname) || keyname.includes(pn));
     });
 
+    // 제조지시서에서 추가 필드 파싱
+    let batchMfgNo = '', batchMfgDate = '', batchInputWeight = 0;
+    if (isOrder) {
+      // 제조번호: "제조번호\tAPBO10001-D1354"
+      for (const l of lines) {
+        if (/제조번호/.test(l) && l.includes('\t') && !/형식|패턴/.test(l)) {
+          const cells = l.split('\t').map(c => c.trim());
+          for (let ci = 0; ci < cells.length; ci++) {
+            if (/제조번호/.test(cells[ci]) && cells[ci+1]) {
+              const v = cells[ci+1].trim();
+              if (v && !/제조연월일|사용기한/.test(v)) { batchMfgNo = v; break; }
+            }
+          }
+          if (batchMfgNo) break;
+        }
+      }
+      // 제조연월일: "제조연월일\t20251213" 
+      for (const l of lines) {
+        if (/제조연월일/.test(l) && l.includes('\t')) {
+          const cells = l.split('\t').map(c => c.trim());
+          for (let ci = 0; ci < cells.length; ci++) {
+            if (/제조연월일/.test(cells[ci]) && cells[ci+1]) {
+              const raw = cells[ci+1].replace(/\s/g,'');
+              // YYYYMMDD → YYYY-MM-DD
+              const m8 = raw.match(/^(20\d{2})(\d{2})(\d{2})$/);
+              if (m8) { batchMfgDate = `${m8[1]}-${m8[2]}-${m8[3]}`; break; }
+              // YYYY.MM.DD or YYYY-MM-DD
+              const mDot = raw.match(/(20\d{2})[.\-\/](\d{1,2})[.\-\/](\d{1,2})/);
+              if (mDot) { batchMfgDate = `${mDot[1]}-${mDot[2].padStart(2,'0')}-${mDot[3].padStart(2,'0')}`; break; }
+            }
+          }
+          if (batchMfgDate) break;
+        }
+      }
+      // 투입량(제조단위): "제조단위\t1,205g (800g 오일 배치)" or 합계행
+      for (const l of lines) {
+        if (/제조단위/.test(l) && l.includes('\t')) {
+          const m = l.match(/([0-9,]+\.?\d*)\s*g/);
+          if (m) { batchInputWeight = parseFloat(m[1].replace(/,/g,'')); break; }
+        }
+      }
+      if (!batchInputWeight && parsedBaseWeight) batchInputWeight = parsedBaseWeight;
+    }
+
     // 시험성적서에 KCL 정보가 있으면 제품표준서로 저장 (배치 아님)
     if (isTest && Object.keys(kclInfo).length) {
       const relProd = existingProdByName || (existingBatch && products.find(p=>p.id===existingBatch.productId));
@@ -1979,11 +2111,24 @@ async function parseDocumentText(name, text, fileName, el) {
         await DB.put('products', {...relProd, ...kclInfo});
       }
     }
+    // 시험성적서 docx에서 전성분/알레르기가 있으면 제품표준서에 반영
+    if (isTest && (parsedAllergy || parsedIngredients)) {
+      const relProd = existingProdByName || (existingBatch && products.find(p=>p.id===existingBatch.productId));
+      if (relProd) {
+        const upd = {...relProd};
+        if (parsedAllergy) upd.알레르기 = parsedAllergy;
+        if (parsedIngredients) upd.전성분 = parsedIngredients;
+        await DB.put('products', upd);
+      }
+    }
     // 레시피 정보가 있으면 제품표준서에 반영
     if (recipe.length) {
       const relProd = existingProdByName || (existingBatch && products.find(p=>p.id===existingBatch.productId));
       if (relProd) {
-        await DB.put('products', {...relProd, 레시피: recipe});
+        const upd = {...relProd, 레시피: recipe};
+        if (parsedBaseWeight && !relProd.기준투입량) upd.기준투입량 = parsedBaseWeight;
+        if (parsedYield && !relProd.이론수량) upd.이론수량 = parsedYield;
+        await DB.put('products', upd);
       }
     }
 
@@ -1991,14 +2136,31 @@ async function parseDocumentText(name, text, fileName, el) {
       const updated = {...existingBatch};
       if(docNo && isOrder) updated.문서번호 = docNo;
       if(barcode) updated.바코드 = barcode;
+      if(isOrder) {
+        if(batchMfgNo) updated.제조번호 = batchMfgNo;
+        if(batchMfgDate) updated.date = batchMfgDate;
+        if(batchInputWeight) updated.투입량 = batchInputWeight;
+        if(existingProdByName && existingProdByName.id) updated.productId = existingProdByName.id;
+      }
       await DB.put('batches', updated);
       const kclNote = Object.keys(kclInfo).length ? ' · KCL 정보 표준서에 반영됨' : '';
       const recNote = recipe.length ? ` · 레시피 ${recipe.length}종 반영됨` : '';
       el.innerHTML = `<span style="color:var(--teal-dark)">✅ <b>${existingBatch.제품명}</b> ${isTest?'시험성적서':'제조지시서'} 업데이트 완료${kclNote}${recNote}</span>`;
     } else if(productName || docNo) {
-      const newB = {제품명: productName||fileName.replace(/\.[^.]+$/,''), 문서번호: docNo, 바코드: barcode, 상태:'제조중'};
+      const newB = {
+        제품명: productName||fileName.replace(/\.[^.]+$/,''),
+        문서번호: docNo, 바코드: barcode, 상태:'제조중',
+        ...(isOrder && batchMfgNo && {제조번호: batchMfgNo}),
+        ...(isOrder && batchMfgDate && {date: batchMfgDate}),
+        ...(isOrder && batchInputWeight && {투입량: batchInputWeight}),
+        ...(existingProdByName && existingProdByName.id && {productId: existingProdByName.id}),
+      };
       await DB.add('batches', newB);
-      el.innerHTML = `<span style="color:var(--teal-dark)">✅ <b>${newB.제품명}</b> 배치 신규 등록 완료</span>`;
+      const notes = [];
+      if(batchMfgNo) notes.push('제조번호: '+batchMfgNo);
+      if(batchMfgDate) notes.push('제조일: '+batchMfgDate);
+      if(recipe.length) notes.push('레시피 '+recipe.length+'종');
+      el.innerHTML = `<span style="color:var(--teal-dark)">✅ <b>${newB.제품명}</b> 배치 신규 등록 완료${notes.length?' · '+notes.join(' · '):''}</span>`;
     } else {
       el.innerHTML = `<span style="color:var(--amber-text)">⚠️ 제품명을 찾을 수 없습니다.<br><span style="font-size:11px">파일명 또는 문서 제목에 "제품표준서"·"제조지시서"가 포함되어야 합니다.</span></span>`;
     }
