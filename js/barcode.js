@@ -50,12 +50,14 @@ async function loadBarcodesFromDB() {
     const stored = await DB.getAll('barcodes');
     if (stored && stored.length > 0) {
       _barcodeData = stored;
-    } else {
-      // DB 비어있으면 마스터 데이터로 시드
+    } else if (!localStorage.getItem('skip_seed')) {
+      // DB 비어있고 skip_seed 아닐 때만 마스터 데이터로 시드
       for (const item of BARCODE_MASTER) {
         await DB.add('barcodes', {...item});
       }
       _barcodeData = await DB.getAll('barcodes');
+    } else {
+      _barcodeData = [];
     }
   } catch(e) {
     console.warn('[barcode] DB 로드 실패, 인메모리 사용:', e);
