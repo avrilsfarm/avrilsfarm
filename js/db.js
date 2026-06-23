@@ -176,6 +176,7 @@ const productMasters = [
 ];
 
 async function seedIfEmpty() {
+  if(localStorage.getItem('skip_seed')) return;
   await openDB();
   const [exProd, exIng, exBat] = await Promise.all([
     getAll('products'), getAll('ingredients'), getAll('batches')
@@ -301,7 +302,6 @@ async function clearAll() {
     const st = _db.transaction(s,'readwrite').objectStore(s);
     await new Promise((res,rej) => { const r=st.clear(); r.onsuccess=res; r.onerror=rej; });
   }
-  await seedIfEmpty();
 }
 
 /* 기존 DB의 EF- 문서번호를 AF-로 일괄 변환 */
