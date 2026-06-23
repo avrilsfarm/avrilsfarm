@@ -1771,6 +1771,7 @@ async function parseDocumentText(name, text, fileName, el) {
   const isTest    = looksLike('시험성적') || name.includes('af-tr') || name.includes('-tr-');
   const isHygiene = looksLike('위생') || name.includes('-mh') || name.includes('r-mh');
   const isMmsRecord = name.includes('r-mms') || (name.includes('제조관리기준서') && name.includes('기록'));
+  const isBmsRecord = name.includes('r-bms') || looksLike('바코드관리대장') || looksLike('바코드관리') || (looksLike('바코드') && looksLike('관리대장'));
   const isQcmRecord = name.includes('r-qcm') || (name.includes('품질관리기준서') && name.includes('기록'));
   const isMhRecord  = (name.includes('r-mh') && !name.includes('r-mhs')) || (name.includes('제조위생관리기준서') && name.includes('기록'));
 
@@ -1887,6 +1888,68 @@ async function parseDocumentText(name, text, fileName, el) {
       el.innerHTML = `<span style="color:var(--amber-text)">⚠️ 제품명을 찾을 수 없습니다.<br><span style="font-size:11px">파일명 또는 문서 제목에 "제품표준서"·"제조지시서"가 포함되어야 합니다.</span></span>`;
     }
     await renderTab('manufacture');
+    return;
+  }
+
+
+  /* ── 바코드관리대장 (R-BMS) ── */
+  if(isBmsRecord) {
+    const bmsLines = fullText.split('\n').filter(l => l.replace(/\s/g,''));
+    const existing = await DB.getAll('barcodes');
+    const maxNo = existing.length > 0 ? Math.max(...existing.map(b => b.no || 0)) : 0;
+    let cnt = 0;
+
+    for (const line of bmsLines) {
+      const cells = line.split('\t').map(c => c.trim());
+      if (cells.length < 5) continue;
+      // 헤더/빈행 스킵
+      const noVal = cells[1];
+      if (!noVal || !/^\d+$/.test(noVal)) continue;
+      const pname = cells[2];
+      if (!pname || pname.length < 2) continue;
+      if (/No|제품명|바코드번호|체크|색상/.test(pname)) continue;
+
+      // 바코드번호 파싱: "8739/071/001/09" or "8739/ 071/ 001/ 09"
+      const bcRaw = (cells[4] || '').replace(/\s/g, '');
+      const bcMatch = bcRaw.match(/(\d{4})\/(\d{3})\/(\d{3})\/(\d{2})/);
+      let biz = '8739', sub = '000', seq = '001', qty = '09';
+      if (bcMatch) {
+        biz = bcMatch[1]; sub = bcMatch[2]; seq = bcMatch[3]; qty = bcMatch[4];
+      }
+
+      const chk = cells[5] ? parseInt(cells[5]) || 0 : 0;
+      const regDate = cells[7] || '';
+      const status = (cells[8] || '').trim() || '현행';
+      const mfgDate = cells[9] || '';
+      const mfgNo = cells[3] || '';
+      const notes = cells[10] || '';
+
+      // 중복 체크 (같은 이름이면 업데이트, 없으면 추가)
+      const dup = existing.find(b => b.name === pname);
+      const record = {
+        no: dup ? dup.no : (maxNo + cnt + 1),
+        name: pname, sub, seq, qty, chk,
+        mfgNo, mfgDate: mfgDate.replace(/\./g, '-').replace(/\s/g,''),
+        expiry: '제조일로부터 2년',
+        status: status === '단종' ? '단종' : '현행',
+        notes,
+        createdAt: regDate || new Date().toISOString()
+      };
+      if (biz !== '8739') record.biz = biz;
+
+      if (dup) {
+        if (dup.id) record.id = dup.id;
+        try { await DB.put('barcodes', record); } catch(e) {}
+      } else {
+        try { await DB.add('barcodes', record); cnt++; } catch(e) {}
+      }
+    }
+
+    const updCnt = existing.length;
+    el.innerHTML = cnt > 0 || updCnt > 0
+      ? `<span style="color:var(--teal-dark)">✅ 바코드관리대장 인식 — ${cnt}건 신규 등록${updCnt > 0 ? ', 기존 데이터 업데이트' : ''}<br><span style="font-size:11px">2초 후 바코드 탭으로 이동합니다.</span></span>`
+      : '<span style="color:var(--amber-text)">⚠️ 등록할 바코드를 찾지 못했습니다.</span>';
+    if (cnt > 0) setTimeout(() => renderTab('barcode'), 2000);
     return;
   }
 
