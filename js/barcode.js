@@ -61,7 +61,7 @@ async function loadBarcodesFromDB() {
     }
   } catch(e) {
     console.warn('[barcode] DB 로드 실패, 인메모리 사용:', e);
-    _barcodeData = [...BARCODE_MASTER];
+    _barcodeData = localStorage.getItem('skip_seed') ? [] : [...BARCODE_MASTER];
   }
 }
 
