@@ -958,26 +958,58 @@ async function cloudSave() {
   try {
     const data = await DB.exportAll();
     const content = btoa(unescape(encodeURIComponent(JSON.stringify(data, null, 2))));
-    // 기존 파일 SHA 조회
+    const apiUrl = 'https://api.github.com/repos/avrilsfarm/avrilsfarm/contents/sync-data.json';
+    const authHeaders = {'Authorization': `token ${token}`, 'Accept': 'application/vnd.github.v3+json'};
+
+    // 기존 파일 SHA 조회 (캐시 우회)
     let sha = '';
-    const existing = await fetch('https://api.github.com/repos/avrilsfarm/avrilsfarm/contents/sync-data.json', {
-      headers: {'Authorization': `token ${token}`, 'Accept': 'application/vnd.github.v3+json'}
-    });
-    if(existing.ok) { const d = await existing.json(); sha = d.sha; }
-    // 파일 업데이트
-    const res = await fetch('https://api.github.com/repos/avrilsfarm/avrilsfarm/contents/sync-data.json', {
+    try {
+      const existing = await fetch(apiUrl + '?t=' + Date.now(), { headers: authHeaders });
+      if(existing.ok) {
+        const d = await existing.json();
+        sha = d.sha;
+      } else if(existing.status === 401 || existing.status === 403) {
+        if(st) st.innerHTML = '<span style="color:var(--red-text)">❌ GitHub 토큰이 만료되었거나 권한이 없습니다. 알림·설정에서 토큰을 다시 입력해주세요.</span>';
+        return;
+      }
+      // 404 = 새 파일, sha 없이 진행
+    } catch(shaErr) {
+      console.warn('SHA 조회 실패, 새 파일로 시도:', shaErr);
+    }
+
+    // 파일 업데이트/생성
+    const body = { message: '데이터 동기화 ' + new Date().toLocaleString('ko'), content };
+    if(sha) body.sha = sha;
+    const res = await fetch(apiUrl, {
       method: 'PUT',
-      headers: {'Authorization': `token ${token}`, 'Content-Type': 'application/json'},
-      body: JSON.stringify({
-        message: `데이터 동기화 ${new Date().toLocaleString('ko')}`,
-        content,
-        ...(sha ? {sha} : {})
-      })
+      headers: {'Authorization': `token ${token}`, 'Content-Type': 'application/json', 'Accept': 'application/vnd.github.v3+json'},
+      body: JSON.stringify(body)
     });
     if(res.ok) {
       if(st) st.innerHTML = '<span style="color:var(--teal-dark)">✅ 클라우드 저장 완료 — 모바일에서 불러오기 하세요</span>';
     } else {
       const err = await res.json();
+      // SHA 충돌이면 한 번 더 재시도
+      if(err.message && err.message.includes('sha') && !sha) {
+        if(st) st.textContent = '⏳ 재시도 중...';
+        const retry = await fetch(apiUrl + '?t=' + Date.now(), { headers: authHeaders });
+        if(retry.ok) {
+          const rd = await retry.json();
+          body.sha = rd.sha;
+          const res2 = await fetch(apiUrl, {
+            method: 'PUT',
+            headers: {'Authorization': `token ${token}`, 'Content-Type': 'application/json', 'Accept': 'application/vnd.github.v3+json'},
+            body: JSON.stringify(body)
+          });
+          if(res2.ok) {
+            if(st) st.innerHTML = '<span style="color:var(--teal-dark)">✅ 클라우드 저장 완료 — 모바일에서 불러오기 하세요</span>';
+            return;
+          }
+          const err2 = await res2.json();
+          if(st) st.innerHTML = `<span style="color:var(--red-text)">❌ 저장 실패: ${err2.message}</span>`;
+          return;
+        }
+      }
       if(st) st.innerHTML = `<span style="color:var(--red-text)">❌ 저장 실패: ${err.message}</span>`;
     }
   } catch(e) {
