@@ -176,7 +176,7 @@ const productMasters = [
 ];
 
 async function seedIfEmpty() {
-  if(localStorage.getItem('skip_seed')) return;
+  return; // 시드 데이터 비활성화
   await openDB();
   const [exProd, exIng, exBat] = await Promise.all([
     getAll('products'), getAll('ingredients'), getAll('batches')
