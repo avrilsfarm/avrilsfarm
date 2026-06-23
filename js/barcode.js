@@ -43,7 +43,7 @@ const BARCODE_MASTER = [
 ];
 
 /* ── DB 동기화 ── */
-let _barcodeData = [...BARCODE_MASTER]; // 런타임 데이터 (DB 로드 후 교체)
+let _barcodeData = []; // 런타임 데이터 (DB 로드 후 교체)
 
 async function loadBarcodesFromDB() {
   try {
