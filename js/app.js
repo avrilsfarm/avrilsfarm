@@ -1631,7 +1631,48 @@ function parseRecipeFromLines(lines) {
   const hdrIdx = lines.findIndex(l => /원\s*료\s*명/.test(l));
   if (hdrIdx === -1) return [];
 
-  // 첫 데이터 행(No=1)과 두번째 데이터 행(No=2) 위치를 찾아 컬럼 수 계산
+  const recipe = [];
+
+  // 방법 A: docx 탭 구분 — 헤더행과 데이터행이 탭으로 구분된 한 줄
+  const hdrLine = lines[hdrIdx];
+  if (hdrLine.includes('\t')) {
+    for (let i = hdrIdx + 1; i < lines.length; i++) {
+      const line = lines[i];
+      if (!line.includes('\t')) continue;
+      const cells = line.split('\t').map(c => c.trim());
+      // 첫 셀이 숫자(No)인 행만 파싱
+      const noVal = cells[0].replace(/\s/g, '');
+      if (!/^\d+$/.test(noVal)) {
+        // 합계행 등 도달 시 중단
+        if (/합\s*계/.test(line)) break;
+        continue;
+      }
+      const 원료명 = (cells[1] || '').trim();
+      if (!원료명 || 원료명.length < 1) continue;
+      // INCI는 영문 포함 셀, 이론량/비율은 숫자 셀
+      let INCI = '', 이론량raw = '', 비율raw = '';
+      // 컬럼 순서: No, 원료명, INCI명, 이론량, 비율 (5컬럼)
+      // 또는: No, 원료명, 이론량, 비율 (4컬럼)
+      if (cells.length >= 5 && /[a-zA-Z]/.test(cells[2] || '')) {
+        INCI = cells[2].trim();
+        이론량raw = (cells[3] || '').replace(/[^0-9.]/g, '');
+        비율raw = (cells[4] || '').replace(/[^0-9.]/g, '');
+      } else if (cells.length >= 4) {
+        이론량raw = (cells[2] || '').replace(/[^0-9.]/g, '');
+        비율raw = (cells[3] || '').replace(/[^0-9.]/g, '');
+      }
+      if (원료명 && 이론량raw) {
+        recipe.push({
+          원료명, INCI,
+          이론량: parseFloat(이론량raw) || 0,
+          비율: parseFloat(비율raw) || 0,
+        });
+      }
+    }
+    if (recipe.length) return recipe;
+  }
+
+  // 방법 B: PDF 텍스트 — 각 셀이 개별 줄 (기존 로직)
   let dataStart = -1, secondStart = -1;
   for (let i = hdrIdx; i < lines.length; i++) {
     if (lines[i] === '1') { dataStart = i; break; }
@@ -1643,28 +1684,19 @@ function parseRecipeFromLines(lines) {
   const cols = secondStart > dataStart ? (secondStart - dataStart) : 5;
   if (cols < 4) return [];
 
-  const recipe = [];
-  let row = 1;
-  let pos = dataStart;
+  let row = 1, pos = dataStart;
   while (pos < lines.length) {
     const slice = lines.slice(pos, pos + cols);
     if (slice.length < 4) break;
-    const noVal = slice[0];
-    if (noVal !== String(row)) break; // 합계행 등 도달 시 중단
+    if (slice[0] !== String(row)) break;
     const 원료명 = slice[1] || '';
     const INCI = /[a-zA-Z]/.test(slice[2] || '') ? slice[2] : '';
     const 이론량raw = (slice[3] || '').replace(/[^0-9.]/g, '');
     const 비율raw = (slice[4] || '').replace(/[^0-9.]/g, '');
     if (원료명 && 이론량raw) {
-      recipe.push({
-        원료명,
-        INCI,
-        이론량: parseFloat(이론량raw) || 0,
-        비율: parseFloat(비율raw) || 0,
-      });
+      recipe.push({ 원료명, INCI, 이론량: parseFloat(이론량raw)||0, 비율: parseFloat(비율raw)||0 });
     }
-    row++;
-    pos += cols;
+    row++; pos += cols;
   }
   return recipe;
 }
@@ -1809,7 +1841,10 @@ async function parseDocumentText(name, text, fileName, el) {
 
   // 공통 정보 추출
   const productMatch = fullText.match(/에이브릴팜\s*([가-힣a-zA-Z\s]{1,20}?(?:비누|솝|크림|로션|오일|밤|버터))/);
-  const rawProdName  = productMatch ? productMatch[0].replace(/제\s*품\s*명\s*/,'').trim() : '';
+  let rawProdName  = productMatch ? productMatch[0].replace(/제\s*품\s*명\s*/,'').trim() : '';
+  // 제목("에이브릴팜 제품표준서 에이브릴팜 당근비누")에서 문서종류 + 중복 사명 제거
+  rawProdName = rawProdName.replace(/제품표준서|제조지시서|시험성적서|품질관리/g,'').replace(/에이브릴팜/g,'').replace(/^\s+/,'');
+  rawProdName = rawProdName.trim() ? '에이브릴팜 ' + rawProdName.trim() : '';
   const productName  = rawProdName || fileName.replace(/^\d+[-_].*?[-_]/,'').replace(/\.[^.]+$/,'').replace(/[-_]/g,' ').trim();
   const docNoMatch   = fullText.match(/[AE]F-[A-Z]{2,3}-\d{3}/i);
   const docNo        = docNoMatch ? docNoMatch[0].toUpperCase().replace(/^EF-/,'AF-') : '';
@@ -1820,6 +1855,49 @@ async function parseDocumentText(name, text, fileName, el) {
   const allergyMatch = fullText.match(/알레르기[^:：]*[:：]\s*([가-힣a-zA-Z,\s]+?)(?:\.|$)/);
   const recipe = parseRecipeFromLines(lines);
   const kclInfo = parseKclFromLines(lines);
+
+  // 기준투입량 / 이론수량 파싱 (탭 구분 테이블에서)
+  let parsedBaseWeight = 0, parsedYield = 0;
+  const findTabVal = (label) => {
+    const re = new RegExp(label.replace(/\s/g,'\\s*'));
+    for (const l of lines) {
+      if (!l.includes('\t')) continue;
+      const cells = l.split('\t').map(c => c.trim());
+      for (let ci = 0; ci < cells.length; ci++) {
+        if (re.test(cells[ci].replace(/\s/g,''))) {
+          // 다음 셀에서 숫자 추출
+          const next = (cells[ci+1]||'').replace(/[^0-9.]/g,'');
+          if (next) return parseFloat(next);
+          // 같은 셀 내 숫자 추출
+          const m = cells[ci].match(/(\d+\.?\d*)/);
+          if (m) return parseFloat(m[1]);
+        }
+      }
+    }
+    // 줄 기반 폴백 (PDF 텍스트)
+    for (let i = 0; i < lines.length; i++) {
+      if (re.test(lines[i].replace(/\s/g,''))) {
+        const m = lines[i].match(/(\d+\.?\d*)/);
+        if (m) return parseFloat(m[1]);
+        if (i+1 < lines.length) {
+          const m2 = lines[i+1].match(/(\d+\.?\d*)/);
+          if (m2) return parseFloat(m2[1]);
+        }
+      }
+    }
+    return 0;
+  };
+  parsedBaseWeight = findTabVal('기준투입량') || findTabVal('기준\\s*투입');
+  parsedYield = findTabVal('이론수량') || findTabVal('이론\\s*수량');
+  // 레시피 합계로 기준투입량 추정 (파싱 실패시)
+  if (!parsedBaseWeight && recipe.length) {
+    parsedBaseWeight = recipe.reduce((s,r) => s + (r.이론량||0), 0);
+  }
+
+  // 제조방법 파싱
+  let parsedMethod = '';
+  const methodMatch = fullText.match(/(CP법|HP법|MP법|액체법|리배칭|M&P|핫프로세스|콜드프로세스)/i);
+  if (methodMatch) parsedMethod = methodMatch[1];
 
   /* ── 제품표준서 → products 스토어 ── */
   if(isStd) {
@@ -1840,6 +1918,9 @@ async function parseDocumentText(name, text, fileName, el) {
         ...(expiryMatch && {유통기한: `제조일로부터 ${expiryMatch[1]}년`}),
         ...(allergyMatch && {알레르기: allergyMatch[1].trim()}),
         ...(recipe.length && {레시피: recipe}),
+        ...(parsedBaseWeight && {기준투입량: parsedBaseWeight}),
+        ...(parsedYield && {이론수량: parsedYield}),
+        ...(parsedMethod && {제조방법: parsedMethod}),
         ...kclInfo,
       };
       await DB.put('products', updated);
@@ -1861,7 +1942,9 @@ async function parseDocumentText(name, text, fileName, el) {
         목표중량: weightMatch ? weightMatch[0] : '90g ±5g',
         유통기한: expiryMatch ? `제조일로부터 ${expiryMatch[1]}년` : '제조일로부터 2년',
         알레르기: allergyMatch ? allergyMatch[1].trim() : '',
-        제조방법: 'CP법',
+        제조방법: parsedMethod || 'CP법',
+        기준투입량: parsedBaseWeight || 0,
+        이론수량: parsedYield || 0,
         품질기준: {내용량:'97% 이상', 유리알칼리:'0.1% 이하'},
         레시피: recipe, 전성분: '',
         보관방법: '직사광선 차단, 서늘하고 건조한 곳 보관',
