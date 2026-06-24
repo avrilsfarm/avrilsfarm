@@ -2391,20 +2391,46 @@ async function parseDocumentText(name, text, fileName, el) {
 
         // 행에서 원료명 매칭 (DB에 등록된 원료명 중 포함된 것 찾기)
         const matched = allIng.find(ing => ing.원료명 && line.includes(ing.원료명));
+        // 탭 분리 셀에서 CoA/판정 체크박스 파싱
+        const mCells = line.split('\t').map(c => c.trim());
+        const parseCheck = (cell, yesKw, noKw) => {
+          if (!cell) return '';
+          if (cell.includes('■'+yesKw)) return yesKw;
+          if (cell.includes('■'+noKw)) return noKw;
+          return ''; // □만 있으면 미기입
+        };
+        // 셀 구조: [입고일, 원료명, 제조처, 수량, 포장, CoA, 성상, 이물, 색상, 판정, 확인자]
+        // 날짜 없는 행은 셀이 한 칸 밀림: [원료명, 제조처, 수량, ...]
+        const hasDateCell = /^\d{6}$|^20\d{2}/.test(mCells[0]);
+        const offset = hasDateCell ? 0 : -1;
+        const coaCell = mCells[5 + offset] || '';
+        const judgCell = mCells[9 + offset] || '';
+        const coaVal = parseCheck(coaCell, '수취', '미수취') || '미기입';
+        const judgVal = parseCheck(judgCell, '적합', '부적합') || '미기입';
+        const mfrCell = mCells[2 + offset] || '';
+        const qtyCell = mCells[3 + offset] || '';
+
         if (matched) {
-          if (lineDate) await DB.put('ingredients', {...matched, 입고일: lineDate});
+          const upd = {...matched};
+          if (lineDate) upd.입고일 = lineDate;
+          if (mfrCell && !upd.제조처) upd.제조처 = mfrCell;
+          if (qtyCell && !upd.수량) upd.수량 = qtyCell;
+          upd.CoA = coaVal;
+          upd.판정 = judgVal;
+          await DB.put('ingredients', upd);
           ingCnt++;
         } else {
-          // DB에 없는 원료: 탭으로 분리된 셀에서 원료명 추출 (2번째 셀)
-          const cells = line.split('\t').map(c => c.trim());
-          if (cells.length >= 3) {
-            const ingName = cells[2]; // 3번째 셀 = 원료명 (cells[0]=빈칸, [1]=입고일, [2]=원료명)
-            if (ingName && ingName.length >= 2 && !/^[■□]/.test(ingName) && !/입고일|원료명|확인자|판정|제정일자|개정번호|작성자|관리구분|변민정|^※/.test(ingName)) {
-              const mfr = cells[3] || '';
-              const qty = cells[4] || '';
-              await DB.add('ingredients', {원료명: ingName, 제조처: mfr, 수량: qty, 입고일: lineDate, category:'기타', CoA:'미수취', 판정:'미기입', createdAt: new Date().toISOString()});
-              ingCnt++;
-            }
+          // DB에 없는 원료: 셀에서 원료명 추출
+          const ingNameIdx = 1 + offset;
+          const ingName = mCells[ingNameIdx >= 0 ? ingNameIdx : 0] || '';
+          if (ingName && ingName.length >= 2 && !/^[■□]/.test(ingName) && !/입고일|원료명|확인자|판정|제정일자|개정번호|작성자|관리구분|변민정|^※/.test(ingName)) {
+            await DB.add('ingredients', {
+              원료명: ingName, 제조처: mfrCell, 수량: qtyCell,
+              입고일: lineDate, category:'기타',
+              CoA: coaVal, 판정: judgVal,
+              createdAt: new Date().toISOString()
+            });
+            ingCnt++;
           }
         }
       }
@@ -2430,47 +2456,72 @@ async function parseDocumentText(name, text, fileName, el) {
         el.innerHTML = `<span style="color:var(--amber-text)">⚠️ 제조관리기준서 기록서 인식됨 — 날짜를 찾지 못했습니다. 원료 재고 탭에서 직접 입력해주세요.</span>`;
       }
     } else if(isMhRecord) {
-      // R-MH-01(청소점검)과 R-MH-02(방충방서) 구간을 나눠서 처리. 두 구간 모두
-      // YYMMDD 6자리를 1순위로 찾고, 못 찾으면 예전 방식(M.DD / N월)을 보조로 시도.
-      const splitIdx = bodyText.search(/■\s*R-MH-02|(?:^|\n)[^\n]*R-MH-02/);
-      const section1 = splitIdx === -1 ? bodyText : bodyText.slice(0, splitIdx);
-      const section2 = splitIdx === -1 ? '' : bodyText.slice(splitIdx);
+      // R-MH-01(청소점검)과 R-MH-02(방충방서) 행 단위 파싱
+      // ■청결이 있으면 완료, □만 있으면 미완료/건너뜀
+      const mhLines = bodyText.split('\n').filter(l => l.trim());
+      const splitIdx = mhLines.findIndex(l => /R-MH-02|방충.*방서.*점검표/.test(l));
+      const cleanLines = splitIdx === -1 ? mhLines : mhLines.slice(0, splitIdx);
+      const pestLines = splitIdx === -1 ? [] : mhLines.slice(splitIdx);
 
-      let cleanDates = extractYmd6(section1);
-      if (!cleanDates.length) {
-        // 보조: "M.DD" — "2026.05.27"처럼 전체 날짜의 일부(연.월)인 경우는 제외
-        const dayMatches = [...section1.matchAll(/(?<!\d{4}\.)\b(\d{1,2})\.(\d{1,2})\b/g)]
-          .map(m => ({mo:+m[1], d:+m[2]}))
-          .filter(x => x.mo >= 1 && x.mo <= 12 && x.d >= 1 && x.d <= 31);
-        cleanDates = [...new Set(dayMatches.map(x => `${baseYear}-${String(x.mo).padStart(2,'0')}-${String(x.d).padStart(2,'0')}`))];
-      }
-
-      let pestDates = extractYmd6(section2);
-      if (!pestDates.length) {
-        // 보조: "N월" — 방충방서 월간 점검표 (일자 없음). 한글 문자는 JS \b로 인식되지 않으므로
-        // 앞쪽만 숫자 경계로 확인하고 뒤쪽은 리터럴 '월'로 충분히 구분한다.
-        const now = new Date();
-        const curYear = now.getFullYear();
-        const curMonth = now.getMonth() + 1;
-        const monthMatches = [...section2.matchAll(/(?<!\d)(\d{1,2})\s*월(?!\d)/g)]
-          .map(m => +m[1]).filter(mo => mo >= 1 && mo <= 12)
-          .filter(mo => +baseYear < curYear || (+baseYear === curYear && mo <= curMonth));
-        pestDates = [...new Set(monthMatches)].map(mo => `${baseYear}-${String(mo).padStart(2,'0')}-01`);
-      }
-
+      // 청소점검: 행별로 날짜 + ■ 체크 여부 확인
       let cnt = 0;
-      for(const d of cleanDates.slice(0, 60)) {
+      for (const line of cleanLines) {
+        if (/날짜|확인자.*원료|^\s*$/.test(line)) continue; // 헤더 스킵
+        // 날짜 추출
+        let lineDate = '';
+        const fm = line.match(/(20\d{2})[.\-\/](\d{1,2})[.\-\/](\d{1,2})/);
+        if (fm) {
+          lineDate = `${fm[1]}-${String(+fm[2]).padStart(2,'0')}-${String(+fm[3]).padStart(2,'0')}`;
+        } else {
+          const ym = line.match(/(?:^|[^\d])(\d{2})(\d{2})(\d{2})(?=[^\d]|$)/);
+          if (ym) {
+            const yy=+ym[1], mo=+ym[2], d=+ym[3];
+            if (yy>=20 && yy<=40 && mo>=1 && mo<=12 && d>=1 && d<=31) {
+              lineDate = `20${String(yy).padStart(2,'0')}-${String(mo).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+            }
+          }
+        }
+        if (!lineDate) continue;
+
+        // ■청결이 1개라도 있으면 완료, 전부 □이면 미완료(스킵)
+        const hasChecked = /■청결|■양호/.test(line);
+        if (!hasChecked) continue;
+
+        // 각 항목의 상태 파싱
+        const cells = line.split('\t').map(c => c.trim());
+        const items = {};
+        const labels = ['원료보관','부자재','완제품','작업대','도구류','포장실'];
+        for (let ci = 2; ci < Math.min(cells.length, 8); ci++) {
+          const val = /■청결/.test(cells[ci]) ? '청결' : /■불량/.test(cells[ci]) ? '불량' : '';
+          if (val && labels[ci-2]) items[labels[ci-2]] = val;
+        }
+        const 확인자 = cells[1] || '변민정';
+
         try {
-          await DB.add('hygiene', {date: d, type:'청소점검', 확인자:'변민정', status:'완료',
-            items:{원료보관:'청결',부자재:'청결',완제품:'청결',작업대:'청결',도구류:'청결',포장실:'청결'}});
+          await DB.add('hygiene', {date: lineDate, type:'청소점검', 확인자, status:'완료', items});
           cnt++;
         } catch(e) {}
       }
+
+      // 방충방서: 월 단위 파싱 — ■양호/■없음 있으면 완료
       let pestCnt = 0;
-      for(const d of pestDates.slice(0, 12)) {
+      const now = new Date();
+      for (const line of pestLines) {
+        if (/점검월|확인자|방충망|^\s*$/.test(line) && /확인자/.test(line)) continue;
+        const moM = line.match(/(\d{1,2})\s*월/);
+        if (!moM) continue;
+        const mo = +moM[1];
+        if (mo < 1 || mo > 12) continue;
+        // ■양호 있으면 완료
+        if (!/■양호|■없음/.test(line)) continue;
+        const d = `${baseYear}-${String(mo).padStart(2,'0')}-01`;
+        const cells = line.split('\t').map(c => c.trim());
         try {
-          await DB.add('hygiene', {date: d, type:'방충방서', 확인자:'변민정', status:'완료',
-            방충망:'양호', 해충:'없음', 설치류:'없음'});
+          await DB.add('hygiene', {date: d, type:'방충방서', 확인자: cells[1]||'변민정', status:'완료',
+            방충망: /■양호/.test(line)?'양호':'불량',
+            해충: /■없음/.test(cells[3]||'')?'없음':'있음',
+            설치류: /■없음/.test(cells[4]||'')?'없음':'있음',
+            조치: cells[5]||''});
           pestCnt++;
         } catch(e) {}
       }
