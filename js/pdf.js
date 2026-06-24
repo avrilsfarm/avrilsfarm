@@ -399,6 +399,7 @@ function buildMI(batch, products){
 
   const revNo = batch.개정번호 || prod.개정번호 || 'Rev.01';
   const estDate = batch.제정일자 || prod.제정일자 || batch.date || '';
+  const processSteps = batch.공정?.length ? batch.공정 : (prod.공정||[]);
 
   return hd('제조지시서','Manufacturing Instruction · '+batch.제품명, batch.문서번호||'AF-MI-00X',revNo,estDate) + `
   <div class="sign"><div class="sign-box"><div class="sign-lbl">총괄책임자(제조관리담당자)</div>${CO.owner} (인)</div></div>
@@ -434,14 +435,15 @@ function buildMI(batch, products){
   <table>
     <thead><tr><th>단계</th><th>공정명</th><th>작업 내용</th><th>관리기준</th><th>이론생산량</th><th>확인</th></tr></thead>
     <tbody>
+      ${processSteps.length ? processSteps.map(s=>`<tr><td class="c">${s.단계}</td><td>${s.공정명}</td><td>${s.작업내용}</td><td>${s.관리기준||''}</td><td class="r">${s.이론생산량||''}</td><td class="c">□</td></tr>`).join('') : `
       <tr><td class="c">1</td><td>칭량</td><td>원료를 제조지시서 기준량에 따라 전자저울로 계량 (±1% 이내)</td><td>±1% 이내</td><td class="r">800g</td><td class="c">□</td></tr>
-      <tr><td class="c">2</td><td>소다수</td><td>정제수에 소듐하이드록사이드 천천히 용해 → 실온 냉각 (내화학성 장갑·고글·마스크 착용 필수)</td><td>실온 25~35°C</td><td class="r">329g</td><td class="c">□</td></tr>
-      <tr><td class="c">3</td><td>혼합</td><td>오일류(코코넛+팜+올리브+시어버터+피마자) 계량 혼합 후 소다수와 27~30°C에서 혼합 / 스틱블렌더 1분씩 2~3회</td><td>27~30°C</td><td class="r">1,129g</td><td class="c">□</td></tr>
-      <tr><td class="c">4</td><td>첨가물</td><td>트레이스 이후 첨가물(당근추출물·카로틴오일·나이아신아마이드·아나토) 후첨 교반</td><td>트레이스 이후</td><td class="r">52g</td><td class="c">□</td></tr>
-      <tr><td class="c">5</td><td>향료</td><td>향료(라임바질 22.8g + 당근씨오일 1.2g) 혼합 후 몰드 투입</td><td>—</td><td class="r">24g</td><td class="c">□</td></tr>
+      <tr><td class="c">2</td><td>소다수</td><td>정제수에 소듐하이드록사이드 천천히 용해 → 실온 냉각</td><td>실온 25~35°C</td><td class="r">329g</td><td class="c">□</td></tr>
+      <tr><td class="c">3</td><td>혼합</td><td>오일류 계량 혼합 후 소다수와 27~30°C에서 혼합</td><td>27~30°C</td><td class="r">1,129g</td><td class="c">□</td></tr>
+      <tr><td class="c">4</td><td>첨가물</td><td>트레이스 이후 첨가물 후첨 교반</td><td>트레이스 이후</td><td class="r">52g</td><td class="c">□</td></tr>
+      <tr><td class="c">5</td><td>향료</td><td>향료 혼합 후 몰드 투입</td><td>—</td><td class="r">24g</td><td class="c">□</td></tr>
       <tr><td class="c">6</td><td>보온·탈형</td><td>24시간 보온 후 탈형</td><td>24시간</td><td></td><td class="c">□</td></tr>
       <tr><td class="c">7</td><td>건조</td><td>통풍이 잘 되는 곳에서 건조</td><td>최소 2주</td><td></td><td class="c">□</td></tr>
-      <tr><td class="c">8</td><td>커팅·포장</td><td>1kg 몰드 기준 ${iTheory}개 커팅 → 외관 검사(성상·색상·이물·중량) → 포장·출하</td><td>${mw}</td><td class="r">${iTheory}ea</td><td class="c">□</td></tr>
+      <tr><td class="c">8</td><td>커팅·포장</td><td>1kg 몰드 기준 ${iTheory}개 커팅 → 외관 검사 → 포장·출하</td><td>${mw}</td><td class="r">${iTheory}ea</td><td class="c">□</td></tr>`}
     </tbody>
   </table>
 

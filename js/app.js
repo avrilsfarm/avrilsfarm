@@ -1963,7 +1963,21 @@ async function parseDocumentText(name, text, fileName, el) {
     return 0;
   };
   parsedBaseWeight = findTabVal('기준투입량') || findTabVal('기준\\s*투입');
-  parsedYield = findTabVal('이론수량') || findTabVal('이론\\s*수량');
+  // parsedYield: findTabVal은 "1kg 기준 9개"를 "199"로 합침 → 전용 파서 사용
+  for (const l of lines) {
+    if (!/이론수량|이론\s*수량/.test(l.replace(/\s/g,''))) continue;
+    if (!l.includes('\t')) continue;
+    const cells = l.split('\t').map(c => c.trim());
+    for (let ci = 0; ci < cells.length; ci++) {
+      if (/이론\s*수량/.test(cells[ci])) {
+        const val = cells[ci+1] || '';
+        // "1kg 몰드 기준 9개 / 배치 약 9ea" → 9
+        const eaM = val.match(/(\d+)\s*(?:ea|개)/i);
+        if (eaM) { parsedYield = parseInt(eaM[1]); break; }
+      }
+    }
+    if (parsedYield) break;
+  }
   // 합계행에서 기준투입량 파싱: "합 계\t\t1,205g"
   if (!parsedBaseWeight) {
     for (const l of lines) {
@@ -1990,6 +2004,36 @@ async function parseDocumentText(name, text, fileName, el) {
   let parsedMethod = '';
   const methodMatch = fullText.match(/(CP법|HP법|MP법|액체법|리배칭|M&P|핫프로세스|콜드프로세스)/i);
   if (methodMatch) parsedMethod = methodMatch[1];
+  // CP법이 텍스트에 없으면 "Cold Process" 등에서 추출
+  if (!parsedMethod) {
+    const cpM = fullText.match(/Cold\s*Process/i);
+    if (cpM) parsedMethod = 'CP법';
+    const hpM = fullText.match(/Hot\s*Process/i);
+    if (hpM) parsedMethod = 'HP법';
+  }
+
+  // 공정별 작업내용 파싱 (단계|공정명|작업내용|관리기준|이론생산량)
+  const parsedProcessSteps = [];
+  let inProcess = false;
+  for (const l of lines) {
+    if (/공정별\s*작업\s*내용/.test(l.replace(/\s/g,''))) { inProcess = true; continue; }
+    if (inProcess && /수율|수\s*율|이상\s*발생/.test(l.replace(/\s/g,''))) break;
+    if (!inProcess) continue;
+    if (!l.includes('\t')) continue;
+    const cells = l.split('\t').map(c => c.trim());
+    // 헤더행 스킵 (단계, 공정명 등)
+    if (cells[0] && /^단계$|^No$/.test(cells[0])) continue;
+    // 숫자로 시작하는 행 = 공정 단계
+    const stepNo = parseInt(cells[0]);
+    if (!stepNo || isNaN(stepNo)) continue;
+    parsedProcessSteps.push({
+      단계: stepNo,
+      공정명: cells[1] || '',
+      작업내용: cells[2] || '',
+      관리기준: cells[3] || '',
+      이론생산량: cells[4] || '',
+    });
+  }
 
   // 제정일자 / 개정번호 파싱 (첫 줄 헤더: "...\t제정일자: 2024-12-01\t개정번호: Rev.01\t...")
   let parsedEstDate = '', parsedRevNo = '';
@@ -2029,6 +2073,7 @@ async function parseDocumentText(name, text, fileName, el) {
         ...(parsedIngredients && {전성분: parsedIngredients}),
         ...(parsedEstDate && {제정일자: parsedEstDate}),
         ...(parsedRevNo && {개정번호: parsedRevNo}),
+        ...(parsedProcessSteps.length && {공정: parsedProcessSteps}),
         ...kclInfo,
       };
       await DB.put('products', updated);
@@ -2171,6 +2216,7 @@ async function parseDocumentText(name, text, fileName, el) {
         레시피: recipe, 품질기준: {내용량:'97% 이상', 유리알칼리:'0.1% 이하'},
         보관방법: '직사광선 차단, 서늘하고 건조한 곳 보관',
         제정일자: parsedEstDate || '', 개정번호: parsedRevNo || '',
+        공정: parsedProcessSteps,
       };
       const addedId = await DB.add('products', autoProd);
       // 다시 조회하여 id 획득
@@ -2193,6 +2239,7 @@ async function parseDocumentText(name, text, fileName, el) {
         if(existingProdByName && existingProdByName.id) updated.productId = existingProdByName.id;
         if(parsedEstDate) updated.제정일자 = parsedEstDate;
         if(parsedRevNo) updated.개정번호 = parsedRevNo;
+        if(parsedProcessSteps.length) updated.공정 = parsedProcessSteps;
       }
       await DB.put('batches', updated);
       const kclNote = Object.keys(kclInfo).length ? ' · KCL 정보 표준서에 반영됨' : '';
@@ -2208,6 +2255,7 @@ async function parseDocumentText(name, text, fileName, el) {
         ...(existingProdByName && existingProdByName.id && {productId: existingProdByName.id}),
         ...(isOrder && parsedEstDate && {제정일자: parsedEstDate}),
         ...(isOrder && parsedRevNo && {개정번호: parsedRevNo}),
+        ...(parsedProcessSteps.length && {공정: parsedProcessSteps}),
       };
       await DB.add('batches', newB);
       const notes = [];
