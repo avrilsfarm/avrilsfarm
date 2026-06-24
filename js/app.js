@@ -818,10 +818,15 @@ async function renderOutput(el) {
           {key:'hms001', name:'제조위생관리기준서', code:'AF-HMS-001'},
           {key:'qcm001', name:'품질관리기준서', code:'AF-QCM-001'},
         ].map(d=>`
-          <button class="output-btn-sec" onclick="openStandardDoc('${d.key}')" style="text-align:left;display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:10px 12px">
-            <span style="font-size:11px;font-weight:700;color:var(--text)">${d.name}</span>
-            <span style="font-size:10px;color:var(--text3)">${d.code}</span>
-          </button>`).join('')}
+          <div style="display:flex;gap:4px;align-items:stretch">
+            <button class="output-btn-sec" onclick="openStandardDoc('${d.key}')" style="flex:1;text-align:left;display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:10px 12px">
+              <span style="font-size:11px;font-weight:700;color:var(--text)">${d.name}</span>
+              <span style="font-size:10px;color:var(--text3)">${d.code}</span>
+            </button>
+            <button class="output-btn-sec" onclick="editStdMeta('${d.code}')" title="문서 정보 수정" style="padding:6px 10px;display:flex;align-items:center">
+              <i class="ti ti-pencil" style="font-size:14px"></i>
+            </button>
+          </div>`).join('')}
       </div>
       <div style="font-size:11px;color:var(--text3);margin-bottom:8px;border-top:1px solid var(--border);padding-top:10px">제품표준서 (AF-PS) · 제품 제조 탭에서 추가/관리</div>
       ${products.length === 0
@@ -1113,17 +1118,74 @@ async function openStandardDoc(key) {
 /* 기준서 빌더 (간략 버전 - 클릭하면 pdf.js의 open$으로 열림) */
 /* ════ 4대 기준서 PDF 빌더 — 업로드 문서 기준 ════ */
 
+function getStdMeta(key) {
+  try { return JSON.parse(localStorage.getItem('stdMeta_'+key)) || {}; } catch(e) { return {}; }
+}
+function setStdMeta(key, obj) {
+  const cur = getStdMeta(key);
+  localStorage.setItem('stdMeta_'+key, JSON.stringify({...cur, ...obj}));
+}
 function stdHd(title, sub, docNo, revNo, date) {
+  const m = getStdMeta(docNo);
+  const dn = m.docNo || docNo;
+  const rv = m.revNo || revNo;
+  const dt = m.date || date;
+  const mg = m.mgmt || '관리본';
+  const mgStr = mg === '관리본' ? '■ 관리본 □ 비관리본' : '□ 관리본 ■ 비관리본';
   return `<div class="doc">
   <div class="doc-title">에이브릴팜</div>
   <div class="doc-sub">${title}</div>
   <div class="doc-meta">
-    <span><b>문서번호</b> ${docNo}</span>
-    <span><b>제정일자</b> ${date}</span>
-    <span><b>개정번호</b> ${revNo}</span>
+    <span><b>문서번호</b> ${dn}</span>
+    <span><b>제정일자</b> ${dt}</span>
+    <span><b>개정번호</b> ${rv}</span>
     <span><b>작성/확인</b> 변민정 (인)</span>
-    <span><b>관리구분</b> ■ 관리본 □ 비관리본</span>
+    <span><b>관리구분</b> ${mgStr}</span>
   </div>`;
+}
+
+function editStdMeta(docCode) {
+  const m = getStdMeta(docCode);
+  const html = `
+    <div style="padding:20px;max-width:380px;margin:0 auto">
+      <h3 style="margin:0 0 16px;font-size:15px">${docCode} 문서 정보 수정</h3>
+      <label style="display:block;margin-bottom:10px;font-size:12px">문서번호
+        <input id="sm-docNo" value="${m.docNo||docCode}" style="width:100%;padding:8px;margin-top:4px;border:1px solid var(--border);border-radius:var(--r-sm);font-size:13px">
+      </label>
+      <label style="display:block;margin-bottom:10px;font-size:12px">제정일자
+        <input id="sm-date" value="${m.date||'2026.05.27'}" style="width:100%;padding:8px;margin-top:4px;border:1px solid var(--border);border-radius:var(--r-sm);font-size:13px">
+      </label>
+      <label style="display:block;margin-bottom:10px;font-size:12px">개정번호
+        <input id="sm-revNo" value="${m.revNo||'Rev.00'}" style="width:100%;padding:8px;margin-top:4px;border:1px solid var(--border);border-radius:var(--r-sm);font-size:13px">
+      </label>
+      <label style="display:block;margin-bottom:16px;font-size:12px">관리구분
+        <select id="sm-mgmt" style="width:100%;padding:8px;margin-top:4px;border:1px solid var(--border);border-radius:var(--r-sm);font-size:13px">
+          <option value="관리본" ${(m.mgmt||'관리본')==='관리본'?'selected':''}>관리본</option>
+          <option value="비관리본" ${m.mgmt==='비관리본'?'selected':''}>비관리본</option>
+        </select>
+      </label>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button onclick="document.getElementById('stdMetaModal').remove()" style="padding:8px 16px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--card);color:var(--text);cursor:pointer">취소</button>
+        <button onclick="saveStdMeta('${docCode}')" style="padding:8px 16px;border:none;border-radius:var(--r-sm);background:var(--teal);color:#fff;cursor:pointer;font-weight:600">저장</button>
+      </div>
+    </div>`;
+  let modal = document.getElementById('stdMetaModal');
+  if (modal) modal.remove();
+  modal = document.createElement('div');
+  modal.id = 'stdMetaModal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:9999';
+  modal.innerHTML = `<div style="background:var(--card);border-radius:var(--r);box-shadow:0 8px 32px rgba(0,0,0,.2)">${html}</div>`;
+  document.body.appendChild(modal);
+}
+function saveStdMeta(docCode) {
+  setStdMeta(docCode, {
+    docNo: document.getElementById('sm-docNo').value.trim(),
+    date: document.getElementById('sm-date').value.trim(),
+    revNo: document.getElementById('sm-revNo').value.trim(),
+    mgmt: document.getElementById('sm-mgmt').value
+  });
+  document.getElementById('stdMetaModal').remove();
+  showToast('문서 정보가 저장되었습니다');
 }
 function stdFt() {
   return `<div class="foot">에이브릴팜 · 경기도 시흥시 진말1로 18, 에스엠타워 303호 · TEL 0507-1346-8739 · 화장품제조업 등록번호 제6494호 · 책임판매업 등록번호 제18216호</div></div>`;
@@ -1883,6 +1945,20 @@ async function parseDocumentText(name, text, fileName, el) {
   const isOrder   = looksLike('제조지시') || name.includes('af-mi') || name.includes('-mi-');
   const isTest    = looksLike('시험성적') || name.includes('af-tr') || name.includes('-tr-');
   const isHygiene = looksLike('위생') || name.includes('-mh') || name.includes('r-mh');
+    // docx 헤더에서 기준서 메타 자동 저장
+    const stdMetaMatch = bodyText.match(/문서번호[:\\s]*(AF-[A-Z]+-\\d+)/);
+    if (stdMetaMatch) {
+      const sc = stdMetaMatch[1];
+      const dm = bodyText.match(/제정일자[:\\s]*([\\d.\\-\\/]+)/);
+      const rm = bodyText.match(/개정번호[:\\s]*(Rev\\.?\\d+)/i);
+      const mm = /■\\s*관리본/.test(bodyText) ? '관리본' : /■\\s*비관리본/.test(bodyText) ? '비관리본' : '';
+      const obj = {};
+      if (sc) obj.docNo = sc;
+      if (dm) obj.date = dm[1];
+      if (rm) obj.revNo = rm[1];
+      if (mm) obj.mgmt = mm;
+      if (typeof setStdMeta === 'function') setStdMeta(sc, obj);
+    }
   const isMmsRecord = name.includes('r-mms') || (name.includes('제조관리기준서') && name.includes('기록'));
   const isBmsRecord = name.includes('r-bms') || looksLike('바코드관리대장') || looksLike('바코드관리') || (looksLike('바코드') && looksLike('관리대장'));
   const isQcmRecord = name.includes('r-qcm') || (name.includes('품질관리기준서') && name.includes('기록'));
@@ -2171,6 +2247,24 @@ async function parseDocumentText(name, text, fileName, el) {
     }
 
     // 시험성적서에 KCL 정보가 있으면 제품표준서로 저장 (배치 아님)
+    // 시험성적서 ① 원자재 행에서 제조처 정보 → ingredients DB 업데이트
+    if (isTest) {
+      const allIng = await DB.getAll('ingredients');
+      for (const l of lines) {
+        // "No\t원료명\t제조처..." 테이블 행 패턴
+        const tc = l.split('\t').map(c => c.trim());
+        if (tc.length >= 4 && /^\d+$/.test(tc[1]) && tc[2] && tc[3]) {
+          const ingName = tc[2];
+          const mfr = tc[3];
+          if (ingName.length >= 2 && mfr && !/제조처|로트번호|시험항목/.test(mfr)) {
+            const matched = allIng.find(ig => ig.원료명 && (ig.원료명 === ingName || ig.원료명.includes(ingName) || ingName.includes(ig.원료명)));
+            if (matched && !matched.제조처) {
+              await DB.put('ingredients', {...matched, 제조처: mfr});
+            }
+          }
+        }
+      }
+    }
     if (isTest && Object.keys(kclInfo).length) {
       const relProd = existingProdByName || (existingBatch && products.find(p=>p.id===existingBatch.productId));
       if (relProd) {
