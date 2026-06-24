@@ -1830,6 +1830,15 @@ function parseKclFromLines(lines) {
         }
       }
     }
+    // 건조중량: "내용량 (건조)	g	참고용	93g" 또는 "중량 (건조)	...	93g"
+    if (/건조/.test(noSp) && /내용량|중량/.test(noSp)) {
+      for (const c of cells) {
+        const gm = c.replace(/\s/g,'').match(/^(\d{2,3}\.?\d*)g?$/);
+        if (gm && +gm[1] > 30 && +gm[1] < 500) {
+          if (!result.KCL건조중량) result.KCL건조중량 = gm[1];
+        }
+      }
+    }
     // 접수일/발행일 탭 구분: "접수일\t2024.10.22\t발행일\t2024.11.01"
     for (let ci = 0; ci < cells.length; ci++) {
       const cNoSp = cells[ci].replace(/\s/g,'');
@@ -2853,9 +2862,10 @@ async function openBatchForm(id) {
     <label>제조일<input type="date" id="b4" value="${(item&&item.date)||''}"></label>
 
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-      <label>투입량 (g)<input type="number" id="b6" value="${(item&&item.투입량)||''}"></label>
-      <label>실제수량 (ea)<input type="number" id="b8" value="${(item&&item.실제수량)||''}"></label>
+      <label>투입량 (g)<input type="number" id="b6" value="${(item&&item.투입량)||''}" oninput="calcYield()"></label>
+      <label>실제수량 (ea)<input type="number" id="b8" value="${(item&&item.실제수량)||''}" oninput="calcYield()"></label>
     </div>
+    <div id="yield-display" style="font-size:12px;color:var(--teal-dark);padding:4px 0;display:${item&&item.실제수량?'block':'none'}"></div>
 
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
       <label>실측 중량 (g)<input type="number" id="b17" value="${(item&&item.실측중량)||''}" placeholder="예: 100"></label>
@@ -2917,6 +2927,25 @@ async function onSelectProduct() {
   if(prod) showProdRef(prod);
 }
 
+function calcYield() {
+  const el = document.getElementById('yield-display');
+  if (!el) return;
+  const qty = +document.getElementById('b8')?.value || 0;
+  const prodId = document.getElementById('b-prodid')?.value;
+  if (!qty || !prodId) { el.style.display='none'; return; }
+  // 제품 표준서에서 이론수량 가져오기
+  DB.getOne('products', +prodId).then(prod => {
+    const theory = prod?.이론수량 || 0;
+    if (theory > 0) {
+      const pct = Math.round(qty / theory * 100);
+      el.innerHTML = `📊 수율: <b>${pct}%</b> (실제 ${qty}ea ÷ 이론 ${theory}ea)`;
+      el.style.display = 'block';
+    } else {
+      el.innerHTML = '📊 수율: 표준서에 이론수량을 등록하면 자동 계산됩니다';
+      el.style.display = 'block';
+    }
+  });
+}
 async function saveBatch(id) {
   const prodId = document.getElementById('b-prodid')?.value;
   const data = {

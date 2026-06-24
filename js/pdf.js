@@ -451,7 +451,7 @@ function buildMI(batch, products){
   <table>
     <thead><tr><th>공정명</th><th>투입량</th><th>이론 생산량</th><th>실제 생산량</th><th>수 율</th></tr></thead>
     <tbody>
-      <tr><td>칭량 (제조)</td><td class="r">${batch.투입량||''}g</td><td class="c">${batch.투입량||''}g / ${iTheory}ea</td><td class="c">${batch.실제수량||''}ea</td><td></td></tr>
+      <tr><td>칭량 (제조)</td><td class="r">${batch.투입량||''}g</td><td class="c">${batch.투입량||''}g / ${iTheory}ea</td><td class="c">${batch.실제수량||''}ea</td><td class="c">${batch.실제수량&&iTheory?Math.round(batch.실제수량/iTheory*100)+'%':''}</td></tr>
       <tr><td>포장 (완성)</td><td class="r">${batch.투입량?batch.투입량-10:''}g</td><td class="c">${batch.투입량?batch.투입량-10:''}g / ${iTheory}ea</td><td class="c">${batch.실제수량||''}ea</td><td class="c">${batch.실제수량&&iTheory?Math.round(batch.실제수량/iTheory*100)+'%':''}</td></tr>
     </tbody>
   </table>
