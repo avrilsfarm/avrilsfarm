@@ -2399,16 +2399,16 @@ async function parseDocumentText(name, text, fileName, el) {
           if (cell.includes('■'+noKw)) return noKw;
           return ''; // □만 있으면 미기입
         };
-        // 셀 구조: [입고일, 원료명, 제조처, 수량, 포장, CoA, 성상, 이물, 색상, 판정, 확인자]
-        // 날짜 없는 행은 셀이 한 칸 밀림: [원료명, 제조처, 수량, ...]
-        const hasDateCell = /^\d{6}$|^20\d{2}/.test(mCells[0]);
+        // 셀 구조: [빈칸, 입고일, 원료명, 제조처, 수량, 포장, CoA, 성상, 이물, 색상, 판정, 확인자]
+        // 날짜 없는 행: [빈칸, 원료명, 제조처, 수량, 포장, CoA, 성상, 이물, 색상, 판정, 확인자]
+        const hasDateCell = /^\d{6}$|^20\d{2}/.test((mCells[1]||''));
         const offset = hasDateCell ? 0 : -1;
-        const coaCell = mCells[5 + offset] || '';
-        const judgCell = mCells[9 + offset] || '';
+        const coaCell = mCells[6 + offset] || '';
+        const judgCell = mCells[10 + offset] || '';
         const coaVal = parseCheck(coaCell, '수취', '미수취') || '미기입';
         const judgVal = parseCheck(judgCell, '적합', '부적합') || '미기입';
-        const mfrCell = mCells[2 + offset] || '';
-        const qtyCell = mCells[3 + offset] || '';
+        const mfrCell = mCells[3 + offset] || '';
+        const qtyCell = mCells[4 + offset] || '';
 
         if (matched) {
           const upd = {...matched};
@@ -2421,9 +2421,9 @@ async function parseDocumentText(name, text, fileName, el) {
           ingCnt++;
         } else {
           // DB에 없는 원료: 셀에서 원료명 추출
-          const ingNameIdx = 1 + offset;
+          const ingNameIdx = 2 + offset;
           const ingName = mCells[ingNameIdx >= 0 ? ingNameIdx : 0] || '';
-          if (ingName && ingName.length >= 2 && !/^[■□]/.test(ingName) && !/입고일|원료명|확인자|판정|제정일자|개정번호|작성자|관리구분|변민정|^※/.test(ingName)) {
+          if (ingName && ingName.length >= 2 && !/^[■□]/.test(ingName) && !/입고일|원료명|확인자|판정|제정일자|개정번호|작성자|관리구분|변민정|^※|기록서|기준서|R-MMS/.test(ingName)) {
             await DB.add('ingredients', {
               원료명: ingName, 제조처: mfrCell, 수량: qtyCell,
               입고일: lineDate, category:'기타',
@@ -2459,7 +2459,7 @@ async function parseDocumentText(name, text, fileName, el) {
       // R-MH-01(청소점검)과 R-MH-02(방충방서) 행 단위 파싱
       // ■청결이 있으면 완료, □만 있으면 미완료/건너뜀
       const mhLines = bodyText.split('\n').filter(l => l.trim());
-      const splitIdx = mhLines.findIndex(l => /R-MH-02|방충.*방서.*점검표/.test(l));
+      const splitIdx = mhLines.findIndex((l, idx) => idx > 0 && /R-MH-02|방충.*방서.*점검표/.test(l));
       const cleanLines = splitIdx === -1 ? mhLines : mhLines.slice(0, splitIdx);
       const pestLines = splitIdx === -1 ? [] : mhLines.slice(splitIdx);
 
@@ -2467,8 +2467,16 @@ async function parseDocumentText(name, text, fileName, el) {
       let cnt = 0;
       for (const line of cleanLines) {
         if (/날짜|확인자.*원료|^\s*$/.test(line)) continue; // 헤더 스킵
-        // 날짜 추출
+        // 날짜 추출 — cells[1]에서 YYMMDD 우선 탐색
+        const hC1 = (line.split('\t')[1]||'').trim();
         let lineDate = '';
+        const ym6 = hC1.match(/^(\d{2})(\d{2})(\d{2})$/);
+        if (ym6) {
+          const yy=+ym6[1], mo=+ym6[2], d=+ym6[3];
+          if (yy>=20 && yy<=40 && mo>=1 && mo<=12 && d>=1 && d<=31)
+            lineDate = `20${String(yy).padStart(2,'0')}-${String(mo).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+        }
+        if (!lineDate) {
         const fm = line.match(/(20\d{2})[.\-\/](\d{1,2})[.\-\/](\d{1,2})/);
         if (fm) {
           lineDate = `${fm[1]}-${String(+fm[2]).padStart(2,'0')}-${String(+fm[3]).padStart(2,'0')}`;
@@ -2481,21 +2489,22 @@ async function parseDocumentText(name, text, fileName, el) {
             }
           }
         }
+        }
         if (!lineDate) continue;
 
         // ■청결이 1개라도 있으면 완료, 전부 □이면 미완료(스킵)
         const hasChecked = /■청결|■양호/.test(line);
         if (!hasChecked) continue;
 
-        // 각 항목의 상태 파싱
+        // 각 항목의 상태 파싱 — cells[0]=빈칸, [1]=날짜, [2]=확인자, [3~8]=항목
         const cells = line.split('\t').map(c => c.trim());
         const items = {};
         const labels = ['원료보관','부자재','완제품','작업대','도구류','포장실'];
-        for (let ci = 2; ci < Math.min(cells.length, 8); ci++) {
+        for (let ci = 3; ci < Math.min(cells.length, 9); ci++) {
           const val = /■청결/.test(cells[ci]) ? '청결' : /■불량/.test(cells[ci]) ? '불량' : '';
-          if (val && labels[ci-2]) items[labels[ci-2]] = val;
+          if (val && labels[ci-3]) items[labels[ci-3]] = val;
         }
-        const 확인자 = cells[1] || '변민정';
+        const 확인자 = cells[2] || '변민정';
 
         try {
           await DB.add('hygiene', {date: lineDate, type:'청소점검', 확인자, status:'완료', items});
