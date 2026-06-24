@@ -4,7 +4,7 @@ let bcCollapsed = {};
 
 /* ════════════════════════════════════════
    에이브릴팜 바코드 관리 모듈 v3
-   EAN-13: 대분류(4) + 소분류(3) + 비번호(3) + 개수(2) + 체크디짓(1)
+   EAN-13: 대분류(4) + 소분류(3) + 비번호(3) + 개수(2) + 체크디지트(1)
 ════════════════════════════════════════ */
 
 /* ── 마스터 데이터 (제이쏩 삭제, expiry 수정) ── */
@@ -76,7 +76,7 @@ const COLOR_CODES = [
   {code:'직접입력',  label:'직접입력'},
 ];
 
-/* ── EAN-13 체크디짓 ── */
+/* ── EAN-13 체크디지트 ── */
 function calcCheckDigit(biz, sub, seq, qty) {
   const str = (biz||'8739') + sub + seq + qty;
   if (str.length !== 12) return '?';
@@ -137,8 +137,8 @@ async function renderBarcodeTab(el) {
       <div class="bc-notice-icon" style="color:var(--teal)"><i class="ti ti-barcode"></i></div>
       <div class="bc-notice-body">
         <div class="bc-notice-title" style="color:var(--teal-dark)">EAN-13 바코드 구조</div>
-        <div class="bc-notice-text">8739 + 소분류(3) + 비번호(3) + 개수(2) + 체크디짓(1) = <b>13자리</b><br>
-        체크디짓은 앞 12자리로 자동 계산됩니다.</div>
+        <div class="bc-notice-text">8739 + 소분류(3) + 비번호(3) + 개수(2) + 체크디지트(1) = <b>13자리</b><br>
+        체크디지트은 앞 12자리로 자동 계산됩니다.</div>
       </div>
     </div>
 
@@ -149,7 +149,7 @@ async function renderBarcodeTab(el) {
         <div class="bc-guide-row"><span class="bc-guide-label">소분류(3자리)</span><span>제조월 앞 2자리 + 색상코드 첫 자리 조합 <em>(예: 10월 O색 → 101)</em></span></div>
         <div class="bc-guide-row"><span class="bc-guide-label">비번호(3자리)</span><span>전체 제품 등록 순서 누적 번호 <em>(예: 001, 002 …)</em></span></div>
         <div class="bc-guide-row"><span class="bc-guide-label">개수(2자리)</span><span>1회 배치 예상 생산량 <em>(예: 09 = 9개, 20 = 20개)</em></span></div>
-        <div class="bc-guide-row"><span class="bc-guide-label">체크디짓</span><span>앞 12자리로 자동 계산 — 직접 입력 불필요</span></div>
+        <div class="bc-guide-row"><span class="bc-guide-label">체크디지트</span><span>앞 12자리로 자동 계산 — 직접 입력 불필요</span></div>
         <div class="bc-guide-row"><span class="bc-guide-label">제조번호</span><span>브랜드(AP) + B + 색상코드 + 월(2) + 순번(3) <em>(예: APBO10001)</em></span></div>
         <div class="bc-guide-row" style="margin-top:4px"><span class="bc-guide-label">색상 코드</span>
           <span>${COLOR_CODES.filter(c=>c.code!=='직접입력').map(c=>`<span class="bc-cc">${c.label}</span>`).join(' ')}</span>
@@ -243,7 +243,7 @@ function openBarcodeForm(no) {
     <div class="sheet-title">${item ? item.name + ' 수정' : '신규 바코드 생성'}</div>
 
     <div style="background:var(--teal-light);border-radius:var(--r-sm);padding:10px 12px;margin-bottom:16px;font-size:12px;color:var(--teal-dark)">
-      <b>바코드 구조:</b> 대분류(4) + 소분류(3) + 비번호(3) + 개수(2) + 체크디짓(1) = 13자리
+      <b>바코드 구조:</b> 대분류(4) + 소분류(3) + 비번호(3) + 개수(2) + 체크디지트(1) = 13자리
     </div>
 
     <label>제품명<input id="bc1" value="${item?item.name:''}" placeholder="예: 오이비누"></label>
@@ -395,7 +395,7 @@ function updateBcPreview() {
     const chk = calcCheckDigit(biz, sub, seq, qty);
     const full = biz + sub + seq + qty + chk;
     document.getElementById('bc-preview-num').textContent = full;
-    document.getElementById('bc-preview-chk').textContent = `체크디짓: ${chk} (자동계산)`;
+    document.getElementById('bc-preview-chk').textContent = `체크디지트: ${chk} (자동계산)`;
     const svg = document.getElementById('bc-preview-svg');
     if (svg && window.JsBarcode && full.length===13) {
       try { JsBarcode('#bc-preview-svg', full, {format:'EAN13',width:1.5,height:45,displayValue:true,fontSize:11,margin:6}); }
@@ -567,7 +567,7 @@ function printAllBarcodes() {
   <h2 style="margin-bottom:12px;font-size:16px">AVRIL'S FARM 바코드·제조번호 관리표</h2>
   <table>
     <thead><tr>
-      <th>No</th><th>제품명</th><th>바코드 번호</th><th>체크디짓</th>
+      <th>No</th><th>제품명</th><th>바코드 번호</th><th>체크디지트</th>
       <th class="bc-cell">바코드</th>
       <th>제조번호</th><th>제조일자</th><th>유통기한</th><th>상태</th>
     </tr></thead>
