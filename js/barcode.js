@@ -7,40 +7,6 @@ let bcCollapsed = {};
    EAN-13: 대분류(4) + 소분류(3) + 비번호(3) + 개수(2) + 체크디지트(1)
 ════════════════════════════════════════ */
 
-/* ── 마스터 데이터 (제이쏩 삭제, expiry 수정) ── */
-const BARCODE_MASTER = [
-  { no:1,  name:'캐롯솝',                   sub:'071',seq:'001',qty:'09',chk:9, mfgNo:'',            mfgDate:'',         expiry:'',               status:'단종', notes:'' },
-  { no:2,  name:'크리스마솝',                sub:'112',seq:'002',qty:'09',chk:2, mfgNo:'',            mfgDate:'',         expiry:'',               status:'단종', notes:'' },
-  { no:3,  name:'젤리베어솝',                sub:'113',seq:'003',qty:'20',chk:3, mfgNo:'',            mfgDate:'',         expiry:'',               status:'단종', notes:'' },
-  { no:4,  name:'새해비누',                  sub:'011',seq:'004',qty:'50',chk:0, mfgNo:'',            mfgDate:'',         expiry:'',               status:'현행', notes:'' },
-  { no:5,  name:'카네이션비누',              sub:'004',seq:'005',qty:'24',chk:8, mfgNo:'',            mfgDate:'',         expiry:'',               status:'단종', notes:'' },
-  { no:6,  name:'아이스쿨바',               sub:'715',seq:'006',qty:'06',chk:0, mfgNo:'APBSF06006',  mfgDate:'25.06.25', expiry:'제조일로부터 1년', status:'현행', notes:'' },
-  { no:7,  name:'명절선물 비누',             sub:'815',seq:'007',qty:'09',chk:7, mfgNo:'APBFW08007',  mfgDate:'24.08.15', expiry:'제조일로부터 2년', status:'현행', notes:'' },
-  { no:8,  name:'명절선물 비누세트',         sub:'815',seq:'008',qty:'02',chk:5, mfgNo:'',            mfgDate:'',         expiry:'',               status:'현행', notes:'' },
-  { no:9,  name:'당근 비누',                sub:'101',seq:'009',qty:'09',chk:5, mfgNo:'APBO10001',   mfgDate:'',         expiry:'제조일로부터 2년', status:'현행', notes:'' },
-  { no:10, name:'가지 비누',                sub:'102',seq:'010',qty:'09',chk:0, mfgNo:'APBP10002',   mfgDate:'',         expiry:'제조일로부터 2년', status:'현행', notes:'' },
-  { no:11, name:'크리스마스 비누',           sub:'112',seq:'811',qty:'09',chk:0, mfgNo:'APBFW11001',  mfgDate:'',         expiry:'제조일로부터 2년', status:'현행', notes:'' },
-  { no:12, name:'아보카도 비누',             sub:'020',seq:'412',qty:'09',chk:9, mfgNo:'APBYG10003',  mfgDate:'',         expiry:'제조일로부터 2년', status:'현행', notes:'' },
-  { no:13, name:'미나리 비누',              sub:'020',seq:'413',qty:'09',chk:6, mfgNo:'APBG10004',   mfgDate:'',         expiry:'제조일로부터 2년', status:'현행', notes:'' },
-  { no:14, name:'선인장 컵비누',             sub:'021',seq:'915',qty:'07',chk:0, mfgNo:'APBSS02001',  mfgDate:'25.02.17', expiry:'제조일로부터 2년', status:'현행', notes:'' },
-  { no:15, name:'카네이션 컵비누',           sub:'021',seq:'916',qty:'07',chk:7, mfgNo:'APBSS02002',  mfgDate:'25.02.19', expiry:'제조일로부터 2년', status:'현행', notes:'' },
-  { no:16, name:'해로 굿즈 비누',            sub:'040',seq:'416',qty:'07',chk:7, mfgNo:'APBGS-104003',mfgDate:'25.04.17', expiry:'제조일로부터 2년', status:'현행', notes:'' },
-  { no:17, name:'토로 굿즈 비누',            sub:'040',seq:'417',qty:'07',chk:4, mfgNo:'APBGS-204004',mfgDate:'25.04.21', expiry:'제조일로부터 2년', status:'현행', notes:'' },
-  { no:18, name:'쿨 비누',                  sub:'052',seq:'918',qty:'06',chk:4, mfgNo:'APBSF05005',  mfgDate:'25.05.29', expiry:'제조일로부터 2년', status:'현행', notes:'' },
-  { no:19, name:'투명비누-핑크',             sub:'120',seq:'119',qty:'20',chk:1, mfgNo:'APBGS-312005',mfgDate:'25.12.02', expiry:'제조일로부터 1년', status:'현행', notes:'' },
-  { no:20, name:'투명비누-옐로',             sub:'120',seq:'120',qty:'20',chk:7, mfgNo:'APBGS-412006',mfgDate:'25.12.02', expiry:'제조일로부터 1년', status:'현행', notes:'' },
-  { no:21, name:'투명비누-블루',             sub:'120',seq:'121',qty:'20',chk:4, mfgNo:'APBGS-512007',mfgDate:'25.12.02', expiry:'제조일로부터 1년', status:'현행', notes:'' },
-  { no:22, name:'투명비누 세트',             sub:'120',seq:'122',qty:'20',chk:1, mfgNo:'APBGS-612008',mfgDate:'25.12.02', expiry:'제조일로부터 1년', status:'현행', notes:'' },
-  { no:23, name:'당근복비누',               sub:'012',seq:'223',qty:'09',chk:2, mfgNo:'APBFW12002',  mfgDate:'26.01.22', expiry:'제조일로부터 2년', status:'현행', notes:'' },
-  { no:24, name:'말비누',                   sub:'012',seq:'224',qty:'04',chk:4, mfgNo:'APBFW12003',  mfgDate:'',         expiry:'제조일로부터 2년', status:'현행', notes:'' },
-  { no:25, name:'새해 비누 2구세트',         sub:'012',seq:'225',qty:'04',chk:1, mfgNo:'APBFW12004',  mfgDate:'',         expiry:'제조일로부터 2년', status:'현행', notes:'' },
-  { no:26, name:'투명비누-화이트',           sub:'013',seq:'026',qty:'12',chk:8, mfgNo:'APBGS-701009',mfgDate:'26.01.30', expiry:'제조일로부터 1년', status:'현행', notes:'세트는 개별 생산량에서 분배' },
-  { no:27, name:'카네이션 미니화분 비누',    sub:'033',seq:'027',qty:'06',chk:8, mfgNo:'APBSS03003',  mfgDate:'26.03.30', expiry:'제조일로부터 2년', status:'현행', notes:'3/30-10  4/25-50' },
-  { no:28, name:'선인장 미니화분 비누',      sub:'033',seq:'028',qty:'06',chk:5, mfgNo:'APBSS03004',  mfgDate:'26.03.30', expiry:'제조일로부터 2년', status:'현행', notes:'3/30-10  4/28-20' },
-  { no:29, name:'듀얼 세트',                sub:'033',seq:'029',qty:'03',chk:1, mfgNo:'APBSS03005',  mfgDate:'',         expiry:'제조일로부터 2년', status:'현행', notes:'4/28-20' },
-  { no:30, name:'듀오 세트 카네이션',        sub:'033',seq:'030',qty:'03',chk:7, mfgNo:'APBSS03003',  mfgDate:'',         expiry:'제조일로부터 2년', status:'현행', notes:'4/25-20' },
-  { no:31, name:'듀오 세트 선인장',          sub:'033',seq:'031',qty:'03',chk:4, mfgNo:'APBSS03004',  mfgDate:'',         expiry:'제조일로부터 2년', status:'현행', notes:'3/30-10' },
-];
 
 /* ── DB 동기화 ── */
 let _barcodeData = []; // 런타임 데이터 (DB 로드 후 교체)
@@ -55,7 +21,7 @@ async function loadBarcodesFromDB() {
     }
   } catch(e) {
     console.warn('[barcode] DB 로드 실패, 인메모리 사용:', e);
-    _barcodeData = localStorage.getItem('skip_seed') ? [] : [...BARCODE_MASTER];
+    _barcodeData = [];
   }
 }
 
