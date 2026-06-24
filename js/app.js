@@ -573,7 +573,7 @@ async function renderMfCheck(el) {
         <div class="check-circle"></div>
         <span class="check-label">${item}</span>
       </div>`).join('')}
-    <button class="save-btn mt20" onclick="saveChecklist()">점검 완료 저장</button>`;
+    <button class="fab" onclick="saveChecklist()"><i class="ti ti-check"></i> 점검 완료</button>`;
 }
 
 /* ═══════════════════════════════════

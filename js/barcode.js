@@ -107,7 +107,6 @@ async function renderBarcodeTab(el) {
   el.innerHTML = `
     <div class="page-header">
       <h2 class="page-title">바코드 관리</h2>
-      <button class="header-btn" onclick="openBarcodeForm()"><i class="ti ti-plus"></i> 신규</button>
     </div>
     <div class="summary-row">
       <div class="sum-chip sum-mauve">전체 ${_barcodeData.length}개</div>
@@ -208,7 +207,7 @@ async function renderBarcodeTab(el) {
       }).join('');
     })()}
 
-    <div style="height:80px"></div>`;
+    <button class="fab" onclick="openBarcodeForm()"><i class="ti ti-plus"></i> 바코드 추가</button>`;
 
   setTimeout(() => {
     filtered.forEach(p => {
