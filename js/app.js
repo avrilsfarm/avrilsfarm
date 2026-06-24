@@ -2076,7 +2076,7 @@ async function parseDocumentText(name, text, fileName, el) {
       const bn = (b.제품명||'').replace(/에이브릴팜\s*/,'').replace(/\s+/g,'').toLowerCase();
       return keyname && (bn.includes(keyname) || keyname.includes(bn));
     });
-    const existingProdByName = products.find(p => {
+    let existingProdByName = products.find(p => {
       const pn = (p.제품명||'').replace(/에이브릴팜\s*/,'').replace(/\s+/g,'').toLowerCase();
       return keyname && (pn.includes(keyname) || keyname.includes(pn));
     });
