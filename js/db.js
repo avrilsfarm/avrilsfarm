@@ -80,10 +80,6 @@ async function remove(s, id) {
   });
 }
 
-/* ══════════════════════════════════════
-   제품 마스터 시드 (products 스토어)
-   → 제품의 영구 기준 정보
-
 async function seedIfEmpty() { return; }
 
 
