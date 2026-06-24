@@ -397,7 +397,10 @@ function buildMI(batch, products){
   const mw = prod.목표중량 || batch.목표중량 || '90g ±5g';
   const allergy = prod.알레르기 || batch.알레르기 || '';
 
-  return hd('제조지시서','Manufacturing Instruction · '+batch.제품명, batch.문서번호||'AF-MI-00X','Rev.01',batch.date) + `
+  const revNo = batch.개정번호 || prod.개정번호 || 'Rev.01';
+  const estDate = batch.제정일자 || prod.제정일자 || batch.date || '';
+
+  return hd('제조지시서','Manufacturing Instruction · '+batch.제품명, batch.문서번호||'AF-MI-00X',revNo,estDate) + `
   <div class="sign"><div class="sign-box"><div class="sign-lbl">총괄책임자(제조관리담당자)</div>${CO.owner} (인)</div></div>
 
   <div class="sec">▶ 가. 기본 정보</div>
@@ -472,12 +475,15 @@ function buildPS(batch, allIng, products){
   const allergy = prod.알레르기 || batch.알레르기 || '';
   const barcode = prod.바코드 || batch.바코드 || '';
 
-  return hd('제품표준서','Product Standard · '+batch.제품명, psNo,'Rev.01',batch.date||prod.제정일자) + `
+  const psRevNo = prod.개정번호 || 'Rev.01';
+  const psEstDate = prod.제정일자 || batch.date || '';
+
+  return hd('제품표준서','Product Standard · '+batch.제품명, psNo, psRevNo, psEstDate) + `
   <div class="sign"><div class="sign-box"><div class="sign-lbl">총괄책임자(제조관리담당자)</div>${CO.owner} (인)</div></div>
 
   <div class="sec">▶ 1. 기본 정보</div>
   <table>
-    <tr><td class="h">표준서 번호</td><td>${psNo}</td><td class="h">제정일자</td><td>${batch.date||'2024-12-01'}</td></tr>
+    <tr><td class="h">표준서 번호</td><td>${psNo}</td><td class="h">제정일자</td><td>${psEstDate||'2024-12-01'}</td></tr>
     <tr><td class="h">제 품 명</td><td><b>${batch.제품명}</b></td><td class="h">내 용 량</td><td>${prod.용량||'90g'} (건조 기준)</td></tr>
     <tr><td class="h">제품 코드</td><td>${batch.제조번호?.split('-')[0]||''}</td><td class="h">바코드 번호</td><td>${barcode}</td></tr>
     <tr><td class="h">유형 및 성상</td><td>인체 세정용 제품류 / 화장비누(고형) / ${prod.색상기준||''}</td><td class="h">제조방법</td><td>${prod.제조방법||'CP법'} (Cold Process, Water:Lye = 1.7:1)</td></tr>

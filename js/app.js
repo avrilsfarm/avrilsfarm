@@ -289,6 +289,11 @@ async function openProductMasterForm(id) {
     <label>바코드<input id="pm13" value="${item?.바코드||''}"></label>
     <label>제조번호 형식<input id="pm14" value="${item?.제조번호형식||'APBO'}" placeholder="예: APBO"></label>
 
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <label>제정일자<input type="date" id="pm-estdate" value="${item?.제정일자||''}"></label>
+      <label>개정번호<input id="pm-revno" value="${item?.개정번호||'Rev.01'}" placeholder="Rev.01"></label>
+    </div>
+
     <div style="font-size:12px;font-weight:700;color:var(--text);margin:14px 0 6px;border-top:1px solid var(--border);padding-top:12px">KCL 시험성적서 (법정 검사)</div>
     <div style="background:var(--mauve-light);border-radius:var(--r-sm);padding:8px 10px;margin-bottom:8px;font-size:11px;color:var(--mauve-dark)">
       화장비누 법정 검사 결과 — 제품 형식 전체에 적용되는 성적서입니다.
@@ -528,6 +533,7 @@ async function saveProductMaster(id) {
     유통기한: v('pm9'), 보관방법: v('pm10'),
     알레르기: v('pm11'), 전성분: v('pm12'),
     바코드: v('pm13'), 제조번호형식: v('pm14'), 비고: v('pm15'),
+    제정일자: v('pm-estdate'), 개정번호: v('pm-revno'),
     KCL: v('pm-kcl'),
     KCL발행번호: v('pm-kcl-issue'),
     KCL접수일: v('pm-kcl-rcvdate'),
@@ -1985,6 +1991,18 @@ async function parseDocumentText(name, text, fileName, el) {
   const methodMatch = fullText.match(/(CP법|HP법|MP법|액체법|리배칭|M&P|핫프로세스|콜드프로세스)/i);
   if (methodMatch) parsedMethod = methodMatch[1];
 
+  // 제정일자 / 개정번호 파싱 (첫 줄 헤더: "...\t제정일자: 2024-12-01\t개정번호: Rev.01\t...")
+  let parsedEstDate = '', parsedRevNo = '';
+  for (const l of lines.slice(0, 5)) {
+    const noSp = l.replace(/\s/g,'');
+    // 제정일자: YYYY-MM-DD or YYYY.MM.DD
+    const edM = noSp.match(/제정일자[:\s：]*(\d{4})[.\-](\d{1,2})[.\-](\d{1,2})/);
+    if (edM && !parsedEstDate) parsedEstDate = `${edM[1]}-${edM[2].padStart(2,'0')}-${edM[3].padStart(2,'0')}`;
+    // 개정번호: Rev.XX
+    const rvM = noSp.match(/개정번호[:\s：]*(Rev\.?\d{1,2})/i);
+    if (rvM && !parsedRevNo) parsedRevNo = rvM[1];
+  }
+
   /* ── 제품표준서 → products 스토어 ── */
   if(isStd) {
     const keyname = (productName||'').replace(/에이브릴팜\s*/,'').replace(/\s+/g,'').toLowerCase();
@@ -2009,6 +2027,8 @@ async function parseDocumentText(name, text, fileName, el) {
         ...(parsedMethod && {제조방법: parsedMethod}),
         ...(parsedAllergy && {알레르기: parsedAllergy}),
         ...(parsedIngredients && {전성분: parsedIngredients}),
+        ...(parsedEstDate && {제정일자: parsedEstDate}),
+        ...(parsedRevNo && {개정번호: parsedRevNo}),
         ...kclInfo,
       };
       await DB.put('products', updated);
@@ -2036,6 +2056,7 @@ async function parseDocumentText(name, text, fileName, el) {
         품질기준: {내용량:'97% 이상', 유리알칼리:'0.1% 이하'},
         레시피: recipe, 전성분: parsedIngredients || '',
         보관방법: '직사광선 차단, 서늘하고 건조한 곳 보관',
+        제정일자: parsedEstDate || '', 개정번호: parsedRevNo || '',
         ...kclInfo,
       };
       await DB.add('products', newProd);
@@ -2132,6 +2153,35 @@ async function parseDocumentText(name, text, fileName, el) {
       }
     }
 
+    // 제조지시서 업로드 시 표준서 없으면 자동 생성
+    if (isOrder && !existingProdByName && recipe.length) {
+      const nextPsNo = () => {
+        const nums = products.map(p=>p.문서번호&&p.문서번호.match(/^AF-PS-(\d+)$/)).filter(Boolean).map(m=>parseInt(m[1],10));
+        return 'AF-PS-' + String((nums.length?Math.max(...nums):0)+1).padStart(3,'0');
+      };
+      const autoProd = {
+        제품명: productName||fileName.replace(/\.[^.]+$/,''),
+        문서번호: nextPsNo(),
+        바코드: barcode, 제조방법: parsedMethod || 'CP법',
+        기준투입량: parsedBaseWeight || batchInputWeight || 0,
+        이론수량: parsedYield || 0,
+        목표중량: weightMatch ? weightMatch[0] : '90g ±5g',
+        유통기한: expiryMatch ? `제조일로부터 ${expiryMatch[1]}년` : '제조일로부터 2년',
+        알레르기: parsedAllergy || '', 전성분: parsedIngredients || '',
+        레시피: recipe, 품질기준: {내용량:'97% 이상', 유리알칼리:'0.1% 이하'},
+        보관방법: '직사광선 차단, 서늘하고 건조한 곳 보관',
+        제정일자: parsedEstDate || '', 개정번호: parsedRevNo || '',
+      };
+      const addedId = await DB.add('products', autoProd);
+      // 다시 조회하여 id 획득
+      const allProds = await DB.getAll('products');
+      const createdProd = allProds.find(p => p.제품명 === autoProd.제품명);
+      if (createdProd) {
+        existingProdByName = createdProd;
+        products.push(createdProd);
+      }
+    }
+
     if(existingBatch) {
       const updated = {...existingBatch};
       if(docNo && isOrder) updated.문서번호 = docNo;
@@ -2141,6 +2191,8 @@ async function parseDocumentText(name, text, fileName, el) {
         if(batchMfgDate) updated.date = batchMfgDate;
         if(batchInputWeight) updated.투입량 = batchInputWeight;
         if(existingProdByName && existingProdByName.id) updated.productId = existingProdByName.id;
+        if(parsedEstDate) updated.제정일자 = parsedEstDate;
+        if(parsedRevNo) updated.개정번호 = parsedRevNo;
       }
       await DB.put('batches', updated);
       const kclNote = Object.keys(kclInfo).length ? ' · KCL 정보 표준서에 반영됨' : '';
@@ -2154,12 +2206,15 @@ async function parseDocumentText(name, text, fileName, el) {
         ...(isOrder && batchMfgDate && {date: batchMfgDate}),
         ...(isOrder && batchInputWeight && {투입량: batchInputWeight}),
         ...(existingProdByName && existingProdByName.id && {productId: existingProdByName.id}),
+        ...(isOrder && parsedEstDate && {제정일자: parsedEstDate}),
+        ...(isOrder && parsedRevNo && {개정번호: parsedRevNo}),
       };
       await DB.add('batches', newB);
       const notes = [];
       if(batchMfgNo) notes.push('제조번호: '+batchMfgNo);
       if(batchMfgDate) notes.push('제조일: '+batchMfgDate);
       if(recipe.length) notes.push('레시피 '+recipe.length+'종');
+      if(existingProdByName) notes.push('제품표준서 자동 생성됨');
       el.innerHTML = `<span style="color:var(--teal-dark)">✅ <b>${newB.제품명}</b> 배치 신규 등록 완료${notes.length?' · '+notes.join(' · '):''}</span>`;
     } else {
       el.innerHTML = `<span style="color:var(--amber-text)">⚠️ 제품명을 찾을 수 없습니다.<br><span style="font-size:11px">파일명 또는 문서 제목에 "제품표준서"·"제조지시서"가 포함되어야 합니다.</span></span>`;
