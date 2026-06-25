@@ -92,10 +92,10 @@ function chk(val, trueLabel, falseLabel){
 ───────────────────────────────────── */
 function buildTR(batch, allIng, products){
   const prod = (products||[]).find(p=>p.id===batch.productId) || {};
-  const docNo = batch.문서번호 ? batch.문서번호.replace('AF-MI','AF-TR') : 'AF-TR-00X';
+  const docNo = batch.시험성적서번호 || (batch.문서번호 ? batch.문서번호.replace('AF-MI','AF-TR') : 'AF-TR-00X');
   const recipe = prod.레시피?.length ? prod.레시피 : [];
   const mw = prod.목표중량 || batch.목표중량 || '90g ±5g';
-  const cs = prod.색상기준 || batch.색상기준 || '오렌지 계열';
+  const cs = prod.색상기준 || batch.색상기준 || '';
 
   // ① 원자재 행 — 레시피 기준
   const ingRows = recipe.map((r,n) => {
@@ -114,7 +114,7 @@ function buildTR(batch, allIng, products){
   return hd('시험성적서','Test Report · '+(batch.제품명||''), docNo, 'Rev.01', batch.date) + `
 
   <div class="sec">▶ ① 원자재 시험성적서 (자사 육안검사)</div>
-  <p class="note">※ 원료 입고 시마다 작성. 성상·이물 육안 확인. CoA 별도 첨부 (카로틴오일 CoA 포함)</p>
+  <p class="note">※ 원료 입고 시마다 작성. 성상·이물 육안 확인. CoA 별도 첨부</p>
   <table>
     <thead><tr><th>No</th><th>원 료 명</th><th>제조처 / 로트번호</th><th>시험항목</th><th>시험성적</th><th>판 정</th><th>시험자</th></tr></thead>
     <tbody>
