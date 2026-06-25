@@ -828,7 +828,10 @@ async function renderOutput(el) {
               <span style="font-size:11px;font-weight:600;color:var(--text);line-height:1.2">${d.name}</span><br>
               <span style="font-size:9px;color:var(--text3)">${d.code}</span>
             </button>
-            <button onclick="editStdMeta('${d.code}')" style="padding:3px 0;border:none;border-top:1px solid var(--border);background:var(--bg);color:var(--text3);font-size:9px;cursor:pointer;font-family:inherit">수정</button>
+            <div style="display:flex;border-top:1px solid var(--border)">
+              <button onclick="editStdMeta('${d.code}')" style="flex:1;padding:3px 0;border:none;background:var(--bg);color:var(--text3);font-size:9px;cursor:pointer;font-family:inherit">헤더수정</button>
+              <button onclick="editStdContent('${d.code}')" style="flex:1;padding:3px 0;border:none;border-left:1px solid var(--border);background:var(--bg);color:var(--teal);font-size:9px;cursor:pointer;font-family:inherit;font-weight:600">내용편집</button>
+            </div>
           </div>`).join('')}
       </div>
 
@@ -1200,151 +1203,203 @@ function saveStdMeta(docCode) {
   document.getElementById('stdMetaModal').remove();
   showToast('문서 정보가 저장되었습니다');
 }
-function stdFt() {
-  return `<div class="foot">에이브릴팜 · 경기도 시흥시 진말1로 18, 에스엠타워 303호 · TEL 0507-1346-8739 · 화장품제조업 등록번호 제6494호 · 책임판매업 등록번호 제18216호</div></div>`;
+function stdFt(docCode) {
+  const m = docCode ? getStdMeta(docCode) : {};
+  const ft = m.footer || '에이브릴팜 · 경기도 시흥시 진말1로 18, 에스엠타워 303호 · TEL 0507-1346-8739 · 화장품제조업 등록번호 제6494호 · 책임판매업 등록번호 제18216호';
+  return `<div class="foot">${ft}</div></div>`;
+}
+
+/* ── 기준서 본문 편집 시스템 ── */
+function getDefaultStdSections(docCode) {
+  const D = {
+    'AF-MMS-001': [
+      {title:'■ 1. 목적 및 적용범위', type:'list', items:['원료 입고부터 완제품 출고까지 전 공정의 관리 기준을 정한다.','에이브릴팜 작업장(시흥시 진말1로 18, 303호) 내 모든 제조 활동에 적용한다.','대표자 1인(변민정)이 제조관리의 모든 책임을 진다.']},
+      {title:'■ 2. 원자재 관리', type:'list', items:['입고 시 품명·수량·포장 상태·이물 여부 확인 → 원료입고기록서(R-MMS-01) 작성','제조처 CoA(성적서) 수취 후 원료입고기록서와 함께 보관','부적합 원료: "부적합" 라벨 부착 후 격리, 반품 또는 폐기','보관: 직사광선 차단, 서늘·건조한 장소. 가성소다(NaOH)는 밀폐 용기 별도 보관','선입선출(FIFO) 원칙. 개봉 원료는 개봉일 표기 후 밀봉']},
+      {title:'■ 3. 제조 공정 관리', type:'list', items:['제조 전 제조지시서(AF-MI) 작성 → 원료 계량 → 공정 진행 → 수율 기록','원료 계량: 전자저울로 이론량 ±1% 이내 확인','CP법: 소다수·오일 온도(27-30°C) 확인, 트레이스 후 첨가물 투입','CP법 작업 시 내화학성 장갑·고글·마스크 반드시 착용','이상(분리·변색·이취) 발생 시 작업 중단 → 원인 파악 → 제조지시서 이상란 기록']},
+      {title:'■ 4. 시설·기구 관리', type:'list', items:['분기 1회 이상 설비 점검 → 설비관리기록서(R-MMS-02) 작성','전자저울: 연 1회 이상 검교정. 사용 전 영점 확인','이상 기기: 즉시 사용 중단, "사용불가" 표시 후 수리 또는 교체']},
+      {title:'■ 5. 완제품 관리', type:'list', items:['출하 전 외관·중량·표시사항(전성분·사용기한) 최종 확인','원료, 반제품, 완제품은 구분된 공간에 보관','출하기록(제품명·제조번호·수량·출하일) 작성 보관']},
+      {title:'■ 6. 문서 관리', type:'list', items:['모든 기록은 최종 기재일로부터 3년 이상 보관','개정 시 개정이력에 일자·내용·작성자 기재']}
+    ],
+    'AF-HMS-001': [
+      {title:'■ 1. 목적 · 적용범위', type:'list', items:['작업장·설비·기구의 청결 및 작업원 위생 관리 기준을 정한다.','에이브릴팜 작업장 내 모든 제조 활동에 적용. 대표자(변민정) 1인 책임']},
+      {title:'■ 2. 작업원 건강관리', type:'list', items:['피부질환·상처·감염성 질환 시 제조 작업 참여 금지','제조 전 건강 자가 점검. 이상 시 즉시 작업 중단']},
+      {title:'■ 3. 작업원 위생', type:'list', items:['작업 전: 비누 세척 → 70% 에탄올 소독','화장실·외부 접촉 후 재세척·소독','작업 중 음식물 섭취·흡연 금지. 코·입·눈 만지지 않기']},
+      {title:'■ 4. 복장 규정', type:'list', items:['기본: 앞치마, 머리망(위생모), 위생장갑 착용','CP법(가성소다) 작업: 내화학성 장갑 + 고글 + 마스크 반드시 착용']},
+      {title:'■ 5. 청소 방법 및 주기', type:'table', headers:['구분','내용','주기'], rows:[['작업대·도구·몰드','이물 확인 → 70% 에탄올 소독 → 세척·건조','작업 전·후'],['바닥·선반·보관소','청소 및 환기','주 1회 이상'],['방충·방서 점검','기록(R-MH-02)','월 1회 이상'],['청소 완료 기록','작업장청소점검표(R-MH-01) 작성','매회']]},
+      {title:'■ 6. 시설 세척 평가', type:'list', items:['사용 직후 따뜻한 물로 세척 → 건조 → 에탄올 소독','이전 제품의 색·향 잔재 없음 확인 후 다음 작업 진행','세척제: 무향 주방세제 / 소독제: 70% 에탄올']},
+      {title:'■ 7. 방충·방서 관리', type:'list', items:['출입구 방충망 상시 점검. 틈새 밀폐 유지','해충·설치류 발견 시 즉시 조치 → R-MH-02에 기록']},
+      {title:'■ 8. 오염 방지', type:'list', items:['원료·반제품·완제품 구분 보관','가성소다 등 위험 원료: 밀폐 용기, 별도 공간, 라벨 명시','위해 물질(살충제 등) 작업장 내 반입 금지']}
+    ],
+    'AF-QCM-001': [
+      {title:'■ 1. 목적 · 적용범위', type:'list', items:['시험의뢰부터 결과 판정·부적합 처리까지 품질관리 기준을 정한다.','대표자(변민정) 1인이 품질관리의 모든 책임을 진다.']},
+      {title:'■ 2. 원자재 시험관리', type:'list', items:['입고 시 성상·색상·이물을 육안 확인 → 시험성적서(원자재) 작성','제조처 CoA 수취 후 함께 보관','부적합: "부적합" 라벨 → 격리 → 반품/폐기']},
+      {title:'■ 3. 완제품 시험관리', type:'list', items:['화장비누 법정 검사항목: 내용량(건조) 97% 이상 / 유리알칼리 0.1% 이하','법정 검사는 KCL(한국건설생활환경시험연구원, 식약처 지정 화장품 제3호)에 위탁','KCL 성적서 없는 품목: 자사 육안검사(성상·색상·이물) 실시 → 자사성적서 작성']},
+      {title:'■ 4. 검체 채취', type:'list', items:['원자재: 입고 시 소량 채취 → 육안 확인','완제품: 동일 배치에서 3개 이상 임의 선택 → 외관·중량 확인','채취 시 위생장갑 착용, 깨끗한 용기 사용']},
+      {title:'■ 5. 시설·기구 점검', type:'table', headers:['설비','점검 내용','주기'], rows:[['전자저울','연 1회 검교정. 매 사용 전 영점 확인','사용 전 / 연 1회'],['온도계','분기 1회 정상 작동 확인','분기 1회'],['점검 결과','설비관리기록서(R-MMS-02) 기재','—']]},
+      {title:'■ 6. 보관 검체', type:'list', items:['각 배치 완제품 1~2개를 보관 검체로 유지 (사용기한까지)','라벨: 제조번호·제조일·사용기한 표기']},
+      {title:'■ 7. 부적합품 처리', type:'list', items:['완제품 부적합: 출하 즉시 중단 → 시험성적서 비고란 기재 → 폐기','모든 기록 최종 기재일로부터 3년 이상 보관']},
+      {title:'■ 8. 위탁시험 관리', type:'list', items:['계약: KCL과 자가품질검사 위탁 계약 체결·유지','성적서 수령 후 시험성적서 파일에 원본 편철 보관']}
+    ]
+  };
+  return D[docCode] || [];
+}
+function getStdSections(docCode) {
+  try { const s = localStorage.getItem('stdSections_'+docCode); if(s) return JSON.parse(s); } catch(e){}
+  return getDefaultStdSections(docCode);
+}
+function setStdSections(docCode, sections) {
+  localStorage.setItem('stdSections_'+docCode, JSON.stringify(sections));
+}
+function buildSectionsHTML(sections) {
+  return sections.map(s => {
+    if(s.type==='table') {
+      return `<div class="sec">${s.title}</div>
+      <table><thead><tr>${(s.headers||[]).map(h=>'<th>'+h+'</th>').join('')}</tr></thead><tbody>
+      ${(s.rows||[]).map(r=>'<tr>'+r.map(c=>'<td>'+c+'</td>').join('')+'</tr>').join('')}
+      </tbody></table>`;
+    }
+    return `<div class="sec">${s.title}</div>
+    <ul style="font-size:9.5px;line-height:2;padding-left:16px;margin-bottom:12px">
+    ${(s.items||[]).map(i=>'<li>'+i+'</li>').join('\n')}
+    </ul>`;
+  }).join('\n');
+}
+
+function syncSectionsFromDOM() {
+  if(!window._editSections) return;
+  window._editSections.forEach((s, i) => {
+    const t = document.getElementById('sec-title-'+i);
+    if(t) s.title = t.value;
+    if(s.type==='table') {
+      const h = document.getElementById('sec-headers-'+i);
+      const r = document.getElementById('sec-rows-'+i);
+      if(h) s.headers = h.value.split('\t').map(x=>x.trim());
+      if(r) s.rows = r.value.split('\n').filter(l=>l.trim()).map(l=>l.split('\t').map(x=>x.trim()));
+    } else {
+      const it = document.getElementById('sec-items-'+i);
+      if(it) s.items = it.value.split('\n').filter(l=>l.trim());
+    }
+  });
+}
+function renderSecEditor(sections, docCode) {
+  const ftMeta = getStdMeta(docCode);
+  const ft = ftMeta.footer || '에이브릴팜 · 경기도 시흥시 진말1로 18, 에스엠타워 303호 · TEL 0507-1346-8739 · 화장품제조업 등록번호 제6494호 · 책임판매업 등록번호 제18216호';
+  return sections.map((s,i) => `
+    <div style="border:1px solid var(--border);border-radius:var(--r-sm);padding:10px;margin-bottom:8px">
+      <div style="display:flex;gap:4px;align-items:center;margin-bottom:6px;flex-wrap:wrap">
+        <input id="sec-title-${i}" value="${(s.title||'').replace(/"/g,'&quot;')}" style="flex:1;min-width:120px;padding:6px;border:1px solid var(--border);border-radius:var(--r-sm);font-size:12px;font-weight:600">
+        <select id="sec-type-${i}" style="padding:6px;border:1px solid var(--border);border-radius:var(--r-sm);font-size:11px" onchange="toggleSecType(${i})">
+          <option value="list" ${s.type!=='table'?'selected':''}>목록</option>
+          <option value="table" ${s.type==='table'?'selected':''}>표</option>
+        </select>
+        <button onclick="moveSecUp(${i})" style="padding:4px 6px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--bg);cursor:pointer;font-size:11px" ${i===0?'disabled':''}>↑</button>
+        <button onclick="moveSecDown(${i})" style="padding:4px 6px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--bg);cursor:pointer;font-size:11px" ${i===sections.length-1?'disabled':''}>↓</button>
+        <button onclick="removeSec(${i})" style="padding:4px 6px;border:1px solid var(--border);border-radius:var(--r-sm);background:#fee;color:#c00;cursor:pointer;font-size:11px">삭제</button>
+      </div>
+      ${s.type==='table' ? `
+        <div style="font-size:10px;color:var(--text3);margin-bottom:2px">헤더 (탭으로 구분)</div>
+        <input id="sec-headers-${i}" value="${(s.headers||[]).join('\t')}" style="width:100%;padding:6px;border:1px solid var(--border);border-radius:var(--r-sm);font-size:11px;margin-bottom:4px;box-sizing:border-box">
+        <div style="font-size:10px;color:var(--text3);margin-bottom:2px">행 (탭=열구분, 줄바꿈=행구분)</div>
+        <textarea id="sec-rows-${i}" rows="4" style="width:100%;padding:6px;border:1px solid var(--border);border-radius:var(--r-sm);font-size:11px;font-family:monospace;resize:vertical;box-sizing:border-box">${(s.rows||[]).map(r=>r.join('\t')).join('\n')}</textarea>
+      ` : `
+        <div style="font-size:10px;color:var(--text3);margin-bottom:2px">항목 (줄바꿈으로 구분)</div>
+        <textarea id="sec-items-${i}" rows="${Math.max(3,Math.min(8,(s.items||[]).length))}" style="width:100%;padding:6px;border:1px solid var(--border);border-radius:var(--r-sm);font-size:11px;resize:vertical;box-sizing:border-box">${(s.items||[]).join('\n')}</textarea>
+      `}
+    </div>`).join('') +
+    `<button onclick="addSec()" style="width:100%;padding:8px;border:1px dashed var(--border);border-radius:var(--r-sm);background:var(--bg);color:var(--text3);cursor:pointer;font-size:12px;margin-bottom:12px">+ 섹션 추가</button>
+    <div style="border-top:1px solid var(--border);padding-top:12px">
+      <label style="display:block;font-size:12px;font-weight:600;margin-bottom:4px">푸터 (하단 주소·연락처)</label>
+      <textarea id="sec-footer" rows="2" style="width:100%;padding:6px;border:1px solid var(--border);border-radius:var(--r-sm);font-size:11px;resize:vertical;box-sizing:border-box">${ft}</textarea>
+    </div>`;
+}
+
+function editStdContent(docCode) {
+  window._editSections = JSON.parse(JSON.stringify(getStdSections(docCode)));
+  window._editDocCode = docCode;
+  let modal = document.getElementById('stdContentModal');
+  if(modal) modal.remove();
+  modal = document.createElement('div');
+  modal.id = 'stdContentModal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:9999';
+  modal.innerHTML = `<div style="background:var(--card);border-radius:var(--r);box-shadow:0 8px 32px rgba(0,0,0,.2);width:95vw;max-width:700px;max-height:90vh;display:flex;flex-direction:column">
+    <div style="padding:14px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+      <h3 style="margin:0;font-size:15px">${docCode} 내용 편집</h3>
+      <button onclick="document.getElementById('stdContentModal').remove()" style="border:none;background:none;font-size:18px;cursor:pointer;color:var(--text3)">✕</button>
+    </div>
+    <div id="std-content-body" style="flex:1;overflow-y:auto;padding:16px 20px">
+      ${renderSecEditor(window._editSections, docCode)}
+    </div>
+    <div style="padding:12px 20px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:space-between;flex-wrap:wrap">
+      <button onclick="resetStdContent()" style="padding:8px 12px;border:1px solid #e88;border-radius:var(--r-sm);background:#fff;color:#c00;cursor:pointer;font-size:12px">기본값 복원</button>
+      <div style="display:flex;gap:8px">
+        <button onclick="document.getElementById('stdContentModal').remove()" style="padding:8px 16px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--card);color:var(--text);cursor:pointer">취소</button>
+        <button onclick="saveStdContent()" style="padding:8px 16px;border:none;border-radius:var(--r-sm);background:var(--teal);color:#fff;cursor:pointer;font-weight:600">저장</button>
+      </div>
+    </div>
+  </div>`;
+  document.body.appendChild(modal);
+}
+function refreshSecEditor() {
+  const body = document.getElementById('std-content-body');
+  if(body) body.innerHTML = renderSecEditor(window._editSections, window._editDocCode);
+}
+function addSec() {
+  syncSectionsFromDOM();
+  window._editSections.push({title:'■ 새 섹션', type:'list', items:['내용을 입력하세요']});
+  refreshSecEditor();
+}
+function removeSec(i) {
+  if(!confirm('이 섹션을 삭제하시겠습니까?')) return;
+  syncSectionsFromDOM();
+  window._editSections.splice(i,1);
+  refreshSecEditor();
+}
+function moveSecUp(i) {
+  if(i===0) return;
+  syncSectionsFromDOM();
+  const s=window._editSections; [s[i-1],s[i]]=[s[i],s[i-1]];
+  refreshSecEditor();
+}
+function moveSecDown(i) {
+  syncSectionsFromDOM();
+  const s=window._editSections; if(i>=s.length-1) return;
+  [s[i],s[i+1]]=[s[i+1],s[i]];
+  refreshSecEditor();
+}
+function toggleSecType(i) {
+  syncSectionsFromDOM();
+  const s=window._editSections[i];
+  if(s.type==='table'){s.type='list'; if(!s.items||!s.items.length) s.items=[''];}
+  else{s.type='table'; if(!s.headers||!s.headers.length) s.headers=['열1','열2','열3']; if(!s.rows||!s.rows.length) s.rows=[['','','']];}
+  refreshSecEditor();
+}
+function saveStdContent() {
+  syncSectionsFromDOM();
+  const dc = window._editDocCode;
+  setStdSections(dc, window._editSections);
+  const ft = document.getElementById('sec-footer')?.value?.trim();
+  if(ft) setStdMeta(dc, {footer: ft});
+  document.getElementById('stdContentModal').remove();
+  showToast('기준서 내용이 저장되었습니다');
+}
+function resetStdContent() {
+  if(!confirm('기본값으로 복원하시겠습니까? 편집한 내용이 모두 사라집니다.')) return;
+  const dc = window._editDocCode;
+  localStorage.removeItem('stdSections_'+dc);
+  setStdMeta(dc, {footer: ''});
+  window._editSections = JSON.parse(JSON.stringify(getDefaultStdSections(dc)));
+  refreshSecEditor();
+  showToast('기본값으로 복원되었습니다');
 }
 
 function buildStdMMS001() {
-  return stdHd('제조관리기준서','Manufacturing Management Standard · AF-MMS-001','AF-MMS-001','Rev.01','2026.05.27') + `
-  <div class="sec">■ 1. 목적 및 적용범위</div>
-  <ul style="font-size:9.5px;line-height:2;padding-left:16px;margin-bottom:12px">
-    <li>원료 입고부터 완제품 출고까지 전 공정의 관리 기준을 정한다.</li>
-    <li>에이브릴팜 작업장(시흥시 진말1로 18, 303호) 내 모든 제조 활동에 적용한다.</li>
-    <li>대표자 1인(변민정)이 제조관리의 모든 책임을 진다.</li>
-  </ul>
-  <div class="sec">■ 2. 원자재 관리</div>
-  <ul style="font-size:9.5px;line-height:2;padding-left:16px;margin-bottom:12px">
-    <li>입고 시 품명·수량·포장 상태·이물 여부 확인 → 원료입고기록서(R-MMS-01) 작성</li>
-    <li>제조처 CoA(성적서) 수취 후 원료입고기록서와 함께 보관</li>
-    <li>부적합 원료: "부적합" 라벨 부착 후 격리, 반품 또는 폐기</li>
-    <li>보관: 직사광선 차단, 서늘·건조한 장소. 가성소다(NaOH)는 밀폐 용기 별도 보관</li>
-    <li>선입선출(FIFO) 원칙. 개봉 원료는 개봉일 표기 후 밀봉</li>
-  </ul>
-  <div class="sec">■ 3. 제조 공정 관리</div>
-  <ul style="font-size:9.5px;line-height:2;padding-left:16px;margin-bottom:12px">
-    <li>제조 전 제조지시서(AF-MI) 작성 → 원료 계량 → 공정 진행 → 수율 기록</li>
-    <li>원료 계량: 전자저울로 이론량 ±1% 이내 확인</li>
-    <li>CP법: 소다수·오일 온도(27-30°C) 확인, 트레이스 후 첨가물 투입</li>
-    <li>CP법 작업 시 내화학성 장갑·고글·마스크 반드시 착용</li>
-    <li>이상(분리·변색·이취) 발생 시 작업 중단 → 원인 파악 → 제조지시서 이상란 기록</li>
-  </ul>
-  <div class="sec">■ 4. 시설·기구 관리</div>
-  <ul style="font-size:9.5px;line-height:2;padding-left:16px;margin-bottom:12px">
-    <li>분기 1회 이상 설비 점검 → 설비관리기록서(R-MMS-02) 작성</li>
-    <li>전자저울: 연 1회 이상 검교정. 사용 전 영점 확인</li>
-    <li>이상 기기: 즉시 사용 중단, "사용불가" 표시 후 수리 또는 교체</li>
-  </ul>
-  <div class="sec">■ 5. 완제품 관리</div>
-  <ul style="font-size:9.5px;line-height:2;padding-left:16px;margin-bottom:12px">
-    <li>출하 전 외관·중량·표시사항(전성분·사용기한) 최종 확인</li>
-    <li>원료, 반제품, 완제품은 구분된 공간에 보관</li>
-    <li>출하기록(제품명·제조번호·수량·출하일) 작성 보관</li>
-  </ul>
-  <div class="sec">■ 6. 문서 관리</div>
-  <ul style="font-size:9.5px;line-height:2;padding-left:16px;margin-bottom:12px">
-    <li>모든 기록은 최종 기재일로부터 3년 이상 보관</li>
-    <li>개정 시 개정이력에 일자·내용·작성자 기재</li>
-  </ul>
-  ` + stdFt();
+  return stdHd('제조관리기준서','Manufacturing Management Standard · AF-MMS-001','AF-MMS-001','Rev.01','2026.05.27') + buildSectionsHTML(getStdSections('AF-MMS-001')) + stdFt('AF-MMS-001');
 }
-
 function buildStdHMS001() {
-  return stdHd('제조위생관리기준서','Manufacturing Hygiene Standard · AF-HMS-001','AF-HMS-001','Rev.00','2026.05.27') + `
-  <div class="sec">■ 1. 목적 · 적용범위</div>
-  <ul style="font-size:9.5px;line-height:2;padding-left:16px;margin-bottom:12px">
-    <li>작업장·설비·기구의 청결 및 작업원 위생 관리 기준을 정한다.</li>
-    <li>에이브릴팜 작업장 내 모든 제조 활동에 적용. 대표자(변민정) 1인 책임</li>
-  </ul>
-  <div class="sec">■ 2. 작업원 건강관리</div>
-  <ul style="font-size:9.5px;line-height:2;padding-left:16px;margin-bottom:12px">
-    <li>피부질환·상처·감염성 질환 시 제조 작업 참여 금지</li>
-    <li>제조 전 건강 자가 점검. 이상 시 즉시 작업 중단</li>
-  </ul>
-  <div class="sec">■ 3. 작업원 위생</div>
-  <ul style="font-size:9.5px;line-height:2;padding-left:16px;margin-bottom:12px">
-    <li>작업 전: 비누 세척 → 70% 에탄올 소독</li>
-    <li>화장실·외부 접촉 후 재세척·소독</li>
-    <li>작업 중 음식물 섭취·흡연 금지. 코·입·눈 만지지 않기</li>
-  </ul>
-  <div class="sec">■ 4. 복장 규정</div>
-  <ul style="font-size:9.5px;line-height:2;padding-left:16px;margin-bottom:12px">
-    <li>기본: 앞치마, 머리망(위생모), 위생장갑 착용</li>
-    <li>CP법(가성소다) 작업: 내화학성 장갑 + 고글 + 마스크 반드시 착용</li>
-  </ul>
-  <div class="sec">■ 5. 청소 방법 및 주기</div>
-  <table><thead><tr><th>구분</th><th>내용</th><th>주기</th></tr></thead><tbody>
-    <tr><td>작업대·도구·몰드</td><td>이물 확인 → 70% 에탄올 소독 → 세척·건조</td><td>작업 전·후</td></tr>
-    <tr><td>바닥·선반·보관소</td><td>청소 및 환기</td><td>주 1회 이상</td></tr>
-    <tr><td>방충·방서 점검</td><td>기록(R-MH-02)</td><td>월 1회 이상</td></tr>
-    <tr><td>청소 완료 기록</td><td>작업장청소점검표(R-MH-01) 작성</td><td>매회</td></tr>
-  </tbody></table>
-  <div class="sec">■ 6. 시설 세척 평가</div>
-  <ul style="font-size:9.5px;line-height:2;padding-left:16px;margin-bottom:12px">
-    <li>사용 직후 따뜻한 물로 세척 → 건조 → 에탄올 소독</li>
-    <li>이전 제품의 색·향 잔재 없음 확인 후 다음 작업 진행</li>
-    <li>세척제: 무향 주방세제 / 소독제: 70% 에탄올</li>
-  </ul>
-  <div class="sec">■ 7. 방충·방서 관리</div>
-  <ul style="font-size:9.5px;line-height:2;padding-left:16px;margin-bottom:12px">
-    <li>출입구 방충망 상시 점검. 틈새 밀폐 유지</li>
-    <li>해충·설치류 발견 시 즉시 조치 → R-MH-02에 기록</li>
-  </ul>
-  <div class="sec">■ 8. 오염 방지</div>
-  <ul style="font-size:9.5px;line-height:2;padding-left:16px;margin-bottom:12px">
-    <li>원료·반제품·완제품 구분 보관</li>
-    <li>가성소다 등 위험 원료: 밀폐 용기, 별도 공간, 라벨 명시</li>
-    <li>위해 물질(살충제 등) 작업장 내 반입 금지</li>
-  </ul>
-  ` + stdFt();
+  return stdHd('제조위생관리기준서','Manufacturing Hygiene Standard · AF-HMS-001','AF-HMS-001','Rev.00','2026.05.27') + buildSectionsHTML(getStdSections('AF-HMS-001')) + stdFt('AF-HMS-001');
 }
-
 function buildStdQCM001() {
-  return stdHd('품질관리기준서','Quality Control Manual · AF-QCM-001','AF-QCM-001','Rev.00','2026.05.27') + `
-  <div class="sec">■ 1. 목적 · 적용범위</div>
-  <ul style="font-size:9.5px;line-height:2;padding-left:16px;margin-bottom:12px">
-    <li>시험의뢰부터 결과 판정·부적합 처리까지 품질관리 기준을 정한다.</li>
-    <li>대표자(변민정) 1인이 품질관리의 모든 책임을 진다.</li>
-  </ul>
-  <div class="sec">■ 2. 원자재 시험관리</div>
-  <ul style="font-size:9.5px;line-height:2;padding-left:16px;margin-bottom:12px">
-    <li>입고 시 성상·색상·이물을 육안 확인 → 시험성적서(원자재) 작성</li>
-    <li>제조처 CoA 수취 후 함께 보관</li>
-    <li>부적합: "부적합" 라벨 → 격리 → 반품/폐기</li>
-  </ul>
-  <div class="sec">■ 3. 완제품 시험관리</div>
-  <ul style="font-size:9.5px;line-height:2;padding-left:16px;margin-bottom:12px">
-    <li>화장비누 법정 검사항목: 내용량(건조) 97% 이상 / 유리알칼리 0.1% 이하</li>
-    <li>법정 검사는 KCL(한국건설생활환경시험연구원, 식약처 지정 화장품 제3호)에 위탁</li>
-    <li>KCL 성적서 없는 품목: 자사 육안검사(성상·색상·이물) 실시 → 자사성적서 작성</li>
-  </ul>
-  <div class="sec">■ 4. 검체 채취</div>
-  <ul style="font-size:9.5px;line-height:2;padding-left:16px;margin-bottom:12px">
-    <li>원자재: 입고 시 소량 채취 → 육안 확인</li>
-    <li>완제품: 동일 배치에서 3개 이상 임의 선택 → 외관·중량 확인</li>
-    <li>채취 시 위생장갑 착용, 깨끗한 용기 사용</li>
-  </ul>
-  <div class="sec">■ 5. 시설·기구 점검</div>
-  <table><thead><tr><th>설비</th><th>점검 내용</th><th>주기</th></tr></thead><tbody>
-    <tr><td>전자저울</td><td>연 1회 검교정. 매 사용 전 영점 확인</td><td>사용 전 / 연 1회</td></tr>
-    <tr><td>온도계</td><td>분기 1회 정상 작동 확인</td><td>분기 1회</td></tr>
-    <tr><td>점검 결과</td><td>설비관리기록서(R-MMS-02) 기재</td><td>—</td></tr>
-  </tbody></table>
-  <div class="sec">■ 6. 보관 검체</div>
-  <ul style="font-size:9.5px;line-height:2;padding-left:16px;margin-bottom:12px">
-    <li>각 배치 완제품 1~2개를 보관 검체로 유지 (사용기한까지)</li>
-    <li>라벨: 제조번호·제조일·사용기한 표기</li>
-  </ul>
-  <div class="sec">■ 7. 부적합품 처리</div>
-  <ul style="font-size:9.5px;line-height:2;padding-left:16px;margin-bottom:12px">
-    <li>완제품 부적합: 출하 즉시 중단 → 시험성적서 비고란 기재 → 폐기</li>
-    <li>모든 기록 최종 기재일로부터 3년 이상 보관</li>
-  </ul>
-  <div class="sec">■ 8. 위탁시험 관리</div>
-  <ul style="font-size:9.5px;line-height:2;padding-left:16px;margin-bottom:12px">
-    <li>계약: KCL과 자가품질검사 위탁 계약 체결·유지</li>
-    <li>성적서 수령 후 시험성적서 파일에 원본 편철 보관</li>
-  </ul>
-  ` + stdFt();
+  return stdHd('품질관리기준서','Quality Control Manual · AF-QCM-001','AF-QCM-001','Rev.00','2026.05.27') + buildSectionsHTML(getStdSections('AF-QCM-001')) + stdFt('AF-QCM-001');
 }
 
 /* ════ 워드 파일 생성 (JSZip 활용) ════ */
@@ -3291,4 +3346,7 @@ window.parseDocumentText=parseDocumentText; window.runParseSaved=runParseSaved;
 window.runGeneratePDF=runGeneratePDF; window.runPrintDoc=runPrintDoc; window.generateWordDoc=generateWordDoc;
 window.openStandardDoc=openStandardDoc;
 window.buildStdMMS001=buildStdMMS001; window.buildStdHMS001=buildStdHMS001; window.buildStdQCM001=buildStdQCM001;
+window.editStdContent=editStdContent; window.saveStdContent=saveStdContent; window.resetStdContent=resetStdContent;
+window.addSec=addSec; window.removeSec=removeSec; window.moveSecUp=moveSecUp; window.moveSecDown=moveSecDown; window.toggleSecType=toggleSecType;
+window.syncSectionsFromDOM=syncSectionsFromDOM; window.refreshSecEditor=refreshSecEditor;
 window.renderBarcode=renderBarcode;
