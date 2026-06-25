@@ -1128,10 +1128,10 @@ function stdHd(title, sub, docNo, revNo, date) {
   const dt = m.date || date;
   const mg = m.mgmt || '관리본';
   const mgStr = mg === '관리본' ? '■ 관리본 □ 비관리본' : '□ 관리본 ■ 비관리본';
-  const en = m.enTitle || '';
+  const en = m.enTitle || sub || '';
   const co = m.company || '에이브릴팜';
   const ti = m.title || title;
-  const subLine = en ? `${ti} <span style="font-size:10px;color:#888;font-weight:400">${en} · ${dn}</span>` : ti;
+  const subLine = en ? `${ti} <span style="font-size:10px;color:#888;font-weight:400">${en}</span>` : ti;
   return `<div class="doc">
   <div class="doc-title">${co}</div>
   <div class="doc-sub">${subLine}</div>
