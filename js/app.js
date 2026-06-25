@@ -817,7 +817,7 @@ async function renderOutput(el) {
     <div class="output-section-card">
       <div class="output-section-title">📋 4대 기준서 출력</div>
       <div style="font-size:11px;color:var(--text3);margin-bottom:10px">화장품제조업 법적 필수 문서 · 클릭 시 새 창<br>제품표준서(AF-PS)는 제품 제조 탭에서 제품별로 출력할 수 있습니다</div>
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin-bottom:10px">
         ${[
           {key:'mms001', name:'제조관리기준서', code:'AF-MMS-001'},
           {key:'hms001', name:'제조위생관리기준서', code:'AF-HMS-001'},
@@ -1136,7 +1136,7 @@ function stdHd(title, sub, docNo, revNo, date) {
     <span><b>문서번호</b> ${dn}</span>
     <span><b>제정일자</b> ${dt}</span>
     <span><b>개정번호</b> ${rv}</span>
-    <span><b>작성/확인</b> 변민정 (인)</span>
+    <span><b>작성/확인</b> ${m.author||'변민정'} (인)</span>
     <span><b>관리구분</b> ${mgStr}</span>
   </div>`;
 }
@@ -1144,7 +1144,7 @@ function stdHd(title, sub, docNo, revNo, date) {
 function editStdMeta(docCode) {
   const m = getStdMeta(docCode);
   const html = `
-    <div style="padding:20px;max-width:380px;margin:0 auto">
+    <div style="padding:20px;max-width:520px;margin:0 auto;width:90vw">
       <h3 style="margin:0 0 16px;font-size:15px">${docCode} 문서 정보 수정</h3>
       <label style="display:block;margin-bottom:10px;font-size:12px">회사명
         <input id="sm-company" value="${m.company||'에이브릴팜'}" style="width:100%;padding:8px;margin-top:4px;border:1px solid var(--border);border-radius:var(--r-sm);font-size:13px">
@@ -1164,11 +1164,14 @@ function editStdMeta(docCode) {
       <label style="display:block;margin-bottom:10px;font-size:12px">개정번호
         <input id="sm-revNo" value="${m.revNo||'Rev.00'}" style="width:100%;padding:8px;margin-top:4px;border:1px solid var(--border);border-radius:var(--r-sm);font-size:13px">
       </label>
-      <label style="display:block;margin-bottom:16px;font-size:12px">관리구분
+      <label style="display:block;margin-bottom:10px;font-size:12px">관리구분
         <select id="sm-mgmt" style="width:100%;padding:8px;margin-top:4px;border:1px solid var(--border);border-radius:var(--r-sm);font-size:13px">
           <option value="관리본" ${(m.mgmt||'관리본')==='관리본'?'selected':''}>관리본</option>
           <option value="비관리본" ${m.mgmt==='비관리본'?'selected':''}>비관리본</option>
         </select>
+      </label>
+      <label style="display:block;margin-bottom:16px;font-size:12px">작성/확인자
+        <input id="sm-author" value="${m.author||'변민정'}" style="width:100%;padding:8px;margin-top:4px;border:1px solid var(--border);border-radius:var(--r-sm);font-size:13px">
       </label>
       <div style="display:flex;gap:8px;justify-content:flex-end">
         <button onclick="document.getElementById('stdMetaModal').remove()" style="padding:8px 16px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--card);color:var(--text);cursor:pointer">취소</button>
@@ -1191,7 +1194,8 @@ function saveStdMeta(docCode) {
     docNo: document.getElementById('sm-docNo').value.trim(),
     date: document.getElementById('sm-date').value.trim(),
     revNo: document.getElementById('sm-revNo').value.trim(),
-    mgmt: document.getElementById('sm-mgmt').value
+    mgmt: document.getElementById('sm-mgmt').value,
+    author: document.getElementById('sm-author').value.trim()
   });
   document.getElementById('stdMetaModal').remove();
   showToast('문서 정보가 저장되었습니다');
@@ -2268,18 +2272,26 @@ async function parseDocumentText(name, text, fileName, el) {
     // 시험성적서 ① 원자재 행에서 제조처 정보 → ingredients DB 업데이트
     if (isTest) {
       const allIng = await DB.getAll('ingredients');
+      const trRecipe = [];
       for (const l of lines) {
-        // "No\t원료명\t제조처..." 테이블 행 패턴
         const tc = l.split('\t').map(c => c.trim());
         if (tc.length >= 4 && /^\d+$/.test(tc[1]) && tc[2] && tc[3]) {
           const ingName = tc[2];
           const mfr = tc[3];
           if (ingName.length >= 2 && mfr && !/제조처|로트번호|시험항목/.test(mfr)) {
+            trRecipe.push({원료명: ingName, 제조처: mfr});
             const matched = allIng.find(ig => ig.원료명 && (ig.원료명 === ingName || ig.원료명.includes(ingName) || ingName.includes(ig.원료명)));
             if (matched && !matched.제조처) {
               await DB.put('ingredients', {...matched, 제조처: mfr});
             }
           }
+        }
+      }
+      // 시험성적서 원료 목록 → 제품표준서 레시피에 반영 (기존 레시피 없을 때)
+      if (trRecipe.length) {
+        const relProd = existingProdByName || (existingBatch && products.find(p=>p.id===existingBatch.productId));
+        if (relProd && (!relProd.레시피 || !relProd.레시피.length)) {
+          await DB.put('products', {...relProd, 레시피: trRecipe});
         }
       }
     }
