@@ -832,6 +832,11 @@ async function renderOutput(el) {
 
     </div>
 
+      <div style="font-size:11px;color:var(--text3);margin-top:4px;padding:6px 0;border-top:1px solid var(--border)">
+        제품표준서(AF-PS)는 <b>제품 제조</b> 탭에서 제품별로 출력할 수 있습니다
+      </div>
+    </div>
+
     <!-- ⑤ 파일 업로드 & 자동 등록 -->
     <div class="output-section-card">
       <div class="output-section-title">📁 파일 업로드 & 자동 등록</div>
@@ -1122,9 +1127,11 @@ function stdHd(title, sub, docNo, revNo, date) {
   const mg = m.mgmt || '관리본';
   const mgStr = mg === '관리본' ? '■ 관리본 □ 비관리본' : '□ 관리본 ■ 비관리본';
   const en = m.enTitle || '';
-  const subLine = en ? `${title} <span style="font-size:10px;color:#888;font-weight:400">${en} · ${dn}</span>` : title;
+  const co = m.company || '에이브릴팜';
+  const ti = m.title || title;
+  const subLine = en ? `${ti} <span style="font-size:10px;color:#888;font-weight:400">${en} · ${dn}</span>` : ti;
   return `<div class="doc">
-  <div class="doc-title">에이브릴팜</div>
+  <div class="doc-title">${co}</div>
   <div class="doc-sub">${subLine}</div>
   <div class="doc-meta">
     <span><b>문서번호</b> ${dn}</span>
@@ -1140,6 +1147,12 @@ function editStdMeta(docCode) {
   const html = `
     <div style="padding:20px;max-width:380px;margin:0 auto">
       <h3 style="margin:0 0 16px;font-size:15px">${docCode} 문서 정보 수정</h3>
+      <label style="display:block;margin-bottom:10px;font-size:12px">회사명
+        <input id="sm-company" value="${m.company||'에이브릴팜'}" style="width:100%;padding:8px;margin-top:4px;border:1px solid var(--border);border-radius:var(--r-sm);font-size:13px">
+      </label>
+      <label style="display:block;margin-bottom:10px;font-size:12px">문서 제목
+        <input id="sm-title" value="${m.title||''}" placeholder="예: 제조관리기준서" style="width:100%;padding:8px;margin-top:4px;border:1px solid var(--border);border-radius:var(--r-sm);font-size:13px">
+      </label>
       <label style="display:block;margin-bottom:10px;font-size:12px">영문 제목
         <input id="sm-enTitle" value="${m.enTitle||''}" placeholder="예: Manufacturing Management Standard" style="width:100%;padding:8px;margin-top:4px;border:1px solid var(--border);border-radius:var(--r-sm);font-size:13px">
       </label>
@@ -1173,6 +1186,8 @@ function editStdMeta(docCode) {
 }
 function saveStdMeta(docCode) {
   setStdMeta(docCode, {
+    company: document.getElementById('sm-company').value.trim(),
+    title: document.getElementById('sm-title').value.trim(),
     enTitle: document.getElementById('sm-enTitle').value.trim(),
     docNo: document.getElementById('sm-docNo').value.trim(),
     date: document.getElementById('sm-date').value.trim(),
