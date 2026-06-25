@@ -146,12 +146,14 @@ async function renderManufacture(el) {
   el.innerHTML = `
     <div class="page-header">
       <h2 class="page-title">제품 제조</h2>
-      <button class="header-btn" onclick="openProductMasterList()" style="background:var(--mauve);color:#fff;border-color:var(--mauve)">
-        <i class="ti ti-book-2"></i> 제품표준서
-      </button>
-      <button class="header-btn" onclick="openTRFromBatch()" style="background:var(--teal);color:#fff;border-color:var(--teal)">
-        <i class="ti ti-file-analytics"></i> 시험성적서
-      </button>
+      <div style="display:flex;gap:6px">
+        <button class="header-btn" onclick="openTRFromBatch()" style="background:var(--teal);color:#fff;border-color:var(--teal);padding:6px 10px;font-size:12px">
+          시험성적서
+        </button>
+        <button class="header-btn" onclick="openProductMasterList()" style="background:var(--mauve);color:#fff;border-color:var(--mauve);padding:6px 10px;font-size:12px">
+          제품표준서
+        </button>
+      </div>
     </div>
     <div class="summary-row">
       <div class="sum-chip sum-mauve">배치 ${list.length}건</div>
