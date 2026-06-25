@@ -816,7 +816,7 @@ async function renderOutput(el) {
     <!-- ③ 4대 기준서 출력 (3대 기준서 + 제품표준서 통합) -->
     <div class="output-section-card">
       <div class="output-section-title">📋 4대 기준서 출력</div>
-      <div style="font-size:11px;color:var(--text3);margin-bottom:10px">화장품제조업 법적 필수 문서 · 클릭 시 새 창</div>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:10px">화장품제조업 법적 필수 문서 · 클릭 시 새 창<br>제품표준서(AF-PS)는 제품 제조 탭에서 제품별로 출력할 수 있습니다</div>
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px">
         ${[
           {key:'mms001', name:'제조관리기준서', code:'AF-MMS-001'},
@@ -834,9 +834,6 @@ async function renderOutput(el) {
 
     </div>
 
-      <div style="font-size:11px;color:var(--text3);margin-top:4px;padding:6px 0;border-top:1px solid var(--border)">
-        제품표준서(AF-PS)는 <b>제품 제조</b> 탭에서 제품별로 출력할 수 있습니다
-      </div>
     </div>
 
     <!-- ⑤ 파일 업로드 & 자동 등록 -->
