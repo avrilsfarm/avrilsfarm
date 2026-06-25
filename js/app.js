@@ -2270,9 +2270,9 @@ async function parseDocumentText(name, text, fileName, el) {
 
     // 시험성적서에 KCL 정보가 있으면 제품표준서로 저장 (배치 아님)
     // 시험성적서 ① 원자재 행에서 제조처 정보 → ingredients DB 업데이트
+    let trRecipe = [];
     if (isTest) {
       const allIng = await DB.getAll('ingredients');
-      const trRecipe = [];
       for (const l of lines) {
         const tc = l.split('\t').map(c => c.trim());
         if (tc.length >= 4 && /^\d+$/.test(tc[1]) && tc[2] && tc[3]) {
@@ -2356,6 +2356,7 @@ async function parseDocumentText(name, text, fileName, el) {
       const updated = {...existingBatch};
       if(docNo && isOrder) updated.문서번호 = docNo;
       if(docNo && isTest) updated.시험성적서번호 = docNo;
+      if(isTest && trRecipe && trRecipe.length) updated.시험원료 = trRecipe;
       if(barcode) updated.바코드 = barcode;
       if(isOrder) {
         if(batchMfgNo) updated.제조번호 = batchMfgNo;
@@ -2375,6 +2376,7 @@ async function parseDocumentText(name, text, fileName, el) {
         제품명: productName||fileName.replace(/\.[^.]+$/,''),
         문서번호: isOrder ? docNo : '', 바코드: barcode, 상태:'제조중',
         ...(isTest && docNo && {시험성적서번호: docNo}),
+        ...(isTest && trRecipe.length && {시험원료: trRecipe}),
         ...(isOrder && batchMfgNo && {제조번호: batchMfgNo}),
         ...(isOrder && batchMfgDate && {date: batchMfgDate}),
         ...(isOrder && batchInputWeight && {투입량: batchInputWeight}),

@@ -93,7 +93,7 @@ function chk(val, trueLabel, falseLabel){
 function buildTR(batch, allIng, products){
   const prod = (products||[]).find(p=>p.id===batch.productId) || {};
   const docNo = batch.시험성적서번호 || (batch.문서번호 ? batch.문서번호.replace('AF-MI','AF-TR') : 'AF-TR-00X');
-  const recipe = prod.레시피?.length ? prod.레시피 : [];
+  const recipe = prod.레시피?.length ? prod.레시피 : (batch.시험원료?.length ? batch.시험원료 : []);
   const mw = prod.목표중량 || batch.목표중량 || '90g ±5g';
   const cs = prod.색상기준 || batch.색상기준 || '';
 
@@ -471,7 +471,7 @@ function buildMI(batch, products){
 function buildPS(batch, allIng, products){
   const prod = (products||[]).find(p=>p.id===batch.productId) || {};
   const psNo = (prod.문서번호 || batch.문서번호 || 'AF-PS-00X').replace('AF-MI','AF-PS');
-  const recipe = prod.레시피?.length ? prod.레시피 : [];
+  const recipe = prod.레시피?.length ? prod.레시피 : (batch.시험원료?.length ? batch.시험원료 : []);
   const mw = prod.목표중량 || batch.목표중량 || '90g ±5g';
   const iTheory = prod.이론수량 || batch.이론수량 || 9;
   const allergy = prod.알레르기 || batch.알레르기 || '';
