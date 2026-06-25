@@ -99,6 +99,15 @@ function buildTR(data, allIng, products){
   const productName = data.productName || data.제품명 || prod.제품명 || '';
   const mw = prod.목표중량 || data.목표중량 || '90g ±5g';
   const cs = data.색상기준 || prod.색상기준 || '';
+  // KCL 데이터: localStorage trReport 또는 product에서
+  const kclNo = data.KCL || prod.KCL || '';
+  const kclIssueNo = data.KCL발행번호 || prod.KCL발행번호 || '';
+  const ctNo = data.CT접수번호 || prod.CT접수번호 || '';
+  const kclContent = data.KCL내용량 || prod.KCL내용량 || '';
+  const kclAlkali = data.KCL유리알칼리 || prod.KCL유리알칼리 || '';
+  const kclDryWeight = data.KCL건조중량 || prod.KCL건조중량 || '';
+  const kclRcvDate = data.KCL접수일 || prod.KCL접수일 || '';
+  const kclIssueDate = data.KCL발행일 || prod.KCL발행일 || '';
 
   // ① 원자재 행 — 레시피 기준
   const ingRows = recipe.map((r,n) => {
@@ -155,16 +164,42 @@ function buildTR(data, allIng, products){
     </tbody>
   </table>
 
-  <div class="sec">▶ ③ 종합 판정 및 성적서 첨부</div>
+${kclNo ? `
+  <div class="sec">▶ ③ 완제품 시험성적서 — ${kclNo.replace(/-.*$/,'')} (KCL 공식 품질검사)</div>
+  <p class="note">※ 화장비누 법정 검사항목: 내용량(건조) · 유리알칼리</p>
+  <table>
+    <thead><tr><th>제 품 명</th><th colspan="2">${productName}</th><th>제품코드</th><th colspan="2">${data.barcode||''}</th></tr></thead>
+    <tbody>
+      <tr><td class="h">접수번호</td><td>${kclNo}</td><td class="h">발행번호</td><td>${kclIssueNo}</td></tr>
+      <tr><td class="h">접수일</td><td>${kclRcvDate}</td><td class="h">발행일</td><td>${kclIssueDate}</td></tr>
+      <tr><td class="h" colspan="4">시험기관: 한국건설생활환경시험연구원 (KCL) — 식약처 지정 화장품 제3호</td></tr>
+    </tbody>
+  </table>
+  <table style="margin-top:4px">
+    <thead><tr><th>시험·검사 항목</th><th>단 위</th><th>시험·검사 기준</th><th>결 과</th><th>합격 판정</th></tr></thead>
+    <tbody>
+      <tr><td>내용량 (건조)</td><td class="c">%</td><td class="c">97 이상</td><td class="c"><b>${kclContent}</b></td><td class="c green">■ 적합</td></tr>
+      <tr><td>유리알칼리</td><td class="c">%</td><td class="c">0.1 이하</td><td class="c"><b>${kclAlkali}</b></td><td class="c green">■ 적합</td></tr>
+    </tbody>
+  </table>
+  <table style="margin-top:4px">
+    <tr><td class="h" style="width:22%">종합 판정</td><td class="green big">■ 적 합</td></tr>
+  </table>
+` : ''}
+  <div class="sec">▶ ${kclNo ? '④' : '③'} 종합 판정 및 성적서 첨부</div>
   <table>
     <tr>
       <td class="h" style="width:22%">종합 판정</td>
       <td class="green big">■ 출하 승인 &nbsp;&nbsp;&nbsp; □ 출하 보류</td>
     </tr>
     <tr>
-      <td class="h">SC 성적서 원본 첨부</td>
-      <td>${prod.KCL ? `■ 첨부 완료 (접수번호: ${prod.KCL} / 발행번호: ${prod.KCL발행번호||''})<br><span style="font-size:8px;color:#555">본 KCL SC 성적서는 제품 출시 전 초도 생산품에 대한 품질 검사 결과로, 본 생산 건의 제형 및 품질 안전성 증빙 자료로 갈음함</span>` : '□ 미첨부 — 제품표준서에 KCL 정보를 입력해주세요'}</td>
-    </tr>
+      <td class="h">SC 성적서<br>원본 첨부</td>
+      <td>${kclNo ? `■ 첨부 완료 (접수번호: ${kclNo} / 발행번호: ${kclIssueNo})<br><span style="font-size:8px;color:#555">*본 KCL SC 성적서는 제품 출시 전 초도 생산품에 대한 품질 검사 결과로, 본 생산 건의 제형 및 품질 안전성 증빙 자료로 갈음함</span>` : '□ 미첨부 — 시험성적서 docx를 업로드해주세요'}</td>
+    </tr>${ctNo ? `
+    <tr>
+      <td class="h">CT 성적서<br>원본 첨부</td>
+      <td>■ 첨부 완료 (성적서번호: ${ctNo} — 참고용)</td>
+    </tr>` : ''}
     <tr><td class="h">총괄책임자</td><td>${CO.owner} &nbsp;(인)</td></tr>
   </table>
   ` + ft();

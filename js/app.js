@@ -2362,6 +2362,18 @@ async function parseDocumentText(name, text, fileName, el) {
       }
       // 시험성적서 데이터를 localStorage에 독립 저장 (제품표준서 건드리지 않음)
       const trKey = 'trReport_' + (productName || docNo || 'unknown');
+      // 실측중량 파싱: "중량 (건조)\t90g ±5g\t93g\t■적합" 형태에서 93g 추출
+      let parsedActualWeight = '';
+      for (const l of lines) {
+        if (/중량.*건조/.test(l.replace(/\s/g,'')) && l.includes('\t')) {
+          const tc2 = l.split('\t').map(c=>c.trim());
+          for (const c of tc2) {
+            const gm = c.match(/^(\d{2,3})g$/);
+            if (gm && +gm[1] > 30 && +gm[1] < 500) { parsedActualWeight = gm[1]; break; }
+          }
+          if (parsedActualWeight) break;
+        }
+      }
       const trData = {
         productName: productName || '',
         docNo: docNo || '',
@@ -2370,6 +2382,8 @@ async function parseDocumentText(name, text, fileName, el) {
         barcode: barcode || '',
         제정일자: parsedEstDate || '',
         개정번호: parsedRevNo || '',
+        실측중량: parsedActualWeight || '',
+        ...kclInfo,
         updatedAt: new Date().toISOString()
       };
       localStorage.setItem(trKey, JSON.stringify(trData));
