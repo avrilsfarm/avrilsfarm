@@ -146,6 +146,9 @@ async function renderManufacture(el) {
   el.innerHTML = `
     <div class="page-header">
       <h2 class="page-title">제품 제조</h2>
+      <button class="header-btn" onclick="openTRFromBatch()" style="background:var(--card);color:var(--teal);border:1px solid var(--teal)">
+        <i class="ti ti-file-analytics"></i> 시험성적서
+      </button>
       <button class="header-btn" onclick="openProductMasterList()" style="background:var(--mauve);color:#fff;border-color:var(--mauve)">
         <i class="ti ti-book-2"></i> 제품표준서
       </button>
@@ -812,21 +815,17 @@ async function renderOutput(el) {
     <div class="output-section-card">
       <div class="output-section-title">📋 4대 기준서 출력</div>
       <div style="font-size:11px;color:var(--text3);margin-bottom:10px">화장품제조업 법적 필수 문서 · 클릭 시 새 창</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px">
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px">
         ${[
           {key:'mms001', name:'제조관리기준서', code:'AF-MMS-001'},
           {key:'hms001', name:'제조위생관리기준서', code:'AF-HMS-001'},
           {key:'qcm001', name:'품질관리기준서', code:'AF-QCM-001'},
         ].map(d=>`
-          <div style="display:flex;gap:4px;align-items:stretch">
-            <button class="output-btn-sec" onclick="openStandardDoc('${d.key}')" style="flex:1;text-align:left;display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:10px 12px">
-              <span style="font-size:11px;font-weight:700;color:var(--text)">${d.name}</span>
-              <span style="font-size:10px;color:var(--text3)">${d.code}</span>
-            </button>
-            <button class="output-btn-sec" onclick="editStdMeta('${d.code}')" title="문서 정보 수정" style="padding:6px 10px;display:flex;align-items:center">
-              <i class="ti ti-pencil" style="font-size:14px"></i>
-            </button>
-          </div>`).join('')}
+          <button class="output-btn-sec" onclick="openStandardDoc('${d.key}')" style="text-align:left;display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:10px 12px;position:relative">
+            <span style="font-size:11px;font-weight:700;color:var(--text)">${d.name}</span>
+            <span style="font-size:10px;color:var(--text3)">${d.code}</span>
+            <i class="ti ti-pencil" onclick="event.stopPropagation();editStdMeta('${d.code}')" title="문서 정보 수정" style="position:absolute;top:6px;right:6px;font-size:12px;color:var(--text3);cursor:pointer"></i>
+          </button>`).join('')}
       </div>
       <div style="font-size:11px;color:var(--text3);margin-bottom:8px;border-top:1px solid var(--border);padding-top:10px">제품표준서 (AF-PS) · 제품 제조 탭에서 추가/관리</div>
       ${products.length === 0
@@ -1132,9 +1131,11 @@ function stdHd(title, sub, docNo, revNo, date) {
   const dt = m.date || date;
   const mg = m.mgmt || '관리본';
   const mgStr = mg === '관리본' ? '■ 관리본 □ 비관리본' : '□ 관리본 ■ 비관리본';
+  const en = m.enTitle || '';
+  const subLine = en ? `${title} <span style="font-size:10px;color:#888;font-weight:400">${en} · ${dn}</span>` : title;
   return `<div class="doc">
   <div class="doc-title">에이브릴팜</div>
-  <div class="doc-sub">${title}</div>
+  <div class="doc-sub">${subLine}</div>
   <div class="doc-meta">
     <span><b>문서번호</b> ${dn}</span>
     <span><b>제정일자</b> ${dt}</span>
@@ -1149,6 +1150,9 @@ function editStdMeta(docCode) {
   const html = `
     <div style="padding:20px;max-width:380px;margin:0 auto">
       <h3 style="margin:0 0 16px;font-size:15px">${docCode} 문서 정보 수정</h3>
+      <label style="display:block;margin-bottom:10px;font-size:12px">영문 제목
+        <input id="sm-enTitle" value="${m.enTitle||''}" placeholder="예: Manufacturing Management Standard" style="width:100%;padding:8px;margin-top:4px;border:1px solid var(--border);border-radius:var(--r-sm);font-size:13px">
+      </label>
       <label style="display:block;margin-bottom:10px;font-size:12px">문서번호
         <input id="sm-docNo" value="${m.docNo||docCode}" style="width:100%;padding:8px;margin-top:4px;border:1px solid var(--border);border-radius:var(--r-sm);font-size:13px">
       </label>
@@ -1179,6 +1183,7 @@ function editStdMeta(docCode) {
 }
 function saveStdMeta(docCode) {
   setStdMeta(docCode, {
+    enTitle: document.getElementById('sm-enTitle').value.trim(),
     docNo: document.getElementById('sm-docNo').value.trim(),
     date: document.getElementById('sm-date').value.trim(),
     revNo: document.getElementById('sm-revNo').value.trim(),
@@ -2629,11 +2634,11 @@ async function parseDocumentText(name, text, fileName, el) {
         const d = `${baseYear}-${String(mo).padStart(2,'0')}-01`;
         const cells = line.split('\t').map(c => c.trim());
         try {
-          await DB.add('hygiene', {date: d, type:'방충방서', 확인자: cells[1]||'변민정', status:'완료',
-            방충망: /■양호/.test(line)?'양호':'불량',
-            해충: /■없음/.test(cells[3]||'')?'없음':'있음',
-            설치류: /■없음/.test(cells[4]||'')?'없음':'있음',
-            조치: cells[5]||''});
+          await DB.add('hygiene', {date: d, type:'방충방서', 확인자: cells[2]||'변민정', status:'완료',
+            방충망: /■양호/.test(cells[3]||'')?'양호':'불량',
+            해충: /■없음/.test(cells[4]||'')?'없음':'있음',
+            설치류: /■없음/.test(cells[5]||'')?'없음':'있음',
+            조치: cells[6]||''});
           pestCnt++;
         } catch(e) {}
       }
@@ -3217,6 +3222,34 @@ async function delItem(store, id) {
 /* ════ window 노출 ════ */
 window.switchStockTab=switchStockTab; window.toggleStockCat=toggleStockCat;
 window.openIngForm=openIngForm; window.saveIng=saveIng; window.updateIngCats=updateIngCats;
+
+function openTRFromBatch() {
+  DB.getAll('batches').then(async batches => {
+    if (!batches.length) { showToast('등록된 배치가 없습니다'); return; }
+    const products = await DB.getAll('products');
+    const ing = await DB.getAll('ingredients');
+    if (batches.length === 1) {
+      open$(buildTR(batches[0], ing, products));
+    } else {
+      // 배치 선택 모달
+      const opts = batches.map(b => `<option value="${b.id}">${b.제품명||'미등록'} (${b.문서번호||''})</option>`).join('');
+      showSheet(`<div class="sheet-handle"></div><div class="sheet-inner">
+        <div class="sheet-title">시험성적서 출력</div>
+        <label>배치 선택<select id="tr-batch-sel">${opts}</select></label>
+        <div class="sheet-btns">
+          <button onclick="closeSheet()">취소</button>
+          <button class="btn-save" onclick="openTRSelected()">출력</button>
+        </div></div>`);
+    }
+  });
+}
+async function openTRSelected() {
+  const bid = +document.getElementById('tr-batch-sel').value;
+  const [batches, products, ing] = await Promise.all([DB.getAll('batches'), DB.getAll('products'), DB.getAll('ingredients')]);
+  const batch = batches.find(b => b.id === bid);
+  if (batch) { closeSheet(); open$(buildTR(batch, ing, products)); }
+}
+window.openTRFromBatch=openTRFromBatch; window.openTRSelected=openTRSelected;
 window.openBatchForm=openBatchForm; window.saveBatch=saveBatch;
 window.pmRecipeEdit=pmRecipeEdit; window.pmRecipeDel=pmRecipeDel; window.pmRecipeAdd=pmRecipeAdd;
 window.uploadKclToForm=uploadKclToForm; window.uploadRecipeToForm=uploadRecipeToForm;
