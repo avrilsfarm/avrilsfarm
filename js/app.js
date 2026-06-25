@@ -146,7 +146,7 @@ async function renderManufacture(el) {
   el.innerHTML = `
     <div class="page-header">
       <h2 class="page-title">제품 제조</h2>
-      <button class="header-btn" onclick="openTRFromBatch()" style="background:var(--card);color:var(--teal);border:1px solid var(--teal)">
+      <button class="header-btn" onclick="openTRFromBatch()" style="background:var(--teal);color:#fff;border-color:var(--teal)">
         <i class="ti ti-file-analytics"></i> 시험성적서
       </button>
       <button class="header-btn" onclick="openProductMasterList()" style="background:var(--mauve);color:#fff;border-color:var(--mauve)">
@@ -821,25 +821,13 @@ async function renderOutput(el) {
           {key:'hms001', name:'제조위생관리기준서', code:'AF-HMS-001'},
           {key:'qcm001', name:'품질관리기준서', code:'AF-QCM-001'},
         ].map(d=>`
-          <button class="output-btn-sec" onclick="openStandardDoc('${d.key}')" style="text-align:left;display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:10px 12px;position:relative">
-            <span style="font-size:11px;font-weight:700;color:var(--text)">${d.name}</span>
-            <span style="font-size:10px;color:var(--text3)">${d.code}</span>
-            <i class="ti ti-pencil" onclick="event.stopPropagation();editStdMeta('${d.code}')" title="문서 정보 수정" style="position:absolute;top:6px;right:6px;font-size:12px;color:var(--text3);cursor:pointer"></i>
+          <button class="output-btn-sec" onclick="openStandardDoc('${d.key}')" style="text-align:left;display:flex;flex-direction:column;align-items:flex-start;gap:1px;padding:8px 10px;position:relative;min-height:0">
+            <span style="font-size:11px;font-weight:600;color:var(--text);line-height:1.2">${d.name}</span>
+            <span style="font-size:9px;color:var(--text3)">${d.code}</span>
+            <i class="ti ti-pencil" onclick="event.stopPropagation();editStdMeta('${d.code}')" title="문서 정보 수정" style="position:absolute;top:4px;right:4px;font-size:11px;color:var(--text3);cursor:pointer"></i>
           </button>`).join('')}
       </div>
-      <div style="font-size:11px;color:var(--text3);margin-bottom:8px;border-top:1px solid var(--border);padding-top:10px">제품표준서 (AF-PS) · 제품 제조 탭에서 추가/관리</div>
-      ${products.length === 0
-        ? `<div style="font-size:12px;color:var(--text3);padding:8px">등록된 제품표준서가 없습니다<br>제품 제조 탭에서 먼저 등록해주세요</div>`
-        : `<div style="display:flex;gap:8px;align-items:center">
-            <select id="ps-select" style="flex:1;padding:10px 12px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--card);color:var(--text);font-size:13px">
-              <option value="">-- 표준서 선택 --</option>
-              ${products.map(p=>`<option value="${p.id}">${p.제품명||'미등록'}${p.문서번호?' ('+p.문서번호+')':''}</option>`).join('')}
-            </select>
-            <button class="output-btn-sec" onclick="openSelectedStandardDoc()" style="white-space:nowrap;padding:10px 16px">
-              <i class="ti ti-external-link"></i> 열기
-            </button>
-          </div>`
-      }
+
     </div>
 
     <!-- ⑤ 파일 업로드 & 자동 등록 -->
@@ -1960,12 +1948,12 @@ async function parseDocumentText(name, text, fileName, el) {
   const isTest    = looksLike('시험성적') || name.includes('af-tr') || name.includes('-tr-');
   const isHygiene = looksLike('위생') || name.includes('-mh') || name.includes('r-mh');
     // docx 헤더에서 기준서 메타 자동 저장
-    const stdMetaMatch = bodyText.match(/문서번호[:\\s]*(AF-[A-Z]+-\\d+)/);
+    const stdMetaMatch = fullText.match(/문서번호[:\\s]*(AF-[A-Z]+-\\d+)/);
     if (stdMetaMatch) {
       const sc = stdMetaMatch[1];
-      const dm = bodyText.match(/제정일자[:\\s]*([\\d.\\-\\/]+)/);
-      const rm = bodyText.match(/개정번호[:\\s]*(Rev\\.?\\d+)/i);
-      const mm = /■\\s*관리본/.test(bodyText) ? '관리본' : /■\\s*비관리본/.test(bodyText) ? '비관리본' : '';
+      const dm = fullText.match(/제정일자[:\\s]*([\\d.\\-\\/]+)/);
+      const rm = fullText.match(/개정번호[:\\s]*(Rev\\.?\\d+)/i);
+      const mm = /■\\s*관리본/.test(fullText) ? '관리본' : /■\\s*비관리본/.test(fullText) ? '비관리본' : '';
       const obj = {};
       if (sc) obj.docNo = sc;
       if (dm) obj.date = dm[1];
