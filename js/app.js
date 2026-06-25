@@ -168,7 +168,7 @@ async function renderManufacture(el) {
           <div class="card-num">${idx+1}</div>
           <div class="card-left">
             <div class="card-title">${b.제품명||''}</div>
-            <div class="card-sub">${b.문서번호||''} · ${b.제조번호||''}</div>
+            <div class="card-sub">${b.문서번호||''}${b.제조번호?' · '+b.제조번호:''}${b.시험성적서번호?' · '+b.시험성적서번호:''}</div>
             <div class="card-sub">${b.date||''} · ${prod.제조방법||b.제조방법||''}</div>
           </div>
           <div class="card-right">
@@ -823,11 +823,13 @@ async function renderOutput(el) {
           {key:'hms001', name:'제조위생관리기준서', code:'AF-HMS-001'},
           {key:'qcm001', name:'품질관리기준서', code:'AF-QCM-001'},
         ].map(d=>`
-          <button class="output-btn-sec" onclick="openStandardDoc('${d.key}')" style="text-align:left;display:flex;flex-direction:column;align-items:flex-start;gap:1px;padding:8px 10px;position:relative;min-height:0">
-            <span style="font-size:11px;font-weight:600;color:var(--text);line-height:1.2">${d.name}</span>
-            <span style="font-size:9px;color:var(--text3)">${d.code}</span>
-            <i class="ti ti-pencil" onclick="event.stopPropagation();editStdMeta('${d.code}')" title="문서 정보 수정" style="position:absolute;top:4px;right:4px;font-size:11px;color:var(--text3);cursor:pointer"></i>
-          </button>`).join('')}
+          <div style="display:flex;flex-direction:column;border:1px solid var(--border);border-radius:var(--r-sm);overflow:hidden">
+            <button class="output-btn-sec" onclick="openStandardDoc('${d.key}')" style="text-align:left;padding:8px 10px;border:none;border-radius:0">
+              <span style="font-size:11px;font-weight:600;color:var(--text);line-height:1.2">${d.name}</span><br>
+              <span style="font-size:9px;color:var(--text3)">${d.code}</span>
+            </button>
+            <button onclick="editStdMeta('${d.code}')" style="padding:3px 0;border:none;border-top:1px solid var(--border);background:var(--bg);color:var(--text3);font-size:9px;cursor:pointer;font-family:inherit">수정</button>
+          </div>`).join('')}
       </div>
 
     </div>
@@ -2344,6 +2346,7 @@ async function parseDocumentText(name, text, fileName, el) {
     if(existingBatch) {
       const updated = {...existingBatch};
       if(docNo && isOrder) updated.문서번호 = docNo;
+      if(docNo && isTest) updated.시험성적서번호 = docNo;
       if(barcode) updated.바코드 = barcode;
       if(isOrder) {
         if(batchMfgNo) updated.제조번호 = batchMfgNo;
@@ -2361,7 +2364,8 @@ async function parseDocumentText(name, text, fileName, el) {
     } else if(productName || docNo) {
       const newB = {
         제품명: productName||fileName.replace(/\.[^.]+$/,''),
-        문서번호: docNo, 바코드: barcode, 상태:'제조중',
+        문서번호: isOrder ? docNo : '', 바코드: barcode, 상태:'제조중',
+        ...(isTest && docNo && {시험성적서번호: docNo}),
         ...(isOrder && batchMfgNo && {제조번호: batchMfgNo}),
         ...(isOrder && batchMfgDate && {date: batchMfgDate}),
         ...(isOrder && batchInputWeight && {투입량: batchInputWeight}),
