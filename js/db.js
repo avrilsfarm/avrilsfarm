@@ -116,6 +116,10 @@ async function clearAll() {
     const st = _db.transaction(s,'readwrite').objectStore(s);
     await new Promise((res,rej) => { const r=st.clear(); r.onsuccess=res; r.onerror=rej; });
   }
+  // localStorage 시험성적서·기준서 데이터도 함께 삭제
+  const lsKeys = [];
+  for (let i = 0; i < localStorage.length; i++) lsKeys.push(localStorage.key(i));
+  lsKeys.filter(k => k.startsWith('trReport_') || k.startsWith('stdMeta_') || k.startsWith('stdSections_')).forEach(k => localStorage.removeItem(k));
 }
 
 /* 기존 DB의 EF- 문서번호를 AF-로 일괄 변환 */
