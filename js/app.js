@@ -771,7 +771,7 @@ async function renderOutput(el) {
       <div class="doc-check-inline">
         ${[
           {key:'mi',  name:'제조지시서',    note:'배치 필요'},
-          {key:'tr',  name:'시험성적서',    note:'배치 필요'},
+          {key:'tr',  name:'시험성적서',    note:'제품 기준'},
           {key:'ps',  name:'제품표준서',    note:'배치 필요'},
           {key:'mms', name:'원료입고기록서', note:'배치 불필요'},
           {key:'qcm', name:'완제품출하검사', note:'배치 불필요'},
@@ -817,7 +817,7 @@ async function renderOutput(el) {
     <div class="output-section-card">
       <div class="output-section-title">📋 4대 기준서 출력</div>
       <div style="font-size:11px;color:var(--text3);margin-bottom:10px">화장품제조업 법적 필수 문서 · 클릭 시 새 창<br>제품표준서(AF-PS)는 제품 제조 탭에서 제품별로 출력할 수 있습니다</div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin-bottom:10px">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));gap:8px;margin-bottom:10px">
         ${[
           {key:'mms001', name:'제조관리기준서', code:'AF-MMS-001'},
           {key:'hms001', name:'제조위생관리기준서', code:'AF-HMS-001'},
@@ -825,7 +825,7 @@ async function renderOutput(el) {
         ].map(d=>`
           <div style="display:flex;flex-direction:column;border:1px solid var(--border);border-radius:var(--r-sm);overflow:hidden">
             <button class="output-btn-sec" onclick="openStandardDoc('${d.key}')" style="text-align:left;padding:8px 10px;border:none;border-radius:0">
-              <span style="font-size:11px;font-weight:600;color:var(--text);line-height:1.2">${d.name}</span><br>
+              <span style="font-size:10px;font-weight:600;color:var(--text);line-height:1.3;word-break:keep-all">${d.name}</span><br>
               <span style="font-size:9px;color:var(--text3)">${d.code}</span>
             </button>
             <div style="display:flex;border-top:1px solid var(--border)">
@@ -2342,12 +2342,26 @@ async function parseDocumentText(name, text, fileName, el) {
           }
         }
       }
-      // 시험성적서 원료 목록 → 제품표준서 레시피에 반영 (기존 레시피 없을 때)
-      if (trRecipe.length) {
-        const relProd = existingProdByName || (existingBatch && products.find(p=>p.id===existingBatch.productId));
-        if (relProd && (!relProd.레시피 || !relProd.레시피.length)) {
-          await DB.put('products', {...relProd, 레시피: trRecipe});
+      // 시험성적서에서 색상기준 파싱
+      let parsedColorStd = '';
+      for (const l of lines) {
+        const tc = l.split('\t').map(c => c.trim());
+        for (let ci = 0; ci < tc.length - 1; ci++) {
+          if (/^색\s*상$/.test(tc[ci]) && tc[ci+1] && !/검사|항목|결과|판정/.test(tc[ci+1])) {
+            parsedColorStd = tc[ci+1]; break;
+          }
         }
+        if (parsedColorStd) break;
+      }
+      // 시험성적서 데이터를 제품(products)에 저장 (배치가 아닌 제품 단위)
+      const trProd = existingProdByName || (existingBatch && products.find(p=>p.id===existingBatch.productId));
+      if (trProd) {
+        const trUpd = {...trProd};
+        if (docNo) trUpd.시험성적서번호 = docNo;
+        if (trRecipe.length) trUpd.시험원료 = trRecipe;
+        if (parsedColorStd) trUpd.색상기준 = parsedColorStd;
+        if (!trUpd.레시피 || !trUpd.레시피.length) trUpd.레시피 = trRecipe;
+        await DB.put('products', trUpd);
       }
     }
     if (isTest && Object.keys(kclInfo).length) {
@@ -2426,12 +2440,29 @@ async function parseDocumentText(name, text, fileName, el) {
       const kclNote = Object.keys(kclInfo).length ? ' · KCL 정보 표준서에 반영됨' : '';
       const recNote = recipe.length ? ` · 레시피 ${recipe.length}종 반영됨` : '';
       el.innerHTML = `<span style="color:var(--teal-dark)">✅ <b>${existingBatch.제품명}</b> ${isTest?'시험성적서':'제조지시서'} 업데이트 완료${kclNote}${recNote}</span>`;
-    } else if(productName || docNo) {
+    } else if(isTest && (productName || docNo)) {
+      // 시험성적서: 배치 생성 없이 제품에만 저장
+      if (!trProd && productName) {
+        // 제품이 없으면 자동 생성
+        const nextPsNo2 = () => {
+          const nums = products.map(p=>p.문서번호&&p.문서번호.match(/^AF-PS-(\d+)$/)).filter(Boolean).map(m=>parseInt(m[1],10));
+          return 'AF-PS-' + String((nums.length?Math.max(...nums):0)+1).padStart(3,'0');
+        };
+        const autoProd2 = {
+          제품명: productName, 문서번호: nextPsNo2(), 바코드: barcode,
+          시험성적서번호: docNo, 시험원료: trRecipe,
+          색상기준: parsedColorStd || '', 레시피: trRecipe,
+        };
+        await DB.add('products', autoProd2);
+      }
+      const trNotes = [];
+      if(trRecipe.length) trNotes.push('원료 '+trRecipe.length+'종');
+      if(parsedColorStd) trNotes.push('색상: '+parsedColorStd);
+      el.innerHTML = `<span style="color:var(--teal-dark)">✅ <b>${productName||docNo}</b> 시험성적서 제품에 등록 완료${trNotes.length?' · '+trNotes.join(' · '):''}</span>`;
+    } else if(!isTest && (productName || docNo)) {
       const newB = {
         제품명: productName||fileName.replace(/\.[^.]+$/,''),
         문서번호: isOrder ? docNo : '', 바코드: barcode, 상태:'제조중',
-        ...(isTest && docNo && {시험성적서번호: docNo}),
-        ...(isTest && trRecipe.length && {시험원료: trRecipe}),
         ...(isOrder && batchMfgNo && {제조번호: batchMfgNo}),
         ...(isOrder && batchMfgDate && {date: batchMfgDate}),
         ...(isOrder && batchInputWeight && {투입량: batchInputWeight}),
@@ -3299,18 +3330,20 @@ window.switchStockTab=switchStockTab; window.toggleStockCat=toggleStockCat;
 window.openIngForm=openIngForm; window.saveIng=saveIng; window.updateIngCats=updateIngCats;
 
 function openTRFromBatch() {
-  DB.getAll('batches').then(async batches => {
-    if (!batches.length) { showToast('등록된 배치가 없습니다'); return; }
-    const products = await DB.getAll('products');
+  DB.getAll('products').then(async products => {
+    const trProds = products.filter(p => p.시험성적서번호 || p.시험원료?.length);
+    if (!trProds.length) { showToast('시험성적서가 등록된 제품이 없습니다.\n문서출력 > 파일 업로드에서 시험성적서 docx를 업로드해주세요.'); return; }
     const ing = await DB.getAll('ingredients');
-    if (batches.length === 1) {
-      open$(buildTR(batches[0], ing, products));
+    const batches = await DB.getAll('batches');
+    if (trProds.length === 1) {
+      const p = trProds[0];
+      const b = batches.find(b => b.productId === p.id) || {productId: p.id, 제품명: p.제품명};
+      open$(buildTR(b, ing, products));
     } else {
-      // 배치 선택 모달
-      const opts = batches.map(b => `<option value="${b.id}">${b.제품명||'미등록'} (${b.문서번호||''})</option>`).join('');
+      const opts = trProds.map(p => `<option value="${p.id}">${p.제품명||'미등록'} (${p.시험성적서번호||''})</option>`).join('');
       showSheet(`<div class="sheet-handle"></div><div class="sheet-inner">
         <div class="sheet-title">시험성적서 출력</div>
-        <label>배치 선택<select id="tr-batch-sel">${opts}</select></label>
+        <label>제품 선택<select id="tr-prod-sel">${opts}</select></label>
         <div class="sheet-btns">
           <button onclick="closeSheet()">취소</button>
           <button class="btn-save" onclick="openTRSelected()">출력</button>
@@ -3319,10 +3352,13 @@ function openTRFromBatch() {
   });
 }
 async function openTRSelected() {
-  const bid = +document.getElementById('tr-batch-sel').value;
+  const pid = +document.getElementById('tr-prod-sel').value;
   const [batches, products, ing] = await Promise.all([DB.getAll('batches'), DB.getAll('products'), DB.getAll('ingredients')]);
-  const batch = batches.find(b => b.id === bid);
-  if (batch) { closeSheet(); open$(buildTR(batch, ing, products)); }
+  const prod = products.find(p => p.id === pid);
+  if (prod) {
+    const batch = batches.find(b => b.productId === pid) || {productId: pid, 제품명: prod.제품명};
+    closeSheet(); open$(buildTR(batch, ing, products));
+  }
 }
 window.openTRFromBatch=openTRFromBatch; window.openTRSelected=openTRSelected;
 window.openBatchForm=openBatchForm; window.saveBatch=saveBatch;
