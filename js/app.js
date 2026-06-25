@@ -2326,6 +2326,8 @@ async function parseDocumentText(name, text, fileName, el) {
     // 시험성적서에 KCL 정보가 있으면 제품표준서로 저장 (배치 아님)
     // 시험성적서 ① 원자재 행에서 제조처 정보 → ingredients DB 업데이트
     let trRecipe = [];
+    let trProd = null;
+    let parsedColorStd = '';
     if (isTest) {
       const allIng = await DB.getAll('ingredients');
       for (const l of lines) {
@@ -2343,7 +2345,6 @@ async function parseDocumentText(name, text, fileName, el) {
         }
       }
       // 시험성적서에서 색상기준 파싱
-      let parsedColorStd = '';
       for (const l of lines) {
         const tc = l.split('\t').map(c => c.trim());
         for (let ci = 0; ci < tc.length - 1; ci++) {
@@ -2354,7 +2355,7 @@ async function parseDocumentText(name, text, fileName, el) {
         if (parsedColorStd) break;
       }
       // 시험성적서 데이터를 제품(products)에 저장 (배치가 아닌 제품 단위)
-      const trProd = existingProdByName || (existingBatch && products.find(p=>p.id===existingBatch.productId));
+      trProd = existingProdByName || (existingBatch && products.find(p=>p.id===existingBatch.productId));
       if (trProd) {
         const trUpd = {...trProd};
         if (docNo) trUpd.시험성적서번호 = docNo;
