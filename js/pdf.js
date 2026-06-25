@@ -90,12 +90,15 @@ function chk(val, trueLabel, falseLabel){
    ② 자사 완제품 육안검사
    ③ 종합 판정 및 성적서 첨부
 ───────────────────────────────────── */
-function buildTR(batch, allIng, products){
-  const prod = (products||[]).find(p=>p.id===batch.productId) || {};
-  const docNo = prod.시험성적서번호 || batch.시험성적서번호 || (batch.문서번호 ? batch.문서번호.replace('AF-MI','AF-TR') : 'AF-TR-00X');
-  const recipe = prod.시험원료?.length ? prod.시험원료 : (prod.레시피?.length ? prod.레시피 : (batch.시험원료?.length ? batch.시험원료 : []));
-  const mw = prod.목표중량 || batch.목표중량 || '90g ±5g';
-  const cs = prod.색상기준 || batch.색상기준 || '';
+function buildTR(data, allIng, products){
+  // data는 localStorage trReport 또는 구형 batch 객체 모두 지원
+  const isTrData = !!data.recipe; // localStorage trReport는 recipe 키를 가짐
+  const prod = isTrData ? {} : ((products||[]).find(p=>p.id===data.productId) || {});
+  const docNo = data.docNo || prod.시험성적서번호 || data.시험성적서번호 || 'AF-TR-00X';
+  const recipe = isTrData ? (data.recipe||[]) : (prod.시험원료?.length ? prod.시험원료 : (prod.레시피?.length ? prod.레시피 : (data.시험원료?.length ? data.시험원료 : [])));
+  const productName = data.productName || data.제품명 || prod.제품명 || '';
+  const mw = prod.목표중량 || data.목표중량 || '90g ±5g';
+  const cs = data.색상기준 || prod.색상기준 || '';
 
   // ① 원자재 행 — 레시피 기준
   const ingRows = recipe.map((r,n) => {
@@ -111,14 +114,14 @@ function buildTR(batch, allIng, products){
     </tr>`;
   }).join('');
 
-  return hd('시험성적서','Test Report · '+(batch.제품명||''), docNo, 'Rev.01', batch.date) + `
+  return hd('시험성적서','Test Report · '+productName, docNo, data.개정번호||'Rev.01', data.제정일자||data.date||'') + `
 
   <div class="sec">▶ ① 원자재 시험성적서 (자사 육안검사)</div>
   <p class="note">※ 원료 입고 시마다 작성. 성상·이물 육안 확인. CoA 별도 첨부</p>
   <table>
     <thead><tr><th>No</th><th>원 료 명</th><th>제조처 / 로트번호</th><th>시험항목</th><th>시험성적</th><th>판 정</th><th>시험자</th></tr></thead>
     <tbody>
-      ${ingRows||`<tr><td colspan="7" style="color:#999;text-align:center">표준서에 레시피를 등록해주세요</td></tr>`}
+      ${ingRows||`<tr><td colspan="7" style="color:#999;text-align:center">시험성적서 docx를 업로드해주세요</td></tr>`}
       <tr>
         <td colspan="2" class="h">종합판정</td>
         <td colspan="5" class="green">■ 전 항목 적합 — 제조 진행 &nbsp;&nbsp;&nbsp; □ 부적합 → 격리/반품/폐기</td>
@@ -136,7 +139,7 @@ function buildTR(batch, allIng, products){
         <td class="c green">■적합 □부적합</td><td class="c">${CO.owner}</td>
       </tr>
       <tr>
-        <td>색 상</td><td>${cs}</td><td>${batch.색상결과||'이상없음'}</td>
+        <td>색 상</td><td>${cs}</td><td>${data.색상결과||'이상없음'}</td>
         <td class="c green">■적합 □부적합</td><td class="c">${CO.owner}</td>
       </tr>
       <tr>
@@ -145,8 +148,8 @@ function buildTR(batch, allIng, products){
       </tr>
       <tr>
         <td>중량 (건조)</td><td>${mw}</td>
-        <td class="c"><b>${batch.실측중량?batch.실측중량+'g':''}</b></td>
-        <td class="c ${batch.실측중량?'green':''}">${batch.실측중량?'■적합 □부적합':''}</td>
+        <td class="c"><b>${data.실측중량?data.실측중량+'g':''}</b></td>
+        <td class="c ${data.실측중량?'green':''}">${data.실측중량?'■적합 □부적합':''}</td>
         <td class="c">${CO.owner}</td>
       </tr>
     </tbody>

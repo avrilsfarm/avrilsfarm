@@ -2326,16 +2326,22 @@ async function parseDocumentText(name, text, fileName, el) {
     // 시험성적서에 KCL 정보가 있으면 제품표준서로 저장 (배치 아님)
     // 시험성적서 ① 원자재 행에서 제조처 정보 → ingredients DB 업데이트
     let trRecipe = [];
-    let trProd = null;
+    // trProd 제거 — 시험성적서 데이터는 localStorage에만 저장
     let parsedColorStd = '';
     if (isTest) {
       const allIng = await DB.getAll('ingredients');
       for (const l of lines) {
         const tc = l.split('\t').map(c => c.trim());
-        if (tc.length >= 4 && /^\d+$/.test(tc[1]) && tc[2] && tc[3]) {
-          const ingName = tc[2];
-          const mfr = tc[3];
-          if (ingName.length >= 2 && mfr && !/제조처|로트번호|시험항목/.test(mfr)) {
+        if (tc.length < 3) continue;
+        // 유연하게 번호 셀 위치 탐색 (tc[0] 또는 tc[1] 등 어디든)
+        let numIdx = -1;
+        for (let ci = 0; ci < tc.length - 2; ci++) {
+          if (/^\d{1,2}$/.test(tc[ci])) { numIdx = ci; break; }
+        }
+        if (numIdx >= 0 && tc[numIdx+1] && tc[numIdx+2]) {
+          const ingName = tc[numIdx+1];
+          const mfr = tc[numIdx+2];
+          if (ingName.length >= 2 && !/원\s*료\s*명|^No$|번호|순번/.test(ingName) && !/제조처|로트번호|시험항목/.test(mfr)) {
             trRecipe.push({원료명: ingName, 제조처: mfr});
             const matched = allIng.find(ig => ig.원료명 && (ig.원료명 === ingName || ig.원료명.includes(ingName) || ingName.includes(ig.원료명)));
             if (matched && !matched.제조처) {
@@ -2354,25 +2360,28 @@ async function parseDocumentText(name, text, fileName, el) {
         }
         if (parsedColorStd) break;
       }
-      // 시험성적서 데이터를 제품(products)에 저장 (배치가 아닌 제품 단위)
-      trProd = existingProdByName || (existingBatch && products.find(p=>p.id===existingBatch.productId));
-      if (trProd) {
-        const trUpd = {...trProd};
-        if (docNo) trUpd.시험성적서번호 = docNo;
-        if (trRecipe.length) trUpd.시험원료 = trRecipe;
-        if (parsedColorStd) trUpd.색상기준 = parsedColorStd;
-        if (!trUpd.레시피 || !trUpd.레시피.length) trUpd.레시피 = trRecipe;
-        await DB.put('products', trUpd);
-      }
+      // 시험성적서 데이터를 localStorage에 독립 저장 (제품표준서 건드리지 않음)
+      const trKey = 'trReport_' + (productName || docNo || 'unknown');
+      const trData = {
+        productName: productName || '',
+        docNo: docNo || '',
+        recipe: trRecipe,
+        색상기준: parsedColorStd || '',
+        barcode: barcode || '',
+        제정일자: parsedEstDate || '',
+        개정번호: parsedRevNo || '',
+        updatedAt: new Date().toISOString()
+      };
+      localStorage.setItem(trKey, JSON.stringify(trData));
     }
-    if (isTest && Object.keys(kclInfo).length) {
+    // KCL 정보와 전성분/알레르기는 시험성적서에서는 제품표준서에 반영하지 않음 (localStorage에 독립 저장됨)
+    if (!isTest && Object.keys(kclInfo).length) {
       const relProd = existingProdByName || (existingBatch && products.find(p=>p.id===existingBatch.productId));
       if (relProd) {
         await DB.put('products', {...relProd, ...kclInfo});
       }
     }
-    // 시험성적서 docx에서 전성분/알레르기가 있으면 제품표준서에 반영
-    if (isTest && (parsedAllergy || parsedIngredients)) {
+    if (!isTest && (parsedAllergy || parsedIngredients)) {
       const relProd = existingProdByName || (existingBatch && products.find(p=>p.id===existingBatch.productId));
       if (relProd) {
         const upd = {...relProd};
@@ -2425,8 +2434,7 @@ async function parseDocumentText(name, text, fileName, el) {
     if(existingBatch) {
       const updated = {...existingBatch};
       if(docNo && isOrder) updated.문서번호 = docNo;
-      if(docNo && isTest) updated.시험성적서번호 = docNo;
-      if(isTest && trRecipe && trRecipe.length) updated.시험원료 = trRecipe;
+      // 시험성적서 데이터는 localStorage에 독립 저장됨 — 배치에는 저장하지 않음
       if(barcode) updated.바코드 = barcode;
       if(isOrder) {
         if(batchMfgNo) updated.제조번호 = batchMfgNo;
@@ -2442,24 +2450,11 @@ async function parseDocumentText(name, text, fileName, el) {
       const recNote = recipe.length ? ` · 레시피 ${recipe.length}종 반영됨` : '';
       el.innerHTML = `<span style="color:var(--teal-dark)">✅ <b>${existingBatch.제품명}</b> ${isTest?'시험성적서':'제조지시서'} 업데이트 완료${kclNote}${recNote}</span>`;
     } else if(isTest && (productName || docNo)) {
-      // 시험성적서: 배치 생성 없이 제품에만 저장
-      if (!trProd && productName) {
-        // 제품이 없으면 자동 생성
-        const nextPsNo2 = () => {
-          const nums = products.map(p=>p.문서번호&&p.문서번호.match(/^AF-PS-(\d+)$/)).filter(Boolean).map(m=>parseInt(m[1],10));
-          return 'AF-PS-' + String((nums.length?Math.max(...nums):0)+1).padStart(3,'0');
-        };
-        const autoProd2 = {
-          제품명: productName, 문서번호: nextPsNo2(), 바코드: barcode,
-          시험성적서번호: docNo, 시험원료: trRecipe,
-          색상기준: parsedColorStd || '', 레시피: trRecipe,
-        };
-        await DB.add('products', autoProd2);
-      }
+      // 시험성적서: localStorage에 이미 저장됨 — 제품표준서(products DB)에는 저장하지 않음
       const trNotes = [];
       if(trRecipe.length) trNotes.push('원료 '+trRecipe.length+'종');
       if(parsedColorStd) trNotes.push('색상: '+parsedColorStd);
-      el.innerHTML = `<span style="color:var(--teal-dark)">✅ <b>${productName||docNo}</b> 시험성적서 제품에 등록 완료${trNotes.length?' · '+trNotes.join(' · '):''}</span>`;
+      el.innerHTML = `<span style="color:var(--teal-dark)">✅ <b>${productName||docNo}</b> 시험성적서 저장 완료${trNotes.length?' · '+trNotes.join(' · '):''}</span>`;
     } else if(!isTest && (productName || docNo)) {
       const newB = {
         제품명: productName||fileName.replace(/\.[^.]+$/,''),
@@ -3330,18 +3325,24 @@ async function delItem(store, id) {
 window.switchStockTab=switchStockTab; window.toggleStockCat=toggleStockCat;
 window.openIngForm=openIngForm; window.saveIng=saveIng; window.updateIngCats=updateIngCats;
 
+function getTrReports() {
+  const reports = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (key.startsWith('trReport_')) {
+      try { reports.push({key, ...JSON.parse(localStorage.getItem(key))}); } catch(e) {}
+    }
+  }
+  return reports;
+}
 function openTRFromBatch() {
-  DB.getAll('products').then(async products => {
-    const trProds = products.filter(p => p.시험성적서번호 || p.시험원료?.length);
-    if (!trProds.length) { showToast('시험성적서가 등록된 제품이 없습니다.\n문서출력 > 파일 업로드에서 시험성적서 docx를 업로드해주세요.'); return; }
-    const ing = await DB.getAll('ingredients');
-    const batches = await DB.getAll('batches');
-    if (trProds.length === 1) {
-      const p = trProds[0];
-      const b = batches.find(b => b.productId === p.id) || {productId: p.id, 제품명: p.제품명};
-      open$(buildTR(b, ing, products));
+  const reports = getTrReports();
+  if (!reports.length) { showToast('시험성적서가 등록되지 않았습니다.\n문서출력 > 파일 업로드에서 시험성적서 docx를 업로드해주세요.'); return; }
+  DB.getAll('ingredients').then(ing => {
+    if (reports.length === 1) {
+      open$(buildTR(reports[0], ing));
     } else {
-      const opts = trProds.map(p => `<option value="${p.id}">${p.제품명||'미등록'} (${p.시험성적서번호||''})</option>`).join('');
+      const opts = reports.map((r,i) => `<option value="${i}">${r.productName||'미등록'} (${r.docNo||''})</option>`).join('');
       showSheet(`<div class="sheet-handle"></div><div class="sheet-inner">
         <div class="sheet-title">시험성적서 출력</div>
         <label>제품 선택<select id="tr-prod-sel">${opts}</select></label>
@@ -3353,15 +3354,15 @@ function openTRFromBatch() {
   });
 }
 async function openTRSelected() {
-  const pid = +document.getElementById('tr-prod-sel').value;
-  const [batches, products, ing] = await Promise.all([DB.getAll('batches'), DB.getAll('products'), DB.getAll('ingredients')]);
-  const prod = products.find(p => p.id === pid);
-  if (prod) {
-    const batch = batches.find(b => b.productId === pid) || {productId: pid, 제품명: prod.제품명};
-    closeSheet(); open$(buildTR(batch, ing, products));
+  const idx = +document.getElementById('tr-prod-sel').value;
+  const reports = getTrReports();
+  const r = reports[idx];
+  if (r) {
+    const ing = await DB.getAll('ingredients');
+    closeSheet(); open$(buildTR(r, ing));
   }
 }
-window.openTRFromBatch=openTRFromBatch; window.openTRSelected=openTRSelected;
+window.openTRFromBatch=openTRFromBatch; window.openTRSelected=openTRSelected; window.getTrReports=getTrReports;
 window.openBatchForm=openBatchForm; window.saveBatch=saveBatch;
 window.pmRecipeEdit=pmRecipeEdit; window.pmRecipeDel=pmRecipeDel; window.pmRecipeAdd=pmRecipeAdd;
 window.uploadKclToForm=uploadKclToForm; window.uploadRecipeToForm=uploadRecipeToForm;
