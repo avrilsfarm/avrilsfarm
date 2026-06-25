@@ -824,9 +824,9 @@ async function renderOutput(el) {
           {key:'qcm001', name:'품질관리기준서', code:'AF-QCM-001'},
         ].map(d=>`
           <div style="display:flex;flex-direction:column;border:1px solid var(--border);border-radius:var(--r-sm);overflow:hidden">
-            <button class="output-btn-sec" onclick="openStandardDoc('${d.key}')" style="text-align:left;padding:8px 10px;border:none;border-radius:0">
-              <span style="font-size:10px;font-weight:600;color:var(--text);line-height:1.3;word-break:keep-all">${d.name}</span><br>
-              <span style="font-size:9px;color:var(--text3)">${d.code}</span>
+            <button class="output-btn-sec" onclick="openStandardDoc('${d.key}')" style="text-align:center;padding:8px 6px;border:none;border-radius:0;display:flex;flex-direction:column;align-items:center;gap:2px">
+              <span style="font-size:10px;font-weight:600;color:var(--text);line-height:1.3;word-break:keep-all;display:block">${d.name}</span>
+              <span style="font-size:8px;color:var(--text3);display:block">${d.code}</span>
             </button>
             <div style="display:flex;border-top:1px solid var(--border)">
               <button onclick="editStdMeta('${d.code}')" style="flex:1;padding:3px 0;border:none;background:var(--bg);color:var(--text3);font-size:9px;cursor:pointer;font-family:inherit">헤더수정</button>
