@@ -58,7 +58,7 @@ function buildBarcode(biz, sub, seq, qty) {
 
 function nextSeq() {
   const seqs = _barcodeData.map(p => parseInt(p.seq)).filter(n => !isNaN(n));
-  return String(Math.max(...seqs) + 1).padStart(3, '0');
+  return seqs.length ? String(Math.max(...seqs) + 1).padStart(3, '0') : '001';
 }
 
 /* ════ 탭 렌더링 ════ */
@@ -252,7 +252,19 @@ function openBarcodeForm(no) {
       <div id="bc-preview-chk" style="text-align:center;font-size:11px;color:var(--text3);margin-top:2px"></div>
     </div>
 
-    <div style="font-size:13px;font-weight:700;color:var(--text);margin:14px 0 8px">제조번호 생성</div>
+    <div style="font-size:13px;font-weight:700;color:var(--text);margin:14px 0 8px">제조번호</div>
+    <label>입력 방식
+      <select id="bc-mfg-mode" onchange="toggleMfgMode()">
+        <option value="auto" ${item&&item.mfgDirect?'':'selected'}>자동 생성 (AP+B+색상코드+월+번호)</option>
+        <option value="direct" ${item&&item.mfgDirect?'selected':''}>직접 입력</option>
+      </select>
+    </label>
+
+    <div id="mfg-direct-box" style="${item&&item.mfgDirect?'':'display:none'}">
+      <label>제조번호 직접입력<input id="bc-mfg-direct" value="${item&&item.mfgDirect?item.mfgNo||'':''}" placeholder="예: APBO06001" style="font-family:monospace" oninput="updateMfgPreview()"></label>
+    </div>
+
+    <div id="mfg-auto-box" style="${item&&item.mfgDirect?'display:none':''}">
     <div style="background:var(--mauve-light);border-radius:var(--r-sm);padding:10px 12px;margin-bottom:12px;font-size:11px;color:var(--mauve-dark)">
       AP + B + 색상코드 + 월(2자리) + 비누번호(3자리)
     </div>
@@ -268,13 +280,14 @@ function openBarcodeForm(no) {
 
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
       <label>기획 월 (2자리)
-        <input id="bc8" maxlength="2" style="font-family:monospace" 
-          value="${item?item.mfgNo?.match(/\d{2}(?=\d{3})/)?.[0]||'':''}" placeholder="예: 06" oninput="updateMfgPreview()">
+        <input id="bc8" maxlength="2" style="font-family:monospace"
+          value="${item?item.mfgNo?.match(/\\d{2}(?=\\d{3})/)?.[0]||'':''}" placeholder="예: 06" oninput="updateMfgPreview()">
       </label>
       <label>비누번호 (3자리)
-        <input id="bc9" maxlength="3" style="font-family:monospace" 
-          value="${item?item.mfgNo?.match(/\d{3}$/)?.[0]||'':''}" placeholder="${ns}" oninput="updateMfgPreview()">
+        <input id="bc9" maxlength="3" style="font-family:monospace"
+          value="${item?item.mfgNo?.match(/\\d{3}$/)?.[0]||'':''}" placeholder="${ns}" oninput="updateMfgPreview()">
       </label>
+    </div>
     </div>
 
     <div class="bc-mfg-preview" id="bc-mfg-preview">
@@ -375,14 +388,28 @@ function updateBcPreview() {
   }
 }
 
+function toggleMfgMode() {
+  const mode = document.getElementById('bc-mfg-mode')?.value;
+  const directBox = document.getElementById('mfg-direct-box');
+  const autoBox = document.getElementById('mfg-auto-box');
+  if (directBox) directBox.style.display = mode === 'direct' ? '' : 'none';
+  if (autoBox) autoBox.style.display = mode === 'direct' ? 'none' : '';
+  updateMfgPreview();
+}
 function updateMfgPreview() {
-  const sel7 = document.getElementById('bc7');
-  const color = sel7?.value==='직접입력'
-    ? (document.getElementById('bc7c')?.value||'')
-    : (sel7?.value||'');
-  const mon = document.getElementById('bc8')?.value||'';
-  const num = document.getElementById('bc9')?.value||'';
-  const mfg = 'APB' + color + mon + num;
+  const mode = document.getElementById('bc-mfg-mode')?.value;
+  let mfg;
+  if (mode === 'direct') {
+    mfg = document.getElementById('bc-mfg-direct')?.value || '';
+  } else {
+    const sel7 = document.getElementById('bc7');
+    const color = sel7?.value==='직접입력'
+      ? (document.getElementById('bc7c')?.value||'')
+      : (sel7?.value||'');
+    const mon = document.getElementById('bc8')?.value||'';
+    const num = document.getElementById('bc9')?.value||'';
+    mfg = 'APB' + color + mon + num;
+  }
   const el = document.getElementById('mfg-preview-val');
   if(el) el.textContent = mfg || '—';
 }
@@ -401,10 +428,17 @@ async function saveBarcodeNew(no) {
   const qty = document.getElementById('bc5')?.value||'';
   const chk = calcCheckDigit(biz, sub, seq, qty);
 
-  const sel7 = document.getElementById('bc7');
-  const color = sel7?.value==='직접입력' ? (document.getElementById('bc7c')?.value||'') : (sel7?.value||'');
-  const bc7c = sel7?.value==='직접입력' ? (document.getElementById('bc7c')?.value||'') : '';
-  const mfgNo = 'APB' + color + (document.getElementById('bc8')?.value||'') + (document.getElementById('bc9')?.value||'');
+  const mfgMode = document.getElementById('bc-mfg-mode')?.value;
+  let mfgNo, bc7c = '', mfgDirect = false;
+  if (mfgMode === 'direct') {
+    mfgNo = document.getElementById('bc-mfg-direct')?.value || '';
+    mfgDirect = true;
+  } else {
+    const sel7 = document.getElementById('bc7');
+    const color = sel7?.value==='직접입력' ? (document.getElementById('bc7c')?.value||'') : (sel7?.value||'');
+    bc7c = sel7?.value==='직접입력' ? (document.getElementById('bc7c')?.value||'') : '';
+    mfgNo = 'APB' + color + (document.getElementById('bc8')?.value||'') + (document.getElementById('bc9')?.value||'');
+  }
 
   const sel11 = document.getElementById('bc11');
   const expiry = sel11?.value==='직접입력'
@@ -414,7 +448,7 @@ async function saveBarcodeNew(no) {
   const record = {
     name,
     biz: biz==='8739' ? undefined : biz,
-    sub, seq, qty, chk, bc7c, mfgNo,
+    sub, seq, qty, chk, bc7c, mfgNo, mfgDirect,
     mfgDate: document.getElementById('bc10')?.value||'',
     expiry,
     status: document.getElementById('bc12')?.value||'현행',
@@ -571,6 +605,7 @@ window.setBcFilter = setBcFilter;
 window.openBarcodeForm = openBarcodeForm;
 window.updateBcPreview = updateBcPreview;
 window.updateMfgPreview = updateMfgPreview;
+window.toggleMfgMode = toggleMfgMode;
 window.toggleBizCustom = toggleBizCustom;
 window.toggleBc7Custom = toggleBc7Custom;
 window.toggleBc11Custom = toggleBc11Custom;
