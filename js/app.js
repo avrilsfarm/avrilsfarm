@@ -2672,8 +2672,54 @@ async function parseDocumentText(name, text, fileName, el) {
         }
       }
 
-      if (ingCnt > 0 || hygCnt > 0) {
-        el.innerHTML = `<span style="color:var(--teal-dark)">✅ 제조관리기준서 기록서 인식 — 원료 입고일 ${ingCnt}건 업데이트, 날짜 기록 ${hygCnt}건 등록<br>
+      // ── R-MMS-02 설비관리기록서 파싱 ──
+      // 분기 행: "2026 1/4분기 (1~3월)\t변민정\t□정상 □이상\t..."
+      const gearNames = ['전자저울','스틱블렌더','온도계','실리콘몰드','스테인리스용기','기타기구'];
+      let equipCnt = 0;
+      const existingEquip = await DB.getAll('equipment');
+      for (const line of mmsLines) {
+        const qm = line.match(/(20\d{2})\s*(\d)\/4분기/);
+        if (!qm) continue;
+        const eqYear = +qm[1];
+        const eqQuarter = +qm[2];
+        // 중복 방지: 같은 연도+분기 이미 있으면 업데이트
+        const dup = existingEquip.find(e => e.year === eqYear && e.quarter === eqQuarter);
+        const cells = line.split('\t').map(c => c.trim());
+        // 확인자 찾기: 분기 뒤 첫 번째 비빈 셀
+        let 확인자 = '';
+        for (const c of cells) {
+          if (c && !/분기|20\d{2}|^$/.test(c) && !/[□■]/.test(c)) { 확인자 = c; break; }
+        }
+        // 기기별 점검 결과 파싱: ■정상/■이상 체크
+        const 기기 = gearNames.map(() => '정상'); // 기본값
+        let cellIdx = 0;
+        for (let ci = 0; ci < cells.length; ci++) {
+          const c = cells[ci];
+          if (/■이상/.test(c)) { if (cellIdx < 기기.length) 기기[cellIdx] = '이상'; cellIdx++; }
+          else if (/■정상|□정상.*□이상|정상.*이상/.test(c)) { if (cellIdx < 기기.length) 기기[cellIdx] = '정상'; cellIdx++; }
+        }
+        const hasIssue = 기기.some(g => g === '이상');
+        // 이상 내용 추출: 마지막 셀
+        const lastCell = cells[cells.length - 1] || '';
+        const 이상내용 = (hasIssue && lastCell && !/[□■]/.test(lastCell)) ? lastCell : '';
+        const eqData = {
+          date: new Date().toISOString().split('T')[0],
+          year: eqYear, quarter: eqQuarter,
+          기기, 이상: hasIssue, 이상내용, 확인자: 확인자 || '변민정'
+        };
+        try {
+          if (dup) { await DB.put('equipment', {...eqData, id: dup.id}); }
+          else { await DB.add('equipment', eqData); }
+          equipCnt++;
+        } catch(e) {}
+      }
+
+      if (ingCnt > 0 || hygCnt > 0 || equipCnt > 0) {
+        const parts = [];
+        if (ingCnt > 0) parts.push(`원료 입고일 ${ingCnt}건`);
+        if (equipCnt > 0) parts.push(`설비 점검 ${equipCnt}건`);
+        if (hygCnt > 0) parts.push(`날짜 기록 ${hygCnt}건`);
+        el.innerHTML = `<span style="color:var(--teal-dark)">✅ 제조관리기준서 기록서 인식 — ${parts.join(' · ')} 등록<br>
           <span style="font-size:11px">2초 후 원료 재고 탭으로 이동합니다.</span></span>`;
         setTimeout(() => renderTab('stock'), 2000);
       } else {
