@@ -413,12 +413,12 @@ window.saveGhToken = saveGhToken;
 window.confirmReset = confirmReset;
 
 async function resetAllData() {
-  if(!confirm('⚠️ 모든 데이터가 삭제됩니다.\n(원료·배치·위생·제품·생산·바코드)\n\n정말 삭제할까요?')) return;
+  if(!confirm('⚠️ 모든 데이터가 삭제됩니다.\n(원료·배치·위생·제품·생산·바코드·향료)\n\n정말 삭제할까요?')) return;
   if(!confirm('정말로 전체 삭제합니까? 이 작업은 되돌릴 수 없습니다.')) return;
   const st = document.getElementById('reset-status');
   if(st) st.textContent = '⏳ 삭제 중...';
   try {
-    const stores = ['ingredients','batches','hygiene','equipment','products','production','barcodes'];
+    const stores = ['ingredients','batches','hygiene','equipment','products','production','barcodes','fragrances'];
     for (const s of stores) {
       const all = await DB.getAll(s);
       for (const item of all) await DB.remove(s, item.id);

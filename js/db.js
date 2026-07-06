@@ -1,5 +1,5 @@
 'use strict';
-const DB_NAME = 'AvrilFarmDB', DB_VER = 10;
+const DB_NAME = 'AvrilFarmDB', DB_VER = 11;
 let _db;
 
 function openDB() {
@@ -16,7 +16,8 @@ function openDB() {
         hygiene:     [{n:'date',k:'date'},{n:'type',k:'type'}],
         equipment:   [{n:'year',k:'year'}],
         production:  [{n:'date',k:'date'}],
-        barcodes:    [{n:'번호',k:'번호'}]
+        barcodes:    [{n:'번호',k:'번호'}],
+        fragrances:  [{n:'향료명',k:'향료명'}]
       };
       // 기존 스토어는 절대 삭제하지 않음 — 없는 스토어/인덱스만 추가
       Object.entries(schema).forEach(([name, idxs]) => {
@@ -85,7 +86,7 @@ async function seedIfEmpty() { return; }
 
 async function exportAll() {
   await openDB();
-  const stores = ['products','ingredients','batches','hygiene','equipment','production','barcodes'];
+  const stores = ['products','ingredients','batches','hygiene','equipment','production','barcodes','fragrances'];
   const data = {_exportedAt: new Date().toISOString(), _version: DB_VER};
   for (const s of stores) {
     try { data[s] = await getAll(s); } catch(e) { data[s] = []; }
@@ -98,7 +99,7 @@ async function importAll(data) {
   if (data._version && data._version !== DB_VER) {
     console.warn(`[importAll] 데이터 버전(\${data._version}) ≠ 현재 DB 버전(\${DB_VER}) — 필드 누락 가능`);
   }
-  const stores = ['products','ingredients','batches','hygiene','equipment','production','barcodes'];
+  const stores = ['products','ingredients','batches','hygiene','equipment','production','barcodes','fragrances'];
   for (const s of stores) {
     if (!data[s] || !data[s].length) continue;
     const st = _db.transaction(s,'readwrite').objectStore(s);
@@ -111,7 +112,7 @@ async function importAll(data) {
 
 async function clearAll() {
   await openDB();
-  const stores = ['products','ingredients','batches','hygiene','equipment','production','barcodes'];
+  const stores = ['products','ingredients','batches','hygiene','equipment','production','barcodes','fragrances'];
   for (const s of stores) {
     const st = _db.transaction(s,'readwrite').objectStore(s);
     await new Promise((res,rej) => { const r=st.clear(); r.onsuccess=res; r.onerror=rej; });

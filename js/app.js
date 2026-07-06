@@ -10,6 +10,40 @@ const today = new Date();
 let calYear = today.getFullYear();
 let calMonth = today.getMonth();
 
+/* ════ 향료 알레르기 유발성분 — 식약처 지정 25종 (참고용 성분명·CAS 매칭 리스트) ════
+   출처: 화장품 안전기준 등에 관한 규정 별표, 향료 성분 중 알레르기 유발성분 표시지정 25종
+   ※ 실제 함량(%)은 향료 마스터 등록 시 제조사 성분표 기준으로 입력/PDF 파싱되며,
+      본 리스트는 성분명 자동완성·CAS 매칭용 참고자료임 */
+const ALLERGEN_LIST = [
+  {성분명:'아밀신남알', CAS:'122-40-7'},
+  {성분명:'벤질알코올', CAS:'100-51-6'},
+  {성분명:'신나밀알코올', CAS:'104-54-1'},
+  {성분명:'시트랄', CAS:'5392-40-5'},
+  {성분명:'유제놀', CAS:'97-53-0'},
+  {성분명:'하이드록시시트로넬알', CAS:'107-75-5'},
+  {성분명:'아이소유제놀', CAS:'97-54-1'},
+  {성분명:'아밀신나밀알코올', CAS:'101-85-9'},
+  {성분명:'벤질살리실레이트', CAS:'118-58-1'},
+  {성분명:'신남알', CAS:'104-55-2'},
+  {성분명:'쿠마린', CAS:'91-64-5'},
+  {성분명:'제라니올', CAS:'106-24-1'},
+  {성분명:'아니스알코올', CAS:'105-13-5'},
+  {성분명:'벤질신나메이트', CAS:'103-41-3'},
+  {성분명:'파네솔', CAS:'4602-84-0'},
+  {성분명:'부틸페닐메틸프로피오날', CAS:'80-54-6'},
+  {성분명:'리날룰', CAS:'78-70-6'},
+  {성분명:'벤질벤조에이트', CAS:'120-51-4'},
+  {성분명:'시트로넬올', CAS:'106-22-9'},
+  {성분명:'헥실신남알', CAS:'101-86-0'},
+  {성분명:'리모넨', CAS:'5989-27-5'},
+  {성분명:'메틸 2-옥티노에이트', CAS:'111-12-6'},
+  {성분명:'알파-아이소메틸아이오논', CAS:'127-51-5'},
+  {성분명:'참나무이끼추출물', CAS:'90028-68-5'},
+  {성분명:'나무이끼추출물', CAS:'90028-67-4'},
+];
+/* 알레르기 유발성분 표시 기준(%) — 씻어내는 제품(rinse-off) 0.01% 초과 시 표시 대상 */
+const ALLERGEN_THRESHOLD_PCT = 0.01;
+
 /* ════ 초기화 ════ */
 async function init() {
   try { await DB.seedIfEmpty(); } catch(e) { console.warn(e); }
@@ -74,6 +108,7 @@ function checkOverdue(hyg) {
    원료 재고 — 카테고리별 연속 번호
 ════════════════════════════════════*/
 async function renderStock(el) {
+  if (stockSubTab === '향료') return renderFragranceStock(el);
   const all = await DB.getAll('ingredients');
   const ingList = all.filter(i => i.stockType !== '포장재');
   const pkgList = all.filter(i => i.stockType === '포장재');
@@ -91,6 +126,7 @@ async function renderStock(el) {
     <div class="subtab-row">
       <button class="subtab ${stockSubTab==='원료'?'on':''}" onclick="switchStockTab('원료')">원료 <span class="subtab-cnt">${ingList.length}</span></button>
       <button class="subtab ${stockSubTab==='포장재'?'on':''}" onclick="switchStockTab('포장재')">포장재 <span class="subtab-cnt">${pkgList.length}</span></button>
+      <button class="subtab" onclick="switchStockTab('향료')">향료 알레르기</button>
     </div>
     <div style="padding:8px 16px">
       <div style="display:flex;gap:6px;align-items:center">
@@ -135,6 +171,209 @@ async function renderStock(el) {
 
 function switchStockTab(tab) { stockSubTab = tab; stockSearchQ=''; renderTab('stock'); }
 function toggleStockCat(key) { stockCollapsed[key] = !stockCollapsed[key]; renderTab('stock'); }
+
+/* ═══════════════════════════════════
+   향료 마스터 — 향료명별 알레르기 유발성분 구성 (CAS/함량)
+   제품표준서 원료 배합표의 향료 행과 연결해 완제품 내
+   알레르기 유발성분 최종 함유율을 자동 계산하는 데 사용
+════════════════════════════════════*/
+async function renderFragranceStock(el) {
+  const list = await DB.getAll('fragrances');
+  el.innerHTML = `
+    <div class="page-header">
+      <h2 class="page-title">원료 재고</h2>
+    </div>
+    <div class="subtab-row">
+      <button class="subtab" onclick="switchStockTab('원료')">원료</button>
+      <button class="subtab" onclick="switchStockTab('포장재')">포장재</button>
+      <button class="subtab on" onclick="switchStockTab('향료')">향료 알레르기 <span class="subtab-cnt">${list.length}</span></button>
+    </div>
+    <div style="background:var(--mauve-light);border-radius:var(--r-sm);margin:10px 16px;padding:10px 12px;font-size:11px;color:var(--mauve-dark);line-height:1.6">
+      향료별 알레르기 유발성분(CAS·함량) 마스터 데이터입니다. 제품표준서의 원료 배합표에서 향료 행을 여기 등록된 향료와 연결하면,
+      배합비율을 반영한 완제품 내 최종 함유율이 자동 계산되어 0.01%를 초과하는 성분만 표시 대상으로 판정됩니다.
+    </div>
+    ${list.length===0
+      ? `<div class="empty-hint"><div class="empty-icon">🌸</div>등록된 향료가 없습니다<br><small>아래 + 버튼으로 추가하거나 제조사 알러젠 PDF를 업로드하세요</small></div>`
+      : list.map((f,idx) => `
+        <div class="list-item" onclick="openFragranceForm(${f.id})">
+          <div class="item-no">${idx+1}</div>
+          <div class="item-left">
+            <div class="item-title">${f.향료명}</div>
+            <div class="item-sub">${f.제조사?f.제조사+' · ':''}알레르기 유발성분 ${(f.알러젠||[]).length}종</div>
+          </div>
+          <div class="item-right"><i class="ti ti-chevron-right" style="color:var(--text3)"></i></div>
+        </div>`).join('')}
+    <button class="fab" onclick="openFragranceForm(null)"><i class="ti ti-plus"></i> 향료 추가</button>`;
+}
+
+let _fgAllergens = [];
+let _fgPdfCandidates = [];
+
+async function openFragranceForm(id) {
+  const list = await DB.getAll('fragrances');
+  const item = id ? list.find(f=>f.id===id) : null;
+  _fgAllergens = item?.알러젠 ? JSON.parse(JSON.stringify(item.알러젠)) : [];
+
+  showSheet(`
+    <div class="sheet-handle"></div>
+    <div class="sheet-inner">
+    <div class="sheet-title">${id?'향료 수정':'향료 추가'}</div>
+    <div style="background:var(--teal-light);border-radius:var(--r-sm);padding:10px 12px;margin-bottom:12px;font-size:11px;color:var(--teal-dark)">
+      제조사(원료사) 성분표의 알레르기 유발성분(CAS·함량%)을 등록합니다. 여기 등록된 값은 제품표준서 계산에 그대로 사용됩니다.
+    </div>
+
+    <label>향료명<input id="fg1" value="${item?.향료명||''}" placeholder="예: 라벤더-C"></label>
+    <label>제조사 / 공급처<input id="fg2" value="${item?.제조사||''}" placeholder="예: 비누매거진"></label>
+
+    <label style="display:block;text-align:center;border:1px dashed var(--teal);border-radius:var(--r-sm);padding:10px;margin-bottom:10px;cursor:pointer;background:var(--teal-light);color:var(--teal-dark);font-size:12px">
+      📎 제조사 알러젠 성분표 PDF 업로드하면 아래 표 자동 입력
+      <input type="file" accept=".pdf" style="display:none" onchange="uploadFragrancePdf(event)">
+    </label>
+    <div id="fg-pdf-status" style="font-size:11px;min-height:16px;margin-bottom:6px"></div>
+
+    <div style="font-size:12px;font-weight:700;color:var(--text);margin:10px 0 6px">
+      알레르기 유발성분 구성 <span style="font-weight:400;font-size:11px;color:var(--text3)">(성분명 · CAS No · 함량%)</span>
+    </div>
+    <div style="overflow-x:auto">
+      <table style="width:100%;border-collapse:collapse;font-size:11px">
+        <thead><tr style="background:var(--gray-bg)">
+          <th style="padding:5px 4px;border:1px solid var(--border);width:26px">No</th>
+          <th style="padding:5px 4px;border:1px solid var(--border)">성분명</th>
+          <th style="padding:5px 4px;border:1px solid var(--border);width:90px">CAS No</th>
+          <th style="padding:5px 4px;border:1px solid var(--border);width:70px">함량(%)</th>
+          <th style="padding:5px 4px;border:1px solid var(--border);width:26px"></th>
+        </tr></thead>
+        <tbody id="fg-body"></tbody>
+      </table>
+    </div>
+    <button onclick="fgRowAdd()" style="width:100%;padding:7px;border:1px dashed var(--border);border-radius:var(--r-sm);background:transparent;color:var(--teal-dark);font-size:12px;cursor:pointer;margin-bottom:4px">
+      + 성분 행 추가
+    </button>
+    <datalist id="allergen-datalist">${ALLERGEN_LIST.map(a=>`<option value="${a.성분명}">`).join('')}</datalist>
+    <div style="font-size:10px;color:var(--text3);margin-bottom:8px">※ 성분명 입력 시 식약처 지정 25종 알레르기 유발성분이 자동완성됩니다. 목록에 없는 성분도 직접 입력 가능합니다.</div>
+
+    <div class="sheet-btns">
+      ${id?`<button class="btn-del" onclick="delItem('fragrances',${id})">삭제</button>`:''}
+      <button onclick="closeSheet()">취소</button>
+      <button class="btn-save" onclick="saveFragrance(${id||'null'})">저장</button>
+    </div>
+    </div>`);
+  _renderFgTable();
+}
+
+function _renderFgTable() {
+  const tbody = document.getElementById('fg-body');
+  if(!tbody) return;
+  tbody.innerHTML = _fgAllergens.map((a,i)=>`<tr data-idx="${i}">
+    <td style="padding:3px 4px;border:1px solid var(--border);text-align:center">${i+1}</td>
+    <td style="padding:3px 4px;border:1px solid var(--border)"><input list="allergen-datalist" style="width:100%;border:none;background:transparent;font-size:11px" value="${a.성분명||''}" oninput="fgRowEdit(${i},'성분명',this.value)"></td>
+    <td style="padding:3px 4px;border:1px solid var(--border)"><input style="width:100%;border:none;background:transparent;font-size:11px" value="${a.CAS||''}" oninput="fgRowEdit(${i},'CAS',this.value)"></td>
+    <td style="padding:3px 4px;border:1px solid var(--border)"><input type="number" step="0.001" style="width:100%;border:none;background:transparent;font-size:11px" value="${a.함량??''}" oninput="fgRowEdit(${i},'함량',this.value)"></td>
+    <td style="padding:3px 4px;border:1px solid var(--border);text-align:center"><button onclick="fgRowDel(${i})" style="background:none;border:none;color:var(--red-text);cursor:pointer;font-size:13px">✕</button></td>
+  </tr>`).join('');
+}
+
+function fgRowEdit(idx, field, val) {
+  if(!_fgAllergens[idx]) return;
+  _fgAllergens[idx][field] = field==='함량' ? +val : val;
+  // 성분명 입력 시 25종 리스트에 있으면 CAS 자동 채움 (비어있을 때만)
+  if(field==='성분명') {
+    const ref = ALLERGEN_LIST.find(a=>a.성분명===val);
+    if(ref && !_fgAllergens[idx].CAS) { _fgAllergens[idx].CAS = ref.CAS; _renderFgTable(); }
+  }
+}
+function fgRowDel(idx) { _fgAllergens.splice(idx,1); _renderFgTable(); }
+function fgRowAdd() { _fgAllergens.push({성분명:'',CAS:'',함량:0}); _renderFgTable(); }
+
+async function saveFragrance(id) {
+  const 향료명 = v('fg1').trim();
+  if(!향료명) { alert('향료명을 입력해주세요'); return; }
+  const data = { 향료명, 제조사: v('fg2'), 알러젠: _fgAllergens.filter(a=>a.성분명) };
+  if(id) await DB.put('fragrances', {...data, id});
+  else   await DB.add('fragrances', data);
+  closeSheet(); stockSubTab = '향료'; await renderTab('stock');
+}
+
+/* ── 제조사 알러젠 PDF 자동 업로드 ── */
+function parseFragranceBlocksFromLines(lines) {
+  const blocks = [];
+  let cur = null;
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    const noSp = line.replace(/\s/g,'');
+    // 블록 시작: "[제품명]그레이프프룻오일 [표준성분분]자몽껍질오일"
+    const startM = noSp.match(/\[제품명\]([^\[\]]+?)(?:\[표준성분[분명][:：]?\]([^\[\]]+))?$/);
+    if (startM) {
+      if (cur && cur.향료명) blocks.push(cur);
+      cur = { 향료명: startM[1].trim(), 표준성분명: (startM[2]||'').trim(), 알러젠: [] };
+      continue;
+    }
+    if (!cur) continue;
+    // 표 헤더 행 스킵
+    if (/^성분명/.test(noSp) && /CASNO/i.test(noSp)) continue;
+    if (/^성분$/.test(noSp) || /^없음$/.test(noSp)) continue;
+    // 성분 행: "시트랄 5392-40-5 0.5%" (CAS 번호를 기준점으로 앞/뒤 분리)
+    const casM = line.match(/(\d{2,7}-\d{2}-\d)/);
+    if (casM) {
+      const casIdx = line.indexOf(casM[1]);
+      const before = line.slice(0, casIdx).trim();
+      const after  = line.slice(casIdx + casM[1].length).trim();
+      const pctM = after.match(/([\d.]+)\s*%?/);
+      if (before && pctM) {
+        cur.알러젠.push({ 성분명: before.replace(/\s+/g,' ').trim(), CAS: casM[1], 함량: parseFloat(pctM[1]) });
+      }
+    }
+  }
+  if (cur && cur.향료명) blocks.push(cur);
+  return blocks;
+}
+
+async function uploadFragrancePdf(e) {
+  const file = e.target.files[0];
+  const st = document.getElementById('fg-pdf-status');
+  if(!file) return;
+  if(st) st.innerHTML = '<span style="color:var(--teal)">⏳ PDF 분석 중...</span>';
+  try {
+    const lines = await extractPdfLines(file, st);
+    const blocks = parseFragranceBlocksFromLines(lines);
+    if(!blocks.length) {
+      if(st) st.innerHTML = '<span style="color:var(--amber-text)">⚠️ 성분표를 찾지 못했습니다. 직접 입력해주세요.</span>';
+      return;
+    }
+    const curName = v('fg1').trim();
+    let matched = curName ? blocks.find(b => b.향료명.includes(curName) || curName.includes(b.향료명)) : null;
+    if(!matched && blocks.length === 1) matched = blocks[0];
+    if(matched) {
+      _applyFragranceBlock(matched);
+      if(st) st.innerHTML = `<span style="color:var(--teal-dark)">✅ "${matched.향료명}" 알레르기 유발성분 ${matched.알러젠.length}종 자동 입력됨 — 저장을 눌러주세요</span>`;
+      return;
+    }
+    // 한 PDF에 여러 향료 성분표가 포함된 경우 — 선택 UI 표시
+    _fgPdfCandidates = blocks;
+    if(st) st.innerHTML = `
+      <div style="color:var(--mauve-dark);margin-bottom:4px">📄 PDF에서 향료 ${blocks.length}종을 찾았습니다. 등록할 향료를 선택하세요</div>
+      <div style="display:flex;flex-wrap:wrap;gap:4px">
+        ${blocks.map((b,i)=>`<button onclick="selectFragranceCandidate(${i})" style="padding:4px 8px;border:1px solid var(--border);border-radius:12px;background:var(--white);font-size:11px;cursor:pointer">${b.향료명} (${b.알러젠.length})</button>`).join('')}
+      </div>`;
+  } catch(err) {
+    if(st) st.innerHTML = `<span style="color:var(--red-text)">❌ ${err.message}</span>`;
+  }
+}
+
+function selectFragranceCandidate(i) {
+  const b = _fgPdfCandidates[i];
+  if(!b) return;
+  _applyFragranceBlock(b);
+  const st = document.getElementById('fg-pdf-status');
+  if(st) st.innerHTML = `<span style="color:var(--teal-dark)">✅ "${b.향료명}" 알레르기 유발성분 ${b.알러젠.length}종 자동 입력됨 — 저장을 눌러주세요</span>`;
+}
+
+function _applyFragranceBlock(b) {
+  const nameEl = document.getElementById('fg1');
+  if(nameEl && !nameEl.value.trim()) nameEl.value = b.향료명;
+  _fgAllergens = b.알러젠.map(a=>({...a}));
+  _renderFgTable();
+}
 
 /* ═══════════════════════════════════
    제품 제조 — 제품 마스터(표준서) 연동
@@ -261,6 +500,7 @@ async function openProductMasterForm(id) {
   const products = await DB.getAll('products');
   const item = id ? products.find(p=>p.id===id) : null;
   _pmRecipe = item?.레시피 ? JSON.parse(JSON.stringify(item.레시피)) : [];
+  _fgMasterCache = await DB.getAll('fragrances');
 
   showSheet(`
     <div class="sheet-handle"></div>
@@ -336,6 +576,7 @@ async function openProductMasterForm(id) {
           <th style="padding:5px 4px;border:1px solid var(--border)">원료명</th>
           <th style="padding:5px 4px;border:1px solid var(--border)">이론량(g)</th>
           <th style="padding:5px 4px;border:1px solid var(--border)">비율(%)</th>
+          <th style="padding:5px 4px;border:1px solid var(--border);width:110px">향료 연결</th>
           <th style="padding:5px 4px;border:1px solid var(--border);width:28px"></th>
         </tr></thead>
         <tbody id="pm-recipe-body">
@@ -344,6 +585,12 @@ async function openProductMasterForm(id) {
             <td style="padding:3px 4px;border:1px solid var(--border)"><input style="width:100%;border:none;background:transparent;font-size:11px" value="${r.원료명||''}" oninput="pmRecipeEdit(${i},'원료명',this.value)"></td>
             <td style="padding:3px 4px;border:1px solid var(--border)"><input type="number" style="width:60px;border:none;background:transparent;font-size:11px" value="${r.이론량||''}" oninput="pmRecipeEdit(${i},'이론량',this.value)"></td>
             <td style="padding:3px 4px;border:1px solid var(--border)"><input type="number" style="width:50px;border:none;background:transparent;font-size:11px" value="${r.비율||''}" oninput="pmRecipeEdit(${i},'비율',this.value)"></td>
+            <td style="padding:3px 4px;border:1px solid var(--border)">
+              <select style="width:100%;border:none;background:transparent;font-size:10px" onchange="pmRecipeEdit(${i},'향료ID',this.value?+this.value:null)">
+                <option value="">–</option>
+                ${_fgMasterCache.map(f=>`<option value="${f.id}" ${r.향료ID===f.id?'selected':''}>${f.향료명}</option>`).join('')}
+              </select>
+            </td>
             <td style="padding:3px 4px;border:1px solid var(--border);text-align:center"><button onclick="pmRecipeDel(${i})" style="background:none;border:none;color:var(--red-text);cursor:pointer;font-size:13px">✕</button></td>
           </tr>`).join('')}
         </tbody>
@@ -352,6 +599,16 @@ async function openProductMasterForm(id) {
     <button onclick="pmRecipeAdd()" style="width:100%;padding:7px;border:1px dashed var(--border);border-radius:var(--r-sm);background:transparent;color:var(--teal-dark);font-size:12px;cursor:pointer;margin-bottom:4px">
       + 원료 행 추가
     </button>
+    <div style="font-size:10px;color:var(--text3);margin-bottom:10px">※ 향료 원료 행에서 "향료 연결"로 향료 재고 마스터를 지정하면 아래에서 알레르기 유발성분을 자동 계산할 수 있습니다. 향료 마스터는 [원료 재고 → 향료 알레르기] 탭에서 등록합니다.</div>
+
+    <div style="font-size:12px;font-weight:700;color:var(--text);margin:14px 0 6px;border-top:1px solid var(--border);padding-top:12px">향료 알레르기 유발성분 자동계산</div>
+    <div style="background:var(--teal-light);border-radius:var(--r-sm);padding:8px 10px;margin-bottom:8px;font-size:11px;color:var(--teal-dark)">
+      기준 투입량(g)과 원료 배합표의 향료 연결·비율(%)을 기준으로 완제품 내 알레르기 유발성분 최종 함유율을 계산합니다. 계산식: 향료 비율(%) × 성분 함량(%) ÷ 100. 0.01%를 초과하는 성분만 표시 대상입니다.
+    </div>
+    <button onclick="runFragranceCalc()" style="width:100%;padding:8px;border:none;border-radius:var(--r-sm);background:var(--teal);color:#fff;font-size:12px;cursor:pointer;margin-bottom:6px">
+      🧮 향료 알레르기 계산하기
+    </button>
+    <div id="fg-calc-result" style="margin-bottom:10px"></div>
 
     <div class="sheet-btns">
       ${id?`<button class="btn-del" onclick="delItem('products',${id})">삭제</button>`:''}
@@ -467,6 +724,7 @@ async function uploadRecipeToForm(e) {
 
 /* ── 제품 마스터 레시피 편집 헬퍼 ── */
 let _pmRecipe = [];
+let _fgMasterCache = [];
 
 function pmRecipeEdit(idx, field, val) {
   if(!_pmRecipe[idx]) return;
@@ -479,7 +737,7 @@ function pmRecipeDel(idx) {
 }
 
 function pmRecipeAdd() {
-  _pmRecipe.push({원료명:'', INCI:'', 이론량:0, 비율:0});
+  _pmRecipe.push({원료명:'', INCI:'', 이론량:0, 비율:0, 향료ID:null});
   _renderPmRecipeTable();
 }
 
@@ -491,12 +749,99 @@ function _renderPmRecipeTable() {
     <td style="padding:3px 4px;border:1px solid var(--border)"><input style="width:100%;border:none;background:transparent;font-size:11px" value="${r.원료명||''}" oninput="pmRecipeEdit(${i},'원료명',this.value)"></td>
     <td style="padding:3px 4px;border:1px solid var(--border)"><input type="number" style="width:60px;border:none;background:transparent;font-size:11px" value="${r.이론량||''}" oninput="pmRecipeEdit(${i},'이론량',this.value)"></td>
     <td style="padding:3px 4px;border:1px solid var(--border)"><input type="number" style="width:50px;border:none;background:transparent;font-size:11px" value="${r.비율||''}" oninput="pmRecipeEdit(${i},'비율',this.value)"></td>
+    <td style="padding:3px 4px;border:1px solid var(--border)">
+      <select style="width:100%;border:none;background:transparent;font-size:10px" onchange="pmRecipeEdit(${i},'향료ID',this.value?+this.value:null)">
+        <option value="">–</option>
+        ${(_fgMasterCache||[]).map(f=>`<option value="${f.id}" ${r.향료ID===f.id?'selected':''}>${f.향료명}</option>`).join('')}
+      </select>
+    </td>
     <td style="padding:3px 4px;border:1px solid var(--border);text-align:center"><button onclick="pmRecipeDel(${i})" style="background:none;border:none;color:var(--red-text);cursor:pointer;font-size:13px">✕</button></td>
   </tr>`).join('');
 }
 
 function collectPmRecipe() {
   return _pmRecipe.filter(r=>r.원료명);
+}
+
+/* ── 향료 알레르기 유발성분 자동계산 엔진 ──
+   공식(비누매거진 계산기 기준):
+   ① 향료 실사용량(g) = 향료 비율(%) × 비누제작총량(g) ÷ 100
+   ② 알레르기 유발성분 실사용량(g) = 향료 실사용량(g) × 성분 함량(%) ÷ 100
+   ③ 완제품 내 표시함량(%) = 알레르기 유발성분 실사용량(g) ÷ 비누제작총량(g) × 100
+   → ①②③을 정리하면: 표시함량(%) = 향료 비율(%) × 성분 함량(%) ÷ 100
+   동일 성분이 여러 향료에 중복 포함된 경우 완제품 기준 합산 후 0.01% 초과 여부 판정 */
+function calcFragranceAllergens(recipe, totalWeight, fragranceMaster) {
+  const map = new Map();
+  (recipe||[]).forEach(r => {
+    if(!r.향료ID) return;
+    const frag = (fragranceMaster||[]).find(f=>f.id===+r.향료ID);
+    if(!frag) return;
+    const ratio = (r.비율 !== undefined && r.비율 !== null && r.비율 !== '')
+      ? +r.비율
+      : (totalWeight > 0 ? (+r.이론량 || 0) / totalWeight * 100 : 0);
+    (frag.알러젠||[]).forEach(a => {
+      if(!a.성분명 || !a.함량) return;
+      const finalPct = ratio * (+a.함량) / 100;
+      const prev = map.get(a.성분명) || { CAS: a.CAS||'', 함유율: 0 };
+      prev.함유율 += finalPct;
+      if(!prev.CAS && a.CAS) prev.CAS = a.CAS;
+      map.set(a.성분명, prev);
+    });
+  });
+  return [...map.entries()]
+    .map(([성분명, v]) => ({ 성분명, CAS: v.CAS, 함유율: v.함유율, 초과: v.함유율 > ALLERGEN_THRESHOLD_PCT }))
+    .sort((a,b) => b.함유율 - a.함유율);
+}
+
+let _fgCalcResult = [];
+
+function runFragranceCalc() {
+  const box = document.getElementById('fg-calc-result');
+  if(!box) return;
+  const total = +v('pm4') || 0;
+  if(!total) {
+    box.innerHTML = '<div style="color:var(--red-text);font-size:11px">기준 투입량(g)을 먼저 입력해주세요</div>';
+    return;
+  }
+  const linked = _pmRecipe.filter(r=>r.향료ID);
+  if(!linked.length) {
+    box.innerHTML = '<div style="color:var(--amber-text);font-size:11px">원료 배합표에서 향료 행의 "향료 연결"을 지정해주세요 (향료 마스터는 원료 재고 → 향료 알레르기 탭에서 등록)</div>';
+    return;
+  }
+  const result = calcFragranceAllergens(_pmRecipe, total, _fgMasterCache);
+  _fgCalcResult = result;
+  if(!result.length) {
+    box.innerHTML = '<div style="color:var(--text3);font-size:11px">연결된 향료에 등록된 알레르기 유발성분이 없습니다</div>';
+    return;
+  }
+  const overCount = result.filter(r=>r.초과).length;
+  box.innerHTML = `
+    <table style="width:100%;border-collapse:collapse;font-size:11px;margin-top:6px">
+      <thead><tr style="background:var(--gray-bg)">
+        <th style="padding:4px;border:1px solid var(--border)">성분명</th>
+        <th style="padding:4px;border:1px solid var(--border)">CAS No</th>
+        <th style="padding:4px;border:1px solid var(--border)">최종 함유율(%)</th>
+        <th style="padding:4px;border:1px solid var(--border)">기재대상</th>
+      </tr></thead>
+      <tbody>
+        ${result.map(r=>`<tr style="${r.초과?'background:#FBEAEA':''}">
+          <td style="padding:4px;border:1px solid var(--border)">${r.성분명}</td>
+          <td style="padding:4px;border:1px solid var(--border);text-align:center">${r.CAS||''}</td>
+          <td style="padding:4px;border:1px solid var(--border);text-align:right">${r.함유율.toFixed(5)}</td>
+          <td style="padding:4px;border:1px solid var(--border);text-align:center;${r.초과?'color:#A32D2D;font-weight:700':'color:var(--text3)'}">${r.초과?'초과 (표시)':'미만'}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+    <div style="font-size:10px;color:var(--text3);margin-top:4px">※ 0.01% 초과 성분 ${overCount}종만 전성분·표시기재사항 기재 대상입니다 (씻어내는 제품 기준, 화장품 표시·광고 관리 규정)</div>
+    <button onclick="applyFragranceCalcToAllergyField()" style="width:100%;margin-top:6px;padding:7px;border:none;border-radius:var(--r-sm);background:var(--mauve);color:#fff;font-size:12px;cursor:pointer">계산 결과를 "알레르기 유발성분" 필드에 반영</button>
+  `;
+}
+
+function applyFragranceCalcToAllergyField() {
+  const over = _fgCalcResult.filter(r=>r.초과).map(r=>r.성분명);
+  const el = document.getElementById('pm11');
+  if(el) el.value = over.join(', ');
+  alert(over.length ? `${over.length}개 성분이 반영되었습니다 — 저장을 눌러주세요` : '0.01%를 초과하는 성분이 없어 알레르기 유발성분란을 비웠습니다 — 저장을 눌러주세요');
 }
 
 async function openProductMasterList() {
@@ -3425,6 +3770,12 @@ async function openTRSelected() {
 window.openTRFromBatch=openTRFromBatch; window.openTRSelected=openTRSelected; window.getTrReports=getTrReports;
 window.openBatchForm=openBatchForm; window.saveBatch=saveBatch;
 window.pmRecipeEdit=pmRecipeEdit; window.pmRecipeDel=pmRecipeDel; window.pmRecipeAdd=pmRecipeAdd;
+window.openFragranceForm=openFragranceForm; window.saveFragrance=saveFragrance;
+window.fgRowEdit=fgRowEdit; window.fgRowDel=fgRowDel; window.fgRowAdd=fgRowAdd;
+window.uploadFragrancePdf=uploadFragrancePdf; window.selectFragranceCandidate=selectFragranceCandidate;
+window.runFragranceCalc=runFragranceCalc; window.applyFragranceCalcToAllergyField=applyFragranceCalcToAllergyField;
+window.calcFragranceAllergens=calcFragranceAllergens; window.parseFragranceBlocksFromLines=parseFragranceBlocksFromLines;
+window.renderFragranceStock=renderFragranceStock;
 window.uploadKclToForm=uploadKclToForm; window.uploadRecipeToForm=uploadRecipeToForm;
 window.quickPrintBatch=quickPrintBatch;
 window.openProductMasterForm=openProductMasterForm; window.saveProductMaster=saveProductMaster;
