@@ -223,7 +223,7 @@ async function openFragranceForm(id) {
     </div>
 
     <label>향료명<input id="fg1" value="${item?.향료명||''}" placeholder="예: 라벤더-C"></label>
-    <label>제조사 / 공급처<input id="fg2" value="${item?.제조사||''}" placeholder="예: 비누매거진"></label>
+    <label>제조사 / 공급처<input id="fg2" value="${item?.제조사||''}" placeholder="예: 아로마라인"></label>
 
     <label style="display:block;text-align:center;border:1px dashed var(--teal);border-radius:var(--r-sm);padding:10px;margin-bottom:10px;cursor:pointer;background:var(--teal-light);color:var(--teal-dark);font-size:12px">
       📎 제조사 알러젠 성분표 PDF 업로드하면 아래 표 자동 입력
