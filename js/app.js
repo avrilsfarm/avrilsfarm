@@ -294,8 +294,55 @@ async function saveFragrance(id) {
   closeSheet(); stockSubTab = '향료'; await renderTab('stock');
 }
 
-/* ── 제조사 알러젠 PDF 자동 업로드 ── */
-function parseFragranceBlocksFromLines(lines) {
+/* ── 제조사 알러젠 PDF 자동 업로드 ──
+   실제 제조사 성적서는 두 가지 형태를 모두 지원해야 함:
+   ① 비누매거진 스타일 — 한 PDF에 "[제품명]…" 블록이 여러 개 (다품목 성분표 모음)
+   ② 개별 향료 알러젠 성적서(ALLERGEN CERTIFICATE) — 영문, PDF 1개 = 향료 1개.
+      예: "PRESENCE OF POTENTIAL FRAGRANCE ALLERGENS" 성적서(Aromaline 등 원료사 공통 양식).
+      이 양식은 라벨(Fragrance Name 등)과 실제 입력값이 PDF 내부적으로
+      서로 떨어진 위치에 기록되는 경우가 많아 라벨 옆 텍스트로 향료명을 추출하기 어려움 →
+      파일명에서 향료명을 우선 추출(제조사들이 파일명에 향료명을 구간별로 넣는 관례 이용).
+   CAS 번호는 문서 언어와 무관한 유일 식별자이므로, 추출된 각 성분은 CAS 기준으로
+   식약처 지정 25종 리스트(ALLERGEN_LIST)와 대조해 표준 한글 성분명으로 치환하고,
+   25종에 없는 성분(예: EU 26종 중 Lyral 등)은 국내 표시 의무 대상이 아니므로 자동입력에서 제외함. */
+
+function casToAllergenRef(cas) {
+  const norm = (cas||'').replace(/\s/g,'');
+  return ALLERGEN_LIST.find(a => a.CAS === norm);
+}
+
+// CAS 번호를 기준점으로 성분명/함량을 분리 추출 (표 형태 한 줄을 파싱)
+function extractCasRowFromLine(line) {
+  const casM = line.match(/(\d{2,7}-\d{2}-\d)/);
+  if (!casM) return null;
+  const casIdx = line.indexOf(casM[1]);
+  const before = line.slice(0, casIdx).trim();
+  const after  = line.slice(casIdx + casM[1].length).trim();
+  const pctM = after.match(/([\d.]+)\s*%/) || after.match(/([\d.]+)/);
+  if (!before || !pctM) return null;
+  return { 성분명raw: before.replace(/\s+/g,' ').trim(), CAS: casM[1], 함량: parseFloat(pctM[1]) };
+}
+
+// CAS 매칭 성공 시에만 채택 + 표준 한글 성분명으로 치환 (식약처 25종 외 성분은 자동입력 제외)
+function normalizeAllergenRow(raw) {
+  if (!raw || !raw.함량) return null;
+  const ref = casToAllergenRef(raw.CAS);
+  if (!ref) return null;
+  return { 성분명: ref.성분명, CAS: ref.CAS, 함량: raw.함량 };
+}
+
+// 파일명에서 향료명 추출: "07. SAP FO_라임바질앤만다린_ALLERGEN CERTIFICATE.pdf" → "라임바질앤만다린"
+function extractFragranceNameFromFilename(fileName) {
+  const base = (fileName||'').replace(/\.[^.]+$/, '');
+  const parts = base.split(/[_\-]+/).map(s=>s.trim()).filter(Boolean);
+  const korPart = parts.find(p => /[가-힣]/.test(p));
+  if (korPart) return korPart;
+  const noise = /^(SAP|FO|ALLERGEN|CERTIFICATE|MSDS|COA|SDS|TDS|SPEC|No\.?\d*|\d+\.?)$/i;
+  const candidates = parts.filter(p => !noise.test(p));
+  return (candidates.sort((a,b)=>b.length-a.length)[0] || base).trim();
+}
+
+function parseFragranceBlocksFromLines(lines, fileName) {
   const blocks = [];
   let cur = null;
   for (const rawLine of lines) {
@@ -312,19 +359,29 @@ function parseFragranceBlocksFromLines(lines) {
     // 표 헤더 행 스킵
     if (/^성분명/.test(noSp) && /CASNO/i.test(noSp)) continue;
     if (/^성분$/.test(noSp) || /^없음$/.test(noSp)) continue;
-    // 성분 행: "시트랄 5392-40-5 0.5%" (CAS 번호를 기준점으로 앞/뒤 분리)
-    const casM = line.match(/(\d{2,7}-\d{2}-\d)/);
-    if (casM) {
-      const casIdx = line.indexOf(casM[1]);
-      const before = line.slice(0, casIdx).trim();
-      const after  = line.slice(casIdx + casM[1].length).trim();
-      const pctM = after.match(/([\d.]+)\s*%?/);
-      if (before && pctM) {
-        cur.알러젠.push({ 성분명: before.replace(/\s+/g,' ').trim(), CAS: casM[1], 함량: parseFloat(pctM[1]) });
-      }
-    }
+    const row = extractCasRowFromLine(line);
+    const norm = row && normalizeAllergenRow(row);
+    if (norm) cur.알러젠.push(norm);
   }
   if (cur && cur.향료명) blocks.push(cur);
+
+  // "[제품명]" 블록 마커가 없으면 — 향료 알러젠 성적서(영문 단일 성적서) 형태로 간주
+  if (!blocks.length) {
+    const seen = new Set();
+    const 알러젠 = [];
+    for (const rawLine of lines) {
+      const row = extractCasRowFromLine(rawLine.trim());
+      const norm = row && normalizeAllergenRow(row);
+      if (norm && !seen.has(norm.CAS)) { seen.add(norm.CAS); 알러젠.push(norm); }
+    }
+    if (알러젠.length) {
+      const fullText = lines.join(' ');
+      const nameM = fullText.match(/Fragrance\s*Name\s*[:：]\s*([^\n]{2,60}?)(?:\s{2,}|Application|Leave|Usage|$)/i);
+      const labelName = nameM && !/^(customer|application|leave|usage)/i.test(nameM[1].trim()) ? nameM[1].trim() : '';
+      const 향료명 = labelName || extractFragranceNameFromFilename(fileName) || '';
+      if (향료명) blocks.push({ 향료명, 알러젠 });
+    }
+  }
   return blocks;
 }
 
@@ -335,7 +392,7 @@ async function uploadFragrancePdf(e) {
   if(st) st.innerHTML = '<span style="color:var(--teal)">⏳ PDF 분석 중...</span>';
   try {
     const lines = await extractPdfLines(file, st);
-    const blocks = parseFragranceBlocksFromLines(lines);
+    const blocks = parseFragranceBlocksFromLines(lines, file.name);
     if(!blocks.length) {
       if(st) st.innerHTML = '<span style="color:var(--amber-text)">⚠️ 성분표를 찾지 못했습니다. 직접 입력해주세요.</span>';
       return;
@@ -3775,6 +3832,8 @@ window.fgRowEdit=fgRowEdit; window.fgRowDel=fgRowDel; window.fgRowAdd=fgRowAdd;
 window.uploadFragrancePdf=uploadFragrancePdf; window.selectFragranceCandidate=selectFragranceCandidate;
 window.runFragranceCalc=runFragranceCalc; window.applyFragranceCalcToAllergyField=applyFragranceCalcToAllergyField;
 window.calcFragranceAllergens=calcFragranceAllergens; window.parseFragranceBlocksFromLines=parseFragranceBlocksFromLines;
+window.casToAllergenRef=casToAllergenRef; window.extractCasRowFromLine=extractCasRowFromLine;
+window.normalizeAllergenRow=normalizeAllergenRow; window.extractFragranceNameFromFilename=extractFragranceNameFromFilename;
 window.renderFragranceStock=renderFragranceStock;
 window.uploadKclToForm=uploadKclToForm; window.uploadRecipeToForm=uploadRecipeToForm;
 window.quickPrintBatch=quickPrintBatch;
