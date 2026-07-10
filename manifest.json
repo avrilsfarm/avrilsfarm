@@ -1,7 +1,7 @@
 {
-  "name": "공방비서",
-  "short_name": "공방비서",
-  "description": "1인 공방·소규모 브랜드를 위한 기준서·서류 자동화 비서",
+  "name": "에이브릴팜 공방비서",
+  "short_name": "에이브릴팜",
+  "description": "에이브릴팜 공방비서 시스템",
   "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#F5EBE0",

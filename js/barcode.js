@@ -2,11 +2,8 @@
 let bcSearchQ = '';
 let bcCollapsed = {};
 
-function bizPrefix() { return (typeof getBiz === 'function' ? (getBiz().bizPrefix || '0000') : '0000'); }
-function bizMfgFormat() { return (typeof getBiz === 'function' ? (getBiz().mfgFormat || 'APBO') : 'APBO'); }
-
 /* ════════════════════════════════════════
-   공방비서 바코드 관리 모듈 v3
+   에이브릴팜 바코드 관리 모듈 v3
    EAN-13: 대분류(4) + 소분류(3) + 비번호(3) + 개수(2) + 체크디지트(1)
 ════════════════════════════════════════ */
 
@@ -47,7 +44,7 @@ const COLOR_CODES = [
 
 /* ── EAN-13 체크디지트 ── */
 function calcCheckDigit(biz, sub, seq, qty) {
-  const str = (biz||bizPrefix()) + sub + seq + qty;
+  const str = (biz||'8739') + sub + seq + qty;
   if (str.length !== 12) return '?';
   let sum = 0;
   for (let i = 0; i < 12; i++) sum += parseInt(str[i]) * (i % 2 === 0 ? 1 : 3);
@@ -55,7 +52,7 @@ function calcCheckDigit(biz, sub, seq, qty) {
 }
 
 function buildBarcode(biz, sub, seq, qty) {
-  const base = (biz||bizPrefix()) + sub + seq + qty;
+  const base = (biz||'8739') + sub + seq + qty;
   return base + calcCheckDigit(biz, sub, seq, qty);
 }
 
@@ -106,7 +103,7 @@ async function renderBarcodeTab(el) {
       <div class="bc-notice-icon" style="color:var(--teal)"><i class="ti ti-barcode"></i></div>
       <div class="bc-notice-body">
         <div class="bc-notice-title" style="color:var(--teal-dark)">EAN-13 바코드 구조</div>
-        <div class="bc-notice-text">${bizPrefix()} + 소분류(3) + 비번호(3) + 개수(2) + 체크디지트(1) = <b>13자리</b><br>
+        <div class="bc-notice-text">8739 + 소분류(3) + 비번호(3) + 개수(2) + 체크디지트(1) = <b>13자리</b><br>
         체크디지트은 앞 12자리로 자동 계산됩니다.</div>
       </div>
     </div>
@@ -114,12 +111,12 @@ async function renderBarcodeTab(el) {
     <div class="bc-guide-card">
       <div class="bc-guide-title"><i class="ti ti-book-2"></i> 바코드 부여 기준</div>
       <div class="bc-guide-body">
-        <div class="bc-guide-row"><span class="bc-guide-label">대분류</span><span>${bizPrefix()} (내 브랜드 고유번호) · 타 브랜드 제조 시 해당 브랜드 번호 사용</span></div>
+        <div class="bc-guide-row"><span class="bc-guide-label">대분류</span><span>8739 (에이브릴팜 고유번호) · 타 브랜드 제조 시 해당 브랜드 번호 사용</span></div>
         <div class="bc-guide-row"><span class="bc-guide-label">소분류(3자리)</span><span>제조월 앞 2자리 + 색상코드 첫 자리 조합 <em>(예: 10월 O색 → 101)</em></span></div>
         <div class="bc-guide-row"><span class="bc-guide-label">비번호(3자리)</span><span>전체 제품 등록 순서 누적 번호 <em>(예: 001, 002 …)</em></span></div>
         <div class="bc-guide-row"><span class="bc-guide-label">개수(2자리)</span><span>1회 배치 예상 생산량 <em>(예: 09 = 9개, 20 = 20개)</em></span></div>
         <div class="bc-guide-row"><span class="bc-guide-label">체크디지트</span><span>앞 12자리로 자동 계산 — 직접 입력 불필요</span></div>
-        <div class="bc-guide-row"><span class="bc-guide-label">제조번호</span><span>브랜드 접두어(${bizMfgFormat().slice(0,-1)||'AP'}) + B + 색상코드 + 월(2) + 순번(3) <em>(예: ${bizMfgFormat()}10001)</em></span></div>
+        <div class="bc-guide-row"><span class="bc-guide-label">제조번호</span><span>브랜드(AP) + B + 색상코드 + 월(2) + 순번(3) <em>(예: APBO10001)</em></span></div>
         <div class="bc-guide-row" style="margin-top:4px"><span class="bc-guide-label">색상 코드</span>
           <span>${COLOR_CODES.filter(c=>c.code!=='직접입력').map(c=>`<span class="bc-cc">${c.label}</span>`).join(' ')}</span>
         </div>
@@ -152,8 +149,8 @@ async function renderBarcodeTab(el) {
             <i class="ti ti-chevron-${coll?'right':'down'}" style="font-size:14px;color:var(--text3)"></i>
           </div>
           ${coll ? '' : items.map(p => {
-            const full = buildBarcode(p.biz||bizPrefix(), p.sub, p.seq, p.qty);
-            const bc12 = (p.biz||bizPrefix())+'/'+p.sub+'/'+p.seq+'/'+p.qty;
+            const full = buildBarcode(p.biz||'8739', p.sub, p.seq, p.qty);
+            const bc12 = (p.biz||'8739')+'/'+p.sub+'/'+p.seq+'/'+p.qty;
             return '<div class="bc-card">'
               +'<div class="bc-card-head" onclick="openBarcodeForm('+p.no+')" style="cursor:pointer">'
               +'<div class="bc-no">'+String(p.no).padStart(2,'0')+'</div>'
@@ -183,7 +180,7 @@ async function renderBarcodeTab(el) {
       const svgEl = document.getElementById('bc-svg-' + p.no);
       if (!svgEl || !window.JsBarcode) return;
       try {
-        JsBarcode('#bc-svg-' + p.no, buildBarcode(p.biz||bizPrefix(), p.sub, p.seq, p.qty), {
+        JsBarcode('#bc-svg-' + p.no, buildBarcode(p.biz||'8739', p.sub, p.seq, p.qty), {
           format:'EAN13', width:1.5, height:50,
           displayValue:true, fontSize:11, textMargin:2, margin:4,
           lineColor: p.status==='단종' ? '#aaa' : '#111'
@@ -203,8 +200,8 @@ function openBarcodeForm(no) {
   const ns = nextSeq();
 
   // 기존 항목의 대분류 — 숫자이면 직접입력
-  const itemBiz = item ? (item.biz || bizPrefix()) : bizPrefix();
-  const bizIsCustom = itemBiz !== bizPrefix();
+  const itemBiz = item ? (item.biz || '8739') : '8739';
+  const bizIsCustom = itemBiz !== '8739';
 
   showSheet(`
     <div class="sheet-handle"></div>
@@ -220,7 +217,7 @@ function openBarcodeForm(no) {
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
       <label>대분류 (사업자번호)
         <select id="bc2" onchange="toggleBizCustom(); updateBcPreview()">
-          <option value="${bizPrefix()}" ${!bizIsCustom?'selected':''}>${bizPrefix()} (내 브랜드)</option>
+          <option value="8739" ${!bizIsCustom?'selected':''}>8739 (에이브릴팜)</option>
           <option value="직접입력" ${bizIsCustom?'selected':''}>직접입력</option>
         </select>
         <div id="bc2-custom-wrap" style="margin-top:6px;${!bizIsCustom?'display:none':''}">
@@ -264,7 +261,7 @@ function openBarcodeForm(no) {
     </label>
 
     <div id="mfg-direct-box" style="${item&&item.mfgDirect?'':'display:none'}">
-      <label>제조번호 직접입력<input id="bc-mfg-direct" value="${item&&item.mfgDirect?item.mfgNo||'':''}" placeholder="예: ${bizMfgFormat()}06001" style="font-family:monospace" oninput="updateMfgPreview()"></label>
+      <label>제조번호 직접입력<input id="bc-mfg-direct" value="${item&&item.mfgDirect?item.mfgNo||'':''}" placeholder="예: APBO06001" style="font-family:monospace" oninput="updateMfgPreview()"></label>
     </div>
 
     <div id="mfg-auto-box" style="${item&&item.mfgDirect?'display:none':''}">
@@ -367,8 +364,8 @@ function toggleBc11Custom() {
 function updateBcPreview() {
   const sel2 = document.getElementById('bc2');
   const biz = sel2?.value === '직접입력'
-    ? (document.getElementById('bc2c')?.value || bizPrefix())
-    : (sel2?.value || bizPrefix());
+    ? (document.getElementById('bc2c')?.value || '8739')
+    : (sel2?.value || '8739');
   const sub = (document.getElementById('bc3')?.value || '').padEnd(3,'0').slice(0,3);
   const seq = (document.getElementById('bc4')?.value || '').padEnd(3,'0').slice(0,3);
   const qty = (document.getElementById('bc5')?.value || '').padEnd(2,'0').slice(0,2);
@@ -553,7 +550,7 @@ function printBarcodeLabelFromRecord(r) {
         <svg id="${uid}"></svg>
         <div class="label-mfg">${mfgNo}</div>
         <div class="label-expiry">${expiry}</div>
-        <div class="label-biz">${(typeof getBiz==='function'?getBiz().name:'')||''} ${(typeof getBiz==='function'&&getBiz().mfgNo)?'· 화장품제조업 '+getBiz().mfgNo:''}</div>
+        <div class="label-biz">AVRIL'S FARM · 화장품제조업 제6494호</div>
       </div>`;
     }).join('')}
   </div>
@@ -572,7 +569,7 @@ function printAllBarcodes() {
   const items = _barcodeData.filter(p => p.status === '현행');
   const win = window.open('','_blank');
   win.document.write(`<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8">
-  <title>${(typeof getBiz==='function'?getBiz().name:'')||'공방비서'} 바코드 목록</title>
+  <title>AVRIL'S FARM 바코드 목록</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.6/JsBarcode.all.min.js"><\/script>
   <style>
     body{font-family:'Apple SD Gothic Neo',sans-serif;padding:16px;font-size:10px;}
@@ -586,7 +583,7 @@ function printAllBarcodes() {
     <button onclick="window.print()" style="padding:8px 20px;background:#48997D;color:#fff;border:none;border-radius:6px;cursor:pointer;margin-right:6px">🖨 인쇄/PDF</button>
     <button onclick="window.close()" style="padding:8px 16px;background:#eee;border:none;border-radius:6px;cursor:pointer">닫기</button>
   </div>
-  <h2 style="margin-bottom:12px;font-size:16px">${(typeof getBiz==='function'?getBiz().name:'')||'공방비서'} 바코드·제조번호 관리표</h2>
+  <h2 style="margin-bottom:12px;font-size:16px">AVRIL'S FARM 바코드·제조번호 관리표</h2>
   <table>
     <thead><tr>
       <th>No</th><th>제품명</th><th>바코드 번호</th><th>체크디지트</th>
@@ -595,8 +592,8 @@ function printAllBarcodes() {
     </tr></thead>
     <tbody>
       ${items.map(p=>{
-        const full = buildBarcode(p.biz||bizPrefix(),p.sub,p.seq,p.qty);
-        const bc12 = `${p.biz||bizPrefix()}/${p.sub}/${p.seq}/${p.qty}`;
+        const full = buildBarcode(p.biz||'8739',p.sub,p.seq,p.qty);
+        const bc12 = `${p.biz||'8739'}/${p.sub}/${p.seq}/${p.qty}`;
         return `<tr>
           <td class="c">${p.no}</td><td>${p.name}</td>
           <td style="font-family:monospace">${bc12}</td>
@@ -613,7 +610,7 @@ function printAllBarcodes() {
   <script>
     window.onload=()=>{
       ${items.map(p=>{
-        const full = buildBarcode(p.biz||bizPrefix(),p.sub,p.seq,p.qty);
+        const full = buildBarcode(p.biz||'8739',p.sub,p.seq,p.qty);
         return `try{JsBarcode('#tbc-${p.no}','${full}',{format:'EAN13',width:1,height:30,displayValue:true,fontSize:8,margin:2});}catch(e){}`;
       }).join('\n')}
     };

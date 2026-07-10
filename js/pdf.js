@@ -1,20 +1,16 @@
 /* ═══════════════════════════════════════
-   공방비서 PDF 출력 모듈 v2
-   4대 기준서 양식 그대로 재현 (사업자 정보는 설정값 기반)
+   에이브릴팜 PDF 출력 모듈 v2
+   4대 기준서 양식 그대로 재현
+   화장품제조업 등록번호 제6494호
+   책임판매업 등록번호 제18216호
 ═══════════════════════════════════════ */
 
-function loadCO() {
-  const b = (typeof getBiz === 'function') ? getBiz() : {};
-  return {
-    name: b.name || '내 공방',
-    addr: b.addr || '',
-    tel:  b.tel  || '',
-    mfg:  b.mfgNo  || '',
-    sale: b.saleNo || '',
-    owner: b.owner || ''
-  };
-}
-const CO = loadCO();
+const CO = {
+  name:'에이브릴팜',
+  addr:'경기도 시흥시 진말1로 18, 에스엠타워 303호',
+  tel:'0507-1346-8739',
+  mfg:'제6494호', sale:'제18216호', owner:'변민정'
+};
 
 const CSS = `
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;600;700&display=swap');
@@ -61,7 +57,7 @@ function pBtn(){
 
 function open$(html){
   const w=window.open('','_blank');
-  w.document.write(`<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><title>${CO.name||'공방비서'}</title><style>${CSS}</style></head><body>${pBtn()}${html}${pBtn()}</body></html>`);
+  w.document.write(`<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><title>에이브릴팜</title><style>${CSS}</style></head><body>${pBtn()}${html}${pBtn()}</body></html>`);
   w.document.close();
 }
 
@@ -98,7 +94,7 @@ function buildTR(data, allIng, products){
   // data는 localStorage trReport 또는 구형 batch 객체 모두 지원
   const isTrData = !!data.recipe; // localStorage trReport는 recipe 키를 가짐
   const prod = isTrData ? {} : ((products||[]).find(p=>p.id===data.productId) || {});
-  const docNo = data.docNo || prod.시험성적서번호 || data.시험성적서번호 || (getDocPrefix()+'-TR-00X');
+  const docNo = data.docNo || prod.시험성적서번호 || data.시험성적서번호 || 'AF-TR-00X';
   const recipe = isTrData ? (data.recipe||[]) : (prod.시험원료?.length ? prod.시험원료 : (prod.레시피?.length ? prod.레시피 : (data.시험원료?.length ? data.시험원료 : [])));
   const productName = data.productName || data.제품명 || prod.제품명 || '';
   const mw = prod.목표중량 || data.목표중량 || '90g ±5g';
@@ -443,7 +439,7 @@ function buildMI(batch, products){
   const estDate = batch.제정일자 || prod.제정일자 || batch.date || '';
   const processSteps = batch.공정?.length ? batch.공정 : (prod.공정||[]);
 
-  return hd('제조지시서','Manufacturing Instruction · '+batch.제품명, batch.문서번호||(getDocPrefix()+'-MI-00X'),revNo,estDate) + `
+  return hd('제조지시서','Manufacturing Instruction · '+batch.제품명, batch.문서번호||'AF-MI-00X',revNo,estDate) + `
   <div class="sign"><div class="sign-box"><div class="sign-lbl">총괄책임자(제조관리담당자)</div>${CO.owner} (인)</div></div>
 
   <div class="sec">▶ 가. 기본 정보</div>
@@ -512,7 +508,7 @@ function buildMI(batch, products){
 ───────────────────────────────────── */
 function buildPS(batch, allIng, products){
   const prod = (products||[]).find(p=>p.id===batch.productId) || {};
-  const psNo = (prod.문서번호 || batch.문서번호 || (getDocPrefix()+'-PS-00X')).replace(getDocPrefix()+'-MI', getDocPrefix()+'-PS');
+  const psNo = (prod.문서번호 || batch.문서번호 || 'AF-PS-00X').replace('AF-MI','AF-PS');
   const recipe = prod.시험원료?.length ? prod.시험원료 : (prod.레시피?.length ? prod.레시피 : (batch.시험원료?.length ? batch.시험원료 : []));
   const mw = prod.목표중량 || batch.목표중량 || '90g ±5g';
   const iTheory = prod.이론수량 || batch.이론수량 || 9;

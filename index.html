@@ -6,8 +6,8 @@
   <meta name="theme-color" content="#c084a4">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <meta name="apple-mobile-web-app-title" content="공방비서">
-  <title>공방비서</title>
+  <meta name="apple-mobile-web-app-title" content="AVRIL'S FARM">
+  <title>AVRIL'S FARM 공방비서</title>
   <link rel="manifest" href="manifest.json">
   <link rel="stylesheet" href="css/style.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
@@ -88,44 +88,31 @@
       text-align: center; line-height: 1.9;
       animation: fadeUp .7s ease .85s both;
     }
-    .intro-copyright {
-      font-size: 9.5px; color: #C0B8B0; margin-top: 28px;
-      text-align: center; letter-spacing: .3px;
-      animation: fadeUp .7s ease .85s both;
-    }
   </style>
 </head>
 <body>
 
 <!-- ══ 인트로 화면 ══ -->
 <div id="intro-screen">
-  <div class="intro-wordmark">공방비서</div>
-  <div class="intro-sub">1인 공방을 위한 기준서 자동화</div>
+  <div class="intro-wordmark">AVRIL'S FARM</div>
+  <div class="intro-sub">공방비서</div>
   <div class="intro-divider"></div>
-  <div class="intro-info" id="intro-biz-info">
-    사업자 정보는 설정에서 등록해주세요
+  <div class="intro-info">
+    화장품제조업 제6494호<br>
+    책임판매업 제18216호
   </div>
-  <script>
-    (function(){
-      try {
-        var b = JSON.parse(localStorage.getItem('bizSettings'));
-        if (b && b.name && b.owner) {
-          document.getElementById('intro-biz-info').innerHTML =
-            (b.mfgNo ? '화장품제조업 ' + b.mfgNo + '<br>' : '') +
-            (b.saleNo ? '책임판매업 ' + b.saleNo : '');
-        }
-      } catch (e) {}
-    })();
-  </script>
   <button class="intro-btn" onclick="enterApp()">시작하기 →</button>
-  <div class="intro-copyright">© 2026 공방비서 · Developed by 에이브릴팜</div>
+  <div class="intro-reg">
+    대표: 변민정 · 경기도 시흥시 진말1로 18, 에스엠타워 303호<br>
+    Tel: 0507-1346-8739
+  </div>
 </div>
 
 <!-- ══ 메인 앱 ══ -->
 <div class="app" id="main-app" style="display:none">
   <div class="topbar">
     <div class="topbar-logo" onclick="goHygiene()" style="cursor:pointer" title="위생점검으로 이동">
-      <span class="nav-wordmark">공방비서</span>
+      <span class="nav-wordmark">AVRIL'S FARM</span>
     </div>
     <div class="tabs-wrap">
       <div class="tabs">
@@ -146,7 +133,6 @@
 <div id="sheet-overlay" class="hide" onclick="closeSheet()"></div>
 <div id="sheet" class="hide"><div id="sheet-body"></div></div>
 
-<script src="js/settings.js"></script>
 <script src="js/db.js"></script>
 <script src="js/notify.js"></script>
 <script src="js/pdf.js"></script>
@@ -157,9 +143,6 @@
     document.getElementById('intro-screen').classList.add('hidden');
     document.getElementById('main-app').style.display = 'flex';
     init();
-    if (!isBizConfigured()) {
-      setTimeout(() => openBizSetupWizard(), 300);
-    }
   }
   function goHygiene() {
     currentTab = 'hygiene';

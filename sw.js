@@ -1,9 +1,8 @@
-const CACHE_NAME = 'gongbangbiseo-v1.0';
+const CACHE_NAME = 'avrilfarm-v12';
 const ASSETS = [
   './',
   './index.html',
   './css/style.css',
-  './js/settings.js',
   './js/db.js',
   './js/notify.js',
   './js/pdf.js',
