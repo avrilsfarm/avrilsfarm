@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════
-   에이브릴팜 알림 모듈 v2
+   공방비서 알림 모듈 v2
    - 청소 점검: 매주 월요일
    - 방충방서: 매월 1일
    - 설비관리: 분기 첫 달 1일 (1/4/7/10월)
@@ -22,8 +22,8 @@ async function requestPermission() {
 function sendNotification(title, body, icon) {
   if (Notification.permission !== 'granted') return;
   new Notification(title, {
-    body, icon: icon || './에이브릴팜_비누심볼.png',
-    badge: './에이브릴팜_비누심볼.png',
+    body,
+    ...(icon ? {icon} : {}),
     tag: title,
     renotify: false
   });
@@ -192,33 +192,28 @@ function renderNotifySettings(el) {
     </div>
     <div id="reset-status" style="padding:0 16px;font-size:11px;color:var(--text3);min-height:8px"></div>
 
-
     <div class="group-header mt16">클라우드 동기화</div>
-    <div class="list-item" style="flex-direction:column;align-items:flex-start;gap:6px;cursor:default">
-      <div class="item-title" style="font-size:12px;font-weight:700">GitHub Personal Access Token</div>
-      <div class="item-sub">웹·모바일 데이터 동기화에 필요 · repo 권한 필요</div>
-      <div style="display:flex;gap:8px;width:100%;margin-top:4px">
-        <input type="password" id="gh-token-input" placeholder="ghp_xxxxxxxxxxxx"
-          value="${localStorage.getItem('gh_token')||''}"
-          style="flex:1;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--card);color:var(--text);font-size:12px">
-        <button class="btn-sm solid" onclick="saveGhToken()">저장</button>
+    <div class="list-item" style="cursor:default">
+      <div class="item-left">
+        <div class="item-title">계정 동기화 (준비 중)</div>
+        <div class="item-sub">로그인 기반 폰·PC 자동 동기화 기능을 준비하고 있습니다</div>
       </div>
-      <div style="font-size:10px;color:var(--text3)">
-        github.com → Settings → Developer Settings → Personal access tokens → Tokens (classic) → repo 체크
+    </div>
+
+    <div class="group-header mt16">사업자 정보</div>
+    <div class="list-item" onclick="openBizSetupWizard()" style="cursor:pointer">
+      <div class="item-left">
+        <div class="item-title">🏢 사업자 정보 설정</div>
+        <div class="item-sub">상호명·인허가번호·문서번호 등 수정</div>
       </div>
+      <i class="ti ti-chevron-right" style="color:var(--text3)"></i>
     </div>
 
     <div class="group-header mt16">앱 정보</div>
     <div class="list-item" style="cursor:default">
       <div class="item-left">
-        <div class="item-title">에이브릴팜 공방관리 시스템</div>
-        <div class="item-sub">V1.0 · 화장품제조업 제6494호 · 책임판매업 제18216호</div>
-      </div>
-    </div>
-    <div class="list-item" style="cursor:default">
-      <div class="item-left">
-        <div class="item-title">대표: 변민정</div>
-        <div class="item-sub">경기도 시흥시 진말1로 18, 에스엠타워 303호 · 0507-1346-8739</div>
+        <div class="item-title">공방비서 V1.0</div>
+        <div class="item-sub">© 2026 공방비서 · Developed by 에이브릴팜</div>
       </div>
     </div>
   `;
@@ -261,7 +256,7 @@ function openEquipForm(id) {
           </select>
         </label>`).join('')}
       <label>이상 내용 및 조치<input id="eq4" value="${item.이상내용||''}"></label>
-      <label>확인자<input id="eq5" value="${item.확인자||'변민정'}"></label>
+      <label>확인자<input id="eq5" value="${item.확인자||getBiz().owner||''}"></label>
       <div class="sheet-btns">
         ${id?`<button class="btn-del" onclick="delItem('equipment',${id})">삭제</button>`:''}
         <button onclick="closeSheet()">취소</button>
@@ -287,7 +282,7 @@ async function saveEquip(id) {
 async function enableNotify() {
   const perm = await requestPermission();
   if (perm === 'granted') {
-    sendNotification('에이브릴팜 알림 활성화', '점검 주기 알림이 설정되었습니다.');
+    sendNotification('알림 활성화', '점검 주기 알림이 설정되었습니다.');
     renderTab('notify');
   } else {
     alert('알림 권한이 거부되었습니다.\n브라우저 설정에서 알림을 허용해주세요.');
@@ -350,7 +345,7 @@ async function exportData() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = '에이브릴팜_백업_'+new Date().toISOString().slice(0,10)+'.json';
+    a.download = (getBiz().name||'공방비서')+'_백업_'+new Date().toISOString().slice(0,10)+'.json';
     a.click();
     URL.revokeObjectURL(url);
   } catch(e) { alert('백업 실패: '+e.message); }
@@ -404,13 +399,7 @@ async function runMigrateEFtoAF() {
 window.runMigrateEFtoAF = runMigrateEFtoAF;
 window.confirmReset = confirmReset;
 
-function saveGhToken() {
-  const val = document.getElementById('gh-token-input')?.value.trim();
-  if(val) { localStorage.setItem('gh_token', val); alert('저장됐습니다.'); }
-  else { localStorage.removeItem('gh_token'); alert('토큰이 삭제됐습니다.'); }
-}
-window.saveGhToken = saveGhToken;
-window.confirmReset = confirmReset;
+
 
 async function resetAllData() {
   if(!confirm('⚠️ 모든 데이터가 삭제됩니다.\n(원료·배치·위생·제품·생산·바코드·향료)\n\n정말 삭제할까요?')) return;

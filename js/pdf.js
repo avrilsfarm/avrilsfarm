@@ -1,16 +1,20 @@
 /* ═══════════════════════════════════════
-   에이브릴팜 PDF 출력 모듈 v2
-   4대 기준서 양식 그대로 재현
-   화장품제조업 등록번호 제6494호
-   책임판매업 등록번호 제18216호
+   공방비서 PDF 출력 모듈 v2
+   4대 기준서 양식 그대로 재현 (사업자 정보는 설정값 기반)
 ═══════════════════════════════════════ */
 
-const CO = {
-  name:'에이브릴팜',
-  addr:'경기도 시흥시 진말1로 18, 에스엠타워 303호',
-  tel:'0507-1346-8739',
-  mfg:'제6494호', sale:'제18216호', owner:'변민정'
-};
+function loadCO() {
+  const b = (typeof getBiz === 'function') ? getBiz() : {};
+  return {
+    name: b.name || '내 공방',
+    addr: b.addr || '',
+    tel:  b.tel  || '',
+    mfg:  b.mfgNo  || '',
+    sale: b.saleNo || '',
+    owner: b.owner || ''
+  };
+}
+const CO = loadCO();
 
 const CSS = `
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;600;700&display=swap');
@@ -57,7 +61,7 @@ function pBtn(){
 
 function open$(html){
   const w=window.open('','_blank');
-  w.document.write(`<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><title>에이브릴팜</title><style>${CSS}</style></head><body>${pBtn()}${html}${pBtn()}</body></html>`);
+  w.document.write(`<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><title>${CO.name||'공방비서'}</title><style>${CSS}</style></head><body>${pBtn()}${html}${pBtn()}</body></html>`);
   w.document.close();
 }
 
@@ -94,7 +98,7 @@ function buildTR(data, allIng, products){
   // data는 localStorage trReport 또는 구형 batch 객체 모두 지원
   const isTrData = !!data.recipe; // localStorage trReport는 recipe 키를 가짐
   const prod = isTrData ? {} : ((products||[]).find(p=>p.id===data.productId) || {});
-  const docNo = data.docNo || prod.시험성적서번호 || data.시험성적서번호 || 'AF-TR-00X';
+  const docNo = data.docNo || prod.시험성적서번호 || data.시험성적서번호 || (getDocPrefix()+'-TR-00X');
   const recipe = isTrData ? (data.recipe||[]) : (prod.시험원료?.length ? prod.시험원료 : (prod.레시피?.length ? prod.레시피 : (data.시험원료?.length ? data.시험원료 : [])));
   const productName = data.productName || data.제품명 || prod.제품명 || '';
   const mw = prod.목표중량 || data.목표중량 || '90g ±5g';
@@ -439,7 +443,7 @@ function buildMI(batch, products){
   const estDate = batch.제정일자 || prod.제정일자 || batch.date || '';
   const processSteps = batch.공정?.length ? batch.공정 : (prod.공정||[]);
 
-  return hd('제조지시서','Manufacturing Instruction · '+batch.제품명, batch.문서번호||'AF-MI-00X',revNo,estDate) + `
+  return hd('제조지시서','Manufacturing Instruction · '+batch.제품명, batch.문서번호||(getDocPrefix()+'-MI-00X'),revNo,estDate) + `
   <div class="sign"><div class="sign-box"><div class="sign-lbl">총괄책임자(제조관리담당자)</div>${CO.owner} (인)</div></div>
 
   <div class="sec">▶ 가. 기본 정보</div>
@@ -508,7 +512,7 @@ function buildMI(batch, products){
 ───────────────────────────────────── */
 function buildPS(batch, allIng, products){
   const prod = (products||[]).find(p=>p.id===batch.productId) || {};
-  const psNo = (prod.문서번호 || batch.문서번호 || 'AF-PS-00X').replace('AF-MI','AF-PS');
+  const psNo = (prod.문서번호 || batch.문서번호 || (getDocPrefix()+'-PS-00X')).replace(getDocPrefix()+'-MI', getDocPrefix()+'-PS');
   const recipe = prod.시험원료?.length ? prod.시험원료 : (prod.레시피?.length ? prod.레시피 : (batch.시험원료?.length ? batch.시험원료 : []));
   const mw = prod.목표중량 || batch.목표중량 || '90g ±5g';
   const iTheory = prod.이론수량 || batch.이론수량 || 9;
@@ -553,14 +557,16 @@ function buildPS(batch, allIng, products){
   <table>
     <thead><tr><th>단계</th><th>공정명</th><th>상세 작업 내용</th><th>관리기준</th><th>이론 생산량</th></tr></thead>
     <tbody>
-      <tr><td class="c">1</td><td>칭량</td><td>원료를 제조지시서 기준량에 따라 전자저울로 계량 (±1% 이내)</td><td>±1% 이내</td><td class="r">800g</td></tr>
-      <tr><td class="c">2</td><td>소다수</td><td>정제수에 소듐하이드록사이드 천천히 용해 → 실온 냉각 (내화학성 장갑·고글·마스크 착용 필수)</td><td>실온 25~35°C</td><td class="r">329g</td></tr>
-      <tr><td class="c">3</td><td>혼합</td><td>오일류 계량 혼합 후 소다수와 27~30°C에서 혼합 / 스틱블렌더 1분씩 2~3회</td><td>27~30°C</td><td class="r">1,129g</td></tr>
-      <tr><td class="c">4</td><td>첨가물</td><td>트레이스 이후 첨가물(당근추출물·카로틴오일·나이아신아마이드·아나토) 후첨 교반</td><td>트레이스 이후</td><td class="r">52g</td></tr>
-      <tr><td class="c">5</td><td>향료</td><td>향료(라임바질 22.8g + 당근씨오일 1.2g) 혼합 후 몰드 투입</td><td>트레이스 이후</td><td class="r">24g</td></tr>
-      <tr><td class="c">6</td><td>보온·탈형</td><td>24시간 보온 후 탈형</td><td>24시간</td><td></td></tr>
-      <tr><td class="c">7</td><td>건조</td><td>통풍이 잘 되는 곳에서 건조</td><td>최소 2주</td><td></td></tr>
-      <tr><td class="c">8</td><td>커팅·포장</td><td>1kg 몰드 기준 ${iTheory}개 커팅 → 외관 검사(성상·색상·이물·중량) → 포장·출하</td><td>${mw}</td><td class="c">${iTheory}ea</td></tr>
+      ${(prod.공정?.length ? prod.공정 : [
+        {단계:1,공정명:'칭량',작업내용:'원료를 제조지시서 기준량에 따라 전자저울로 계량 (±1% 이내)',관리기준:'±1% 이내',이론생산량:''},
+        {단계:2,공정명:'소다수',작업내용:'정제수에 소듐하이드록사이드 천천히 용해 → 실온 냉각 (내화학성 장갑·고글·마스크 착용 필수)',관리기준:'실온 25~35°C',이론생산량:''},
+        {단계:3,공정명:'혼합',작업내용:'오일류 계량 혼합 후 소다수와 지정 온도에서 혼합',관리기준:'27~30°C',이론생산량:''},
+        {단계:4,공정명:'첨가물',작업내용:'트레이스 이후 배합표의 첨가물 성분 후첨 교반',관리기준:'트레이스 이후',이론생산량:''},
+        {단계:5,공정명:'향료',작업내용:'배합표의 향료 성분 혼합 후 몰드 투입',관리기준:'트레이스 이후',이론생산량:''},
+        {단계:6,공정명:'보온·탈형',작업내용:'24시간 보온 후 탈형',관리기준:'24시간',이론생산량:''},
+        {단계:7,공정명:'건조',작업내용:'통풍이 잘 되는 곳에서 건조',관리기준:'최소 2주',이론생산량:''},
+        {단계:8,공정명:'커팅·포장',작업내용:`1kg 몰드 기준 ${iTheory}개 커팅 → 외관 검사(성상·색상·이물·중량) → 포장·출하`,관리기준:mw,이론생산량:`${iTheory}ea`},
+      ]).map(s=>`<tr><td class="c">${s.단계}</td><td>${s.공정명}</td><td>${s.작업내용}</td><td>${s.관리기준||''}</td><td class="r">${s.이론생산량||''}</td></tr>`).join('')}
     </tbody>
   </table>
   <p class="note">※ 수율 계산: 1kg 몰드 기준 ${iTheory}개 커팅 / 포장 완성 시 실제 수율 기록</p>

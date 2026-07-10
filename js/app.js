@@ -223,7 +223,7 @@ async function openFragranceForm(id) {
     </div>
 
     <label>향료명<input id="fg1" value="${item?.향료명||''}" placeholder="예: 라벤더-C"></label>
-    <label>제조사 / 공급처<input id="fg2" value="${item?.제조사||''}" placeholder="예: 에이브릴팜"></label>
+    <label>제조사 / 공급처<input id="fg2" value="${item?.제조사||''}" placeholder="예: OO코스메틱"></label>
 
     <label style="display:block;text-align:center;border:1px dashed var(--teal);border-radius:var(--r-sm);padding:10px;margin-bottom:10px;cursor:pointer;background:var(--teal-light);color:var(--teal-dark);font-size:12px">
       📎 제조사 알러젠 성분표 PDF 업로드하면 아래 표 자동 입력
@@ -558,6 +558,13 @@ async function openProductMasterForm(id) {
   const item = id ? products.find(p=>p.id===id) : null;
   _pmRecipe = item?.레시피 ? JSON.parse(JSON.stringify(item.레시피)) : [];
   _fgMasterCache = await DB.getAll('fragrances');
+  const nextPsNo = () => {
+    const pfx = getDocPrefix();
+    const re = new RegExp('^' + pfx + '-PS-(\\d+)$');
+    const nums = products.map(p => p.문서번호 && p.문서번호.match(re))
+      .filter(Boolean).map(m => parseInt(m[1], 10));
+    return pfx + '-PS-' + String((nums.length ? Math.max(...nums) : 0) + 1).padStart(3, '0');
+  };
 
   showSheet(`
     <div class="sheet-handle"></div>
@@ -568,7 +575,7 @@ async function openProductMasterForm(id) {
     </div>
 
     <label>제품명<input id="pm1" value="${item?.제품명||''}"></label>
-    <label>문서번호 (AF-PS-XXX)<input id="pm2" value="${item?.문서번호||'AF-PS-'}" placeholder="AF-PS-006"></label>
+    <label>문서번호 (AF-PS-XXX)<input id="pm2" value="${item?.문서번호||nextPsNo()}" placeholder="AF-PS-006"></label>
     <label>제조방법<select id="pm3">
       <option ${item?.제조방법==='CP법'?'selected':''}>CP법</option>
       <option ${item?.제조방법==='MP법'?'selected':''}>MP법</option>
@@ -589,7 +596,7 @@ async function openProductMasterForm(id) {
     <label>전성분<textarea id="pm12" rows="4">${item?.전성분||''}</textarea></label>
 
     <label>바코드<input id="pm13" value="${item?.바코드||''}"></label>
-    <label>제조번호 형식<input id="pm14" value="${item?.제조번호형식||'APBO'}" placeholder="예: APBO"></label>
+    <label>제조번호 형식<input id="pm14" value="${item?.제조번호형식||bizMfgFormat()}" placeholder="예: APBO"></label>
 
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
       <label>제정일자<input type="date" id="pm-estdate" value="${item?.제정일자||''}"></label>
@@ -1270,22 +1277,17 @@ async function renderOutput(el) {
       </div>
     </div>
 
-    <!-- ⑥ 클라우드 동기화 -->
+    <!-- ⑥ 클라우드 동기화 (준비중 — 계정 기반 동기화로 교체 예정) -->
     <div class="output-section-card">
       <div class="output-section-title">☁️ 웹·모바일 데이터 동기화</div>
       <div style="font-size:11px;color:var(--text2);line-height:1.8;margin-bottom:10px;background:var(--gray-bg);border-radius:var(--r-sm);padding:10px 12px">
-        <b>사용 방법</b><br>
-        ① GitHub에 <b>avrilsfarm/avrilsfarm</b> 저장소가 있어야 해요 (지금 쓰시는 GitHub Pages 사이트 저장소).<br>
-        ② <b>알림·설정 탭</b>에서 GitHub Personal Access Token을 입력 후 저장.<br>
-        ③ 현재 기기에서 <b>클라우드에 저장</b> 클릭 → 데이터가 저장소의 sync-data.json 파일로 업로드됨.<br>
-        ④ 다른 기기(모바일 등)에서 같은 앱 열고 <b>클라우드에서 불러오기</b> 클릭 → 데이터 받아옴.<br>
-        <span style="color:var(--amber-text)">⚠️ 양쪽에서 동시에 입력하면 나중에 저장한 쪽이 덮어써요. 한쪽에서만 입력 후 동기화하는 걸 권장해요.</span>
+        계정 기반 동기화 기능을 준비 중입니다. 출시되면 로그인만으로 폰·PC 데이터가 자동으로 연동됩니다.
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-        <button class="output-btn-sec" onclick="cloudSave()" style="background:var(--teal-light)!important;border-color:var(--teal)!important">
+        <button class="output-btn-sec" disabled style="opacity:.5;cursor:not-allowed">
           <i class="ti ti-cloud-upload"></i> 클라우드에 저장
         </button>
-        <button class="output-btn-sec" onclick="cloudLoad()">
+        <button class="output-btn-sec" disabled style="opacity:.5;cursor:not-allowed">
           <i class="ti ti-cloud-download"></i> 클라우드에서 불러오기
         </button>
       </div>
@@ -1345,7 +1347,7 @@ async function openStandardDocByProdId(prodId) {
   ]);
   const prod = products.find(p=>p.id===prodId);
   if(!prod) { alert('제품 정보를 찾을 수 없습니다'); return; }
-  const batch = batches.find(b=>b.productId===prodId) || {제품명: prod.제품명, productId: prodId, 문서번호: prod.문서번호?.replace('AF-PS','AF-MI')||''};
+  const batch = batches.find(b=>b.productId===prodId) || {제품명: prod.제품명, productId: prodId, 문서번호: prod.문서번호?.replace(getDocPrefix()+'-PS', getDocPrefix()+'-MI')||''};
   open$(buildPS(batch, ing, products));
 }
 
@@ -1531,7 +1533,7 @@ function stdHd(title, sub, docNo, revNo, date) {
   const mg = m.mgmt || '관리본';
   const mgStr = mg === '관리본' ? '■ 관리본 □ 비관리본' : '□ 관리본 ■ 비관리본';
   const en = m.enTitle || sub || '';
-  const co = m.company || '에이브릴팜';
+  const co = m.company || (getBiz().name || '내 공방');
   const ti = m.title || title;
   const subLine = en ? `${ti} <span style="font-size:10px;color:#888;font-weight:400">${en}</span>` : ti;
   return `<div class="doc">
@@ -1541,7 +1543,7 @@ function stdHd(title, sub, docNo, revNo, date) {
     <span><b>문서번호</b> ${dn}</span>
     <span><b>제정일자</b> ${dt}</span>
     <span><b>개정번호</b> ${rv}</span>
-    <span><b>작성/확인</b> ${m.author||'변민정'} (인)</span>
+    <span><b>작성/확인</b> ${m.author||(getBiz().owner||'담당자')} (인)</span>
     <span><b>관리구분</b> ${mgStr}</span>
   </div>`;
 }
@@ -1552,7 +1554,7 @@ function editStdMeta(docCode) {
     <div style="padding:20px;max-width:520px;margin:0 auto;width:90vw">
       <h3 style="margin:0 0 16px;font-size:15px">${docCode} 문서 정보 수정</h3>
       <label style="display:block;margin-bottom:10px;font-size:12px">회사명
-        <input id="sm-company" value="${m.company||'에이브릴팜'}" style="width:100%;padding:8px;margin-top:4px;border:1px solid var(--border);border-radius:var(--r-sm);font-size:13px">
+        <input id="sm-company" value="${m.company||getBiz().name||''}" style="width:100%;padding:8px;margin-top:4px;border:1px solid var(--border);border-radius:var(--r-sm);font-size:13px">
       </label>
       <label style="display:block;margin-bottom:10px;font-size:12px">문서 제목
         <input id="sm-title" value="${m.title||''}" placeholder="예: 제조관리기준서" style="width:100%;padding:8px;margin-top:4px;border:1px solid var(--border);border-radius:var(--r-sm);font-size:13px">
@@ -1576,7 +1578,7 @@ function editStdMeta(docCode) {
         </select>
       </label>
       <label style="display:block;margin-bottom:16px;font-size:12px">작성/확인자
-        <input id="sm-author" value="${m.author||'변민정'}" style="width:100%;padding:8px;margin-top:4px;border:1px solid var(--border);border-radius:var(--r-sm);font-size:13px">
+        <input id="sm-author" value="${m.author||getBiz().owner||''}" style="width:100%;padding:8px;margin-top:4px;border:1px solid var(--border);border-radius:var(--r-sm);font-size:13px">
       </label>
       <div style="display:flex;gap:8px;justify-content:flex-end">
         <button onclick="document.getElementById('stdMetaModal').remove()" style="padding:8px 16px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--card);color:var(--text);cursor:pointer">취소</button>
@@ -1607,7 +1609,7 @@ function saveStdMeta(docCode) {
 }
 function stdFt(docCode) {
   const m = docCode ? getStdMeta(docCode) : {};
-  const ft = m.footer || '에이브릴팜 · 경기도 시흥시 진말1로 18, 에스엠타워 303호 · TEL 0507-1346-8739 · 화장품제조업 등록번호 제6494호 · 책임판매업 등록번호 제18216호';
+  const ft = m.footer || bizFooterText();
   return `<div class="foot">${ft}</div></div>`;
 }
 
@@ -1615,7 +1617,7 @@ function stdFt(docCode) {
 function getDefaultStdSections(docCode) {
   const D = {
     'AF-MMS-001': [
-      {title:'■ 1. 목적 및 적용범위', type:'list', items:['원료 입고부터 완제품 출고까지 전 공정의 관리 기준을 정한다.','에이브릴팜 작업장(시흥시 진말1로 18, 303호) 내 모든 제조 활동에 적용한다.','대표자 1인(변민정)이 제조관리의 모든 책임을 진다.']},
+      {title:'■ 1. 목적 및 적용범위', type:'list', items:['원료 입고부터 완제품 출고까지 전 공정의 관리 기준을 정한다.',`${getBiz().name||'본 공방'} 작업장(${getBiz().addr||'사업장 주소'}) 내 모든 제조 활동에 적용한다.`,`대표자 1인(${getBiz().owner||'대표자'})이 제조관리의 모든 책임을 진다.`]},
       {title:'■ 2. 원자재 관리', type:'list', items:['입고 시 품명·수량·포장 상태·이물 여부 확인 → 원료입고기록서(R-MMS-01) 작성','제조처 CoA(성적서) 수취 후 원료입고기록서와 함께 보관','부적합 원료: "부적합" 라벨 부착 후 격리, 반품 또는 폐기','보관: 직사광선 차단, 서늘·건조한 장소. 가성소다(NaOH)는 밀폐 용기 별도 보관','선입선출(FIFO) 원칙. 개봉 원료는 개봉일 표기 후 밀봉']},
       {title:'■ 3. 제조 공정 관리', type:'list', items:['제조 전 제조지시서(AF-MI) 작성 → 원료 계량 → 공정 진행 → 수율 기록','원료 계량: 전자저울로 이론량 ±1% 이내 확인','CP법: 소다수·오일 온도(27-30°C) 확인, 트레이스 후 첨가물 투입','CP법 작업 시 내화학성 장갑·고글·마스크 반드시 착용','이상(분리·변색·이취) 발생 시 작업 중단 → 원인 파악 → 제조지시서 이상란 기록']},
       {title:'■ 4. 시설·기구 관리', type:'list', items:['분기 1회 이상 설비 점검 → 설비관리기록서(R-MMS-02) 작성','전자저울: 연 1회 이상 검교정. 사용 전 영점 확인','이상 기기: 즉시 사용 중단, "사용불가" 표시 후 수리 또는 교체']},
@@ -1623,7 +1625,7 @@ function getDefaultStdSections(docCode) {
       {title:'■ 6. 문서 관리', type:'list', items:['모든 기록은 최종 기재일로부터 3년 이상 보관','개정 시 개정이력에 일자·내용·작성자 기재']}
     ],
     'AF-HMS-001': [
-      {title:'■ 1. 목적 · 적용범위', type:'list', items:['작업장·설비·기구의 청결 및 작업원 위생 관리 기준을 정한다.','에이브릴팜 작업장 내 모든 제조 활동에 적용. 대표자(변민정) 1인 책임']},
+      {title:'■ 1. 목적 · 적용범위', type:'list', items:['작업장·설비·기구의 청결 및 작업원 위생 관리 기준을 정한다.',`${getBiz().name||'본 공방'} 작업장 내 모든 제조 활동에 적용. 대표자(${getBiz().owner||'대표자'}) 1인 책임`]},
       {title:'■ 2. 작업원 건강관리', type:'list', items:['피부질환·상처·감염성 질환 시 제조 작업 참여 금지','제조 전 건강 자가 점검. 이상 시 즉시 작업 중단']},
       {title:'■ 3. 작업원 위생', type:'list', items:['작업 전: 비누 세척 → 70% 에탄올 소독','화장실·외부 접촉 후 재세척·소독','작업 중 음식물 섭취·흡연 금지. 코·입·눈 만지지 않기']},
       {title:'■ 4. 복장 규정', type:'list', items:['기본: 앞치마, 머리망(위생모), 위생장갑 착용','CP법(가성소다) 작업: 내화학성 장갑 + 고글 + 마스크 반드시 착용']},
@@ -1633,7 +1635,7 @@ function getDefaultStdSections(docCode) {
       {title:'■ 8. 오염 방지', type:'list', items:['원료·반제품·완제품 구분 보관','가성소다 등 위험 원료: 밀폐 용기, 별도 공간, 라벨 명시','위해 물질(살충제 등) 작업장 내 반입 금지']}
     ],
     'AF-QCM-001': [
-      {title:'■ 1. 목적 · 적용범위', type:'list', items:['시험의뢰부터 결과 판정·부적합 처리까지 품질관리 기준을 정한다.','대표자(변민정) 1인이 품질관리의 모든 책임을 진다.']},
+      {title:'■ 1. 목적 · 적용범위', type:'list', items:['시험의뢰부터 결과 판정·부적합 처리까지 품질관리 기준을 정한다.',`대표자(${getBiz().owner||'대표자'}) 1인이 품질관리의 모든 책임을 진다.`]},
       {title:'■ 2. 원자재 시험관리', type:'list', items:['입고 시 성상·색상·이물을 육안 확인 → 시험성적서(원자재) 작성','제조처 CoA 수취 후 함께 보관','부적합: "부적합" 라벨 → 격리 → 반품/폐기']},
       {title:'■ 3. 완제품 시험관리', type:'list', items:['화장비누 법정 검사항목: 내용량(건조) 97% 이상 / 유리알칼리 0.1% 이하','법정 검사는 KCL(한국건설생활환경시험연구원, 식약처 지정 화장품 제3호)에 위탁','KCL 성적서 없는 품목: 자사 육안검사(성상·색상·이물) 실시 → 자사성적서 작성']},
       {title:'■ 4. 검체 채취', type:'list', items:['원자재: 입고 시 소량 채취 → 육안 확인','완제품: 동일 배치에서 3개 이상 임의 선택 → 외관·중량 확인','채취 시 위생장갑 착용, 깨끗한 용기 사용']},
@@ -1685,7 +1687,7 @@ function syncSectionsFromDOM() {
 }
 function renderSecEditor(sections, docCode) {
   const ftMeta = getStdMeta(docCode);
-  const ft = ftMeta.footer || '에이브릴팜 · 경기도 시흥시 진말1로 18, 에스엠타워 303호 · TEL 0507-1346-8739 · 화장품제조업 등록번호 제6494호 · 책임판매업 등록번호 제18216호';
+  const ft = ftMeta.footer || bizFooterText();
   return sections.map((s,i) => `
     <div style="border:1px solid var(--border);border-radius:var(--r-sm);padding:10px;margin-bottom:8px">
       <div style="display:flex;gap:4px;align-items:center;margin-bottom:6px;flex-wrap:wrap">
@@ -1824,7 +1826,7 @@ async function generateWordDoc() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `에이브릴팜_제조지시서_${(batch.제품명||'').replace(/\s/g,'_')}_${batch.date||''}.docx`;
+    a.download = `${(getBiz().name||'제조지시서').replace(/\s/g,'_')}_제조지시서_${(batch.제품명||'').replace(/\s/g,'_')}_${batch.date||''}.docx`;
     a.click();
     setTimeout(()=>URL.revokeObjectURL(url), 5000);
     if(statusEl) statusEl.innerHTML='<span style="color:var(--teal-dark)">✅ 워드 파일 다운로드 완료</span>';
@@ -1861,7 +1863,7 @@ async function createDocx(batch, prod, recipe) {
   const wtbl = rows => `<w:tbl><w:tblPr><w:tblW w:w="9000" w:type="dxa"/><w:tblBorders><w:top w:val="single" w:sz="4" w:color="888888"/><w:left w:val="single" w:sz="4" w:color="888888"/><w:bottom w:val="single" w:sz="4" w:color="888888"/><w:right w:val="single" w:sz="4" w:color="888888"/><w:insideH w:val="single" w:sz="4" w:color="888888"/><w:insideV w:val="single" w:sz="4" w:color="888888"/></w:tblBorders><w:tblCellMar><w:top w:w="80" w:type="dxa"/><w:left w:w="100" w:type="dxa"/><w:bottom w:w="80" w:type="dxa"/><w:right w:w="100" w:type="dxa"/></w:tblCellMar></w:tblPr>${rows.join('')}</w:tbl>`;
 
   const body = [
-    wp('에이브릴팜', {bold:true, sz:14, spb:0, spa:40}),
+    wp(getBiz().name||'', {bold:true, sz:14, spb:0, spa:40}),
     wp(`제조지시서  ·  ${batch.문서번호||'AF-MI-00X'}  ·  Rev.01`, {sz:9}),
     wp(''),
     wsec('가. 기본 정보'),
@@ -1869,7 +1871,7 @@ async function createDocx(batch, prod, recipe) {
       wr(wc('제 품 명',{bold:true,header:true,w:1800}),wc(batch.제품명||'',{w:2700}),wc('제조번호',{bold:true,header:true,w:1500}),wc(batch.제조번호||'',{w:3000})),
       wr(wc('바코드',{bold:true,header:true,w:1800}),wc(barcode,{w:2700}),wc('제조연월일',{bold:true,header:true,w:1500}),wc(batch.date||'',{w:3000})),
       wr(wc('제조단위',{bold:true,header:true,w:1800}),wc(`${batch.투입량||''}g`,{w:2700}),wc('사용기한',{bold:true,header:true,w:1500}),wc('제조일로부터 2년',{w:3000})),
-      wr(wc('이론수량',{bold:true,header:true,w:1800}),wc(`${iTheory}개`,{w:2700}),wc('제조지시자',{bold:true,header:true,w:1500}),wc('변민정 (인)',{w:3000})),
+      wr(wc('이론수량',{bold:true,header:true,w:1800}),wc(`${iTheory}개`,{w:2700}),wc('제조지시자',{bold:true,header:true,w:1500}),wc(`${getBiz().owner||''} (인)`,{w:3000})),
     ]),
     wp(''),
     wsec('마. 원료명·분량·시험번호·실사용량'),
@@ -1910,7 +1912,7 @@ async function createDocx(batch, prod, recipe) {
       wr(wc('이상 내용 및 조치',{bold:true,header:true,w:2200}),wc(' ',{w:6800})),
     ]),
     wp(''),
-    wp('에이브릴팜 · 경기도 시흥시 진말1로 18, 에스엠타워 303호 · TEL 0507-1346-8739 · 화장품제조업 등록번호 제6494호', {sz:7}),
+    wp(bizFooterText(), {sz:7}),
   ].filter(Boolean).join('\n');
 
   const docXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><w:body>${body}<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1134" w:right="1134" w:bottom="1134" w:left="1417" w:header="709" w:footer="709" w:gutter="0"/></w:sectPr></w:body></w:document>`;
@@ -2090,7 +2092,7 @@ async function processUploadedFile(file) {
             createdAt: new Date().toISOString()
           };
           // 체크디짓 계산
-          if (window.calcCheckDigit) record.chk = calcCheckDigit('8739', record.sub, record.seq, record.qty);
+          if (window.calcCheckDigit) record.chk = calcCheckDigit(bizPrefix(), record.sub, record.seq, record.qty);
 
           // 중복 체크 (같은 이름이면 스킵)
           if (!existing.some(b => b.name === pname)) {
@@ -2425,7 +2427,7 @@ async function parseDocumentText(name, text, fileName, el) {
   const isTest    = looksLike('시험성적') || name.includes('af-tr') || name.includes('-tr-');
   const isHygiene = looksLike('위생') || name.includes('-mh') || name.includes('r-mh');
     // docx 헤더에서 기준서 메타 자동 저장
-    const stdMetaMatch = fullText.match(/문서번호[:\\s]*(AF-[A-Z]+-\\d+)/);
+    const stdMetaMatch = fullText.match(new RegExp('문서번호[:\\\\s]*(' + getDocPrefix() + '-[A-Z]+-\\\\d+)'));
     if (stdMetaMatch) {
       const sc = stdMetaMatch[1];
       const dm = fullText.match(/제정일자[:\\s]*([\\d.\\-\\/]+)/);
@@ -2444,11 +2446,11 @@ async function parseDocumentText(name, text, fileName, el) {
   const isMhRecord  = (name.includes('r-mh') && !name.includes('r-mhs')) || (name.includes('제조위생관리기준서') && name.includes('기록'));
 
   // 공통 정보 추출
-  const productMatch = fullText.match(/에이브릴팜\s*([가-힣a-zA-Z\s]{1,20}?(?:비누|솝|크림|로션|오일|밤|버터))/);
+  const productMatch = fullText.match(new RegExp(escBizName()+'\\s*([가-힣a-zA-Z\\s]{1,20}?(?:비누|솝|크림|로션|오일|밤|버터))'));
   let rawProdName  = productMatch ? productMatch[0].replace(/제\s*품\s*명\s*/,'').trim() : '';
-  // 제목("에이브릴팜 제품표준서 에이브릴팜 당근비누")에서 문서종류 + 중복 사명 제거
-  rawProdName = rawProdName.replace(/제품표준서|제조지시서|시험성적서|품질관리/g,'').replace(/에이브릴팜/g,'').replace(/^\s+/,'');
-  rawProdName = rawProdName.trim() ? '에이브릴팜 ' + rawProdName.trim() : '';
+  // 제목("OO 제품표준서 OO 당근비누")에서 문서종류 + 중복 사명 제거
+  rawProdName = rawProdName.replace(/제품표준서|제조지시서|시험성적서|품질관리/g,'').replace(new RegExp(escBizName(),'g'),'').replace(/^\s+/,'');
+  rawProdName = rawProdName.trim() ? (getBiz().name?getBiz().name+' ':'') + rawProdName.trim() : '';
   const productName  = rawProdName || fileName.replace(/^\d+[-_].*?[-_]/,'').replace(/\.[^.]+$/,'').replace(/[-_]/g,' ').trim();
   const docNoMatch   = fullText.match(/[AE]F-[A-Z]{2,3}-\d{3}/i);
   const docNo        = docNoMatch ? docNoMatch[0].toUpperCase().replace(/^EF-/,'AF-') : '';
@@ -2604,9 +2606,9 @@ async function parseDocumentText(name, text, fileName, el) {
 
   /* ── 제품표준서 → products 스토어 ── */
   if(isStd) {
-    const keyname = (productName||'').replace(/에이브릴팜\s*/,'').replace(/\s+/g,'').toLowerCase();
+    const keyname = (productName||'').replace(new RegExp(escBizName()+'\\s*'),'').replace(/\s+/g,'').toLowerCase();
     const existingProd = products.find(p => {
-      const pn = (p.제품명||'').replace(/에이브릴팜\s*/,'').replace(/\s+/g,'').toLowerCase();
+      const pn = (p.제품명||'').replace(new RegExp(escBizName()+'\\s*'),'').replace(/\s+/g,'').toLowerCase();
       return keyname && (pn.includes(keyname) || keyname.includes(pn));
     });
 
@@ -2636,12 +2638,14 @@ async function parseDocumentText(name, text, fileName, el) {
         ${docNo?'<br>문서번호: '+docNo:''} ${barcode?'· 바코드: '+barcode:''} ${recipeNote}</span>`;
     } else {
       const nextPsDocNo = () => {
+        const pfx = getDocPrefix();
+        const re = new RegExp('^' + pfx + '-PS-(\\d+)$');
         const nums = products
-          .map(p => p.문서번호 && p.문서번호.match(/^AF-PS-(\d+)$/))
+          .map(p => p.문서번호 && p.문서번호.match(re))
           .filter(Boolean)
           .map(m => parseInt(m[1], 10));
         const next = (nums.length ? Math.max(...nums) : 0) + 1;
-        return 'AF-PS-' + String(next).padStart(3, '0');
+        return pfx + '-PS-' + String(next).padStart(3, '0');
       };
       const newProd = {
         제품명: productName || fileName.replace(/\.[^.]+$/, ''),
@@ -2671,13 +2675,13 @@ async function parseDocumentText(name, text, fileName, el) {
 
   /* ── 제조지시서 / 시험성적서 → batches + products 연동 ── */
   if(isOrder || isTest) {
-    const keyname = (productName||'').replace(/에이브릴팜\s*/,'').replace(/\s+/g,'').toLowerCase();
+    const keyname = (productName||'').replace(new RegExp(escBizName()+'\\s*'),'').replace(/\s+/g,'').toLowerCase();
     const existingBatch = batches.find(b => {
-      const bn = (b.제품명||'').replace(/에이브릴팜\s*/,'').replace(/\s+/g,'').toLowerCase();
+      const bn = (b.제품명||'').replace(new RegExp(escBizName()+'\\s*'),'').replace(/\s+/g,'').toLowerCase();
       return keyname && (bn.includes(keyname) || keyname.includes(bn));
     });
     let existingProdByName = products.find(p => {
-      const pn = (p.제품명||'').replace(/에이브릴팜\s*/,'').replace(/\s+/g,'').toLowerCase();
+      const pn = (p.제품명||'').replace(new RegExp(escBizName()+'\\s*'),'').replace(/\s+/g,'').toLowerCase();
       return keyname && (pn.includes(keyname) || keyname.includes(pn));
     });
 
@@ -2820,8 +2824,10 @@ async function parseDocumentText(name, text, fileName, el) {
     // 제조지시서 업로드 시 표준서 없으면 자동 생성
     if (isOrder && !existingProdByName && recipe.length) {
       const nextPsNo = () => {
-        const nums = products.map(p=>p.문서번호&&p.문서번호.match(/^AF-PS-(\d+)$/)).filter(Boolean).map(m=>parseInt(m[1],10));
-        return 'AF-PS-' + String((nums.length?Math.max(...nums):0)+1).padStart(3,'0');
+        const pfx = getDocPrefix();
+        const re = new RegExp('^' + pfx + '-PS-(\\d+)$');
+        const nums = products.map(p=>p.문서번호&&p.문서번호.match(re)).filter(Boolean).map(m=>parseInt(m[1],10));
+        return pfx + '-PS-' + String((nums.length?Math.max(...nums):0)+1).padStart(3,'0');
       };
       const autoProd = {
         제품명: productName||fileName.replace(/\.[^.]+$/,''),
@@ -2918,7 +2924,7 @@ async function parseDocumentText(name, text, fileName, el) {
       // 바코드번호 파싱: "8739/071/001/09" or "8739/ 071/ 001/ 09"
       const bcRaw = (cells[4] || '').replace(/\s/g, '');
       const bcMatch = bcRaw.match(/(\d{4})\/(\d{3})\/(\d{3})\/(\d{2})/);
-      let biz = '8739', sub = '000', seq = '001', qty = '09';
+      let biz = bizPrefix(), sub = '000', seq = '001', qty = '09';
       if (bcMatch) {
         biz = bcMatch[1]; sub = bcMatch[2]; seq = bcMatch[3]; qty = bcMatch[4];
       }
@@ -2941,7 +2947,7 @@ async function parseDocumentText(name, text, fileName, el) {
         notes,
         createdAt: regDate || new Date().toISOString()
       };
-      if (biz !== '8739') record.biz = biz;
+      if (biz !== bizPrefix()) record.biz = biz;
 
       if (dup) {
         if (dup.id) record.id = dup.id;
@@ -3049,7 +3055,7 @@ async function parseDocumentText(name, text, fileName, el) {
           // DB에 없는 원료: 셀에서 원료명 추출
           const ingNameIdx = 2 + offset;
           const ingName = mCells[ingNameIdx >= 0 ? ingNameIdx : 0] || '';
-          if (ingName && ingName.length >= 2 && !/^[■□]/.test(ingName) && !/입고일|원료명|확인자|판정|제정일자|개정번호|작성자|관리구분|변민정|^※|기록서|기준서|R-MMS/.test(ingName)) {
+          if (ingName && ingName.length >= 2 && !/^[■□]/.test(ingName) && !(new RegExp('입고일|원료명|확인자|판정|제정일자|개정번호|작성자|관리구분|'+(getBiz().owner||'변민정')+'|^※|기록서|기준서|R-MMS')).test(ingName)) {
             await DB.add('ingredients', {
               원료명: ingName, 제조처: mfrCell, 수량: qtyCell,
               입고일: lineDate, category:'기타',
@@ -3067,7 +3073,7 @@ async function parseDocumentText(name, text, fileName, el) {
       if (dates.length > 0) {
         for (const d of dates.slice(0, 60)) {
           try {
-            await DB.add('hygiene', {date: d, type:'제조점검', 확인자:'변민정', status:'완료',
+            await DB.add('hygiene', {date: d, type:'제조점검', 확인자: getBiz().owner||'담당자', status:'완료',
               items:{원료입고:'확인', 설비점검:'완료'}});
             hygCnt++;
           } catch(e) {}
@@ -3107,7 +3113,7 @@ async function parseDocumentText(name, text, fileName, el) {
         const eqData = {
           date: new Date().toISOString().split('T')[0],
           year: eqYear, quarter: eqQuarter,
-          기기, 이상: hasIssue, 이상내용, 확인자: 확인자 || '변민정'
+          기기, 이상: hasIssue, 이상내용, 확인자: 확인자 || (getBiz().owner||'담당자')
         };
         try {
           if (dup) { await DB.put('equipment', {...eqData, id: dup.id}); }
@@ -3176,7 +3182,7 @@ async function parseDocumentText(name, text, fileName, el) {
           const val = /■청결/.test(cells[ci]) ? '청결' : /■불량/.test(cells[ci]) ? '불량' : '';
           if (val && labels[ci-3]) items[labels[ci-3]] = val;
         }
-        const 확인자 = cells[2] || '변민정';
+        const 확인자 = cells[2] || (getBiz().owner||'담당자');
 
         try {
           await DB.add('hygiene', {date: lineDate, type:'청소점검', 확인자, status:'완료', items});
@@ -3198,7 +3204,7 @@ async function parseDocumentText(name, text, fileName, el) {
         const d = `${baseYear}-${String(mo).padStart(2,'0')}-01`;
         const cells = line.split('\t').map(c => c.trim());
         try {
-          await DB.add('hygiene', {date: d, type:'방충방서', 확인자: cells[2]||'변민정', status:'완료',
+          await DB.add('hygiene', {date: d, type:'방충방서', 확인자: cells[2]||(getBiz().owner||'담당자'), status:'완료',
             방충망: /■양호/.test(cells[3]||'')?'양호':'불량',
             해충: /■없음/.test(cells[4]||'')?'없음':'있음',
             설치류: /■없음/.test(cells[5]||'')?'없음':'있음',
@@ -3281,7 +3287,7 @@ async function parseDocumentText(name, text, fileName, el) {
       const raw = dateMatch[0].replace(/[./]/g,'-');
       const parts = raw.split('-');
       const date = `${parts[0]}-${parts[1].padStart(2,'0')}-${parts[2].padStart(2,'0')}`;
-      await DB.add('hygiene',{date,type:'청소점검',확인자:'변민정',status:'완료',
+      await DB.add('hygiene',{date,type:'청소점검',확인자:getBiz().owner||'담당자',status:'완료',
         items:{원료보관:'청결',부자재:'청결',완제품:'청결',작업대:'청결',도구류:'청결',포장실:'청결'}});
       el.innerHTML = `<span style="color:var(--teal-dark)">✅ 위생점검 기록 등록 완료 (${date})</span>`;
     } else {
@@ -3552,7 +3558,7 @@ function openHygieneForm(preDate) {
     </label>
     <div id="h-extra"></div>
     <label>이슈 내용<input id="h5" placeholder="이상 없으면 비워두세요"></label>
-    <label>확인자<input id="h6" value="변민정"></label>
+    <label>확인자<input id="h6" value="${getBiz().owner||''}"></label>
     <div class="sheet-btns">
       <button onclick="closeSheet()">취소</button>
       <button class="btn-save" onclick="saveHyg(null)">저장</button>
@@ -3577,7 +3583,7 @@ async function openHygieneEditForm(id) {
     </label>
     <div id="h-extra"></div>
     <label>이슈 내용<input id="h5" value="${r.이슈||''}"></label>
-    <label>확인자<input id="h6" value="${r.확인자||'변민정'}"></label>
+    <label>확인자<input id="h6" value="${r.확인자||getBiz().owner||''}"></label>
     <div class="sheet-btns">
       <button class="btn-del" onclick="delItem('hygiene',${id})">삭제</button>
       <button onclick="closeSheet()">취소</button>
@@ -3757,7 +3763,7 @@ function toggleCheck(item) {
   if(c) c.innerHTML=done?'<i class="ti ti-check"></i>':'';
 }
 async function saveChecklist() {
-  await DB.add('hygiene',{date:today.toISOString().split('T')[0],type:'제조위생',확인자:'변민정',status:'완료'});
+  await DB.add('hygiene',{date:today.toISOString().split('T')[0],type:'제조위생',확인자:getBiz().owner||'담당자',status:'완료'});
   alert('제조 점검 완료가 저장되었습니다.');
   await renderTab('mfcheck');
 }

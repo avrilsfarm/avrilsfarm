@@ -1,15 +1,14 @@
-const CACHE_NAME = 'avrilfarm-v12';
+const CACHE_NAME = 'gongbangbiseo-v1.0';
 const ASSETS = [
   './',
   './index.html',
   './css/style.css',
+  './js/settings.js',
   './js/db.js',
   './js/notify.js',
   './js/pdf.js',
   './js/barcode.js',
-  './js/app.js',
-  './에이브릴팜_로고.png',
-  './에이브릴팜_비누심볼.png'
+  './js/app.js'
 ];
 
 self.addEventListener('install', e => {
