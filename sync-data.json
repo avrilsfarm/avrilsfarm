@@ -1,11 +1,30 @@
 {
-  "_exportedAt": "2026-06-23T10:57:05.902Z",
-  "_version": 10,
+  "_exportedAt": "2026-07-13T03:09:03.336Z",
+  "_version": 11,
   "products": [],
   "ingredients": [],
   "batches": [],
   "hygiene": [],
   "equipment": [],
   "production": [],
-  "barcodes": []
+  "barcodes": [
+    {
+      "name": "해로토로 굿즈 비누세트",
+      "sub": "040",
+      "seq": "418",
+      "qty": "10",
+      "chk": 1,
+      "bc7c": "",
+      "mfgNo": "APBGS04005",
+      "mfgDirect": false,
+      "mfgDate": "260708",
+      "expiry": "제조일로부터 1년",
+      "status": "현행",
+      "notes": "해로20개, 토로 20개 생산",
+      "no": 1,
+      "id": 1,
+      "updatedAt": "2026-07-13T02:58:15.797Z"
+    }
+  ],
+  "fragrances": []
 }
