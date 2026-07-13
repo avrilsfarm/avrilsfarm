@@ -506,18 +506,25 @@ window.deleteBarcode = deleteBarcode;
 
 /* ── 출력 버튼: 값을 먼저 저장한 뒤 그 저장된 값으로 인쇄창을 띄움
    (반대 순서로 하면 인쇄창이 뜨면서 원래 화면이 흔들려 저장이 씹히는 경우가 있어
-   반드시 "저장 먼저 → 인쇄는 저장된 값으로" 순서를 지킨다) ── */
+   반드시 "저장 먼저 → 인쇄는 저장된 값으로" 순서를 지킨다)
+   ※ window.open()은 반드시 click 핸들러 안에서 "동기적으로" 즉시 호출해야 함.
+   DB 저장(await)처럼 실제 비동기 작업 뒤에 호출하면 사용자 제스처 컨텍스트가
+   끊겨 브라우저(특히 모바일 Safari)가 팝업으로 간주해 자동으로 차단한다.
+   그래서 창은 여기서 먼저 열어두고, 데이터가 준비되면 그 창에 내용을 채운다. ── */
 async function printThenSave(no) {
+  const win = window.open('', '_blank');
   const data = collectBarcodeFormData();
-  if (!data) return;
+  if (!data) { if (win) win.close(); return; }
   const record = await saveBarcodeRecord(no, data);
-  printBarcodeLabelFromRecord(record);
+  printBarcodeLabelFromRecord(record, win);
   closeSheet();
   renderBarcodeTab(document.getElementById('page-content'));
 }
 
-/* ── 라벨 출력: 저장된(=검증을 통과한) 레코드 값으로만 인쇄. DOM을 다시 읽지 않음 ── */
-function printBarcodeLabelFromRecord(r) {
+/* ── 라벨 출력: 저장된(=검증을 통과한) 레코드 값으로만 인쇄. DOM을 다시 읽지 않음
+   win을 넘겨받으면(팝업 차단 회피용으로 미리 열어둔 창) 그 창을 재사용하고,
+   없으면(직접 호출되는 경우 대비) 새로 연다. ── */
+function printBarcodeLabelFromRecord(r, win) {
   const biz = r.biz || bizPrefix();
   const sub = r.sub||'', seq = r.seq||'', qty = r.qty||'';
   const name = r.name||'';
@@ -525,7 +532,8 @@ function printBarcodeLabelFromRecord(r) {
   const expiry = r.expiry||'';
   const full = buildBarcode(biz, sub, seq, qty);
 
-  const win = window.open('','_blank');
+  win = win || window.open('','_blank');
+  if (!win) { alert('팝업이 차단되었습니다. 브라우저의 팝업 차단을 해제해주세요.'); return; }
   win.document.write(`<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8">
   <title>바코드 라벨</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.6/JsBarcode.all.min.js"><\/script>
