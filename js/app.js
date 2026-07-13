@@ -3794,6 +3794,32 @@ function closeSheet() {
   document.getElementById('sheet').classList.add('hide');
   document.getElementById('sheet-overlay').classList.add('hide');
 }
+
+/* ── 짧은 안내 토스트 — showToast()가 어디에도 정의되어 있지 않아
+   문서 정보 저장/기준서 내용 저장/기본값 복원/시험성적서 안내에서
+   호출할 때마다 ReferenceError가 나던 것을 수정 ── */
+function showToast(msg) {
+  const old = document.getElementById('app-toast');
+  if (old) old.remove();
+  const el = document.createElement('div');
+  el.id = 'app-toast';
+  el.textContent = msg;
+  el.style.cssText = `
+    position:fixed;left:50%;bottom:32px;transform:translateX(-50%);
+    max-width:86vw;padding:12px 18px;border-radius:var(--r-sm,8px);
+    background:var(--text,#1A1816);color:var(--white,#fff);
+    font-size:13px;line-height:1.5;text-align:center;white-space:pre-line;
+    box-shadow:var(--shadow,0 2px 8px rgba(0,0,0,.2));
+    z-index:9999;opacity:0;transition:opacity .2s ease;
+  `;
+  document.body.appendChild(el);
+  requestAnimationFrame(() => { el.style.opacity = '1'; });
+  setTimeout(() => {
+    el.style.opacity = '0';
+    setTimeout(() => el.remove(), 250);
+  }, 2200);
+}
+window.showToast = showToast;
 async function delItem(store, id) {
   if(!confirm('삭제할까요?')) return;
   await DB.remove(store,id); closeSheet(); await renderTab(currentTab);
