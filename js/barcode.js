@@ -61,6 +61,11 @@ function nextSeq() {
   return seqs.length ? String(Math.max(...seqs) + 1).padStart(3, '0') : '001';
 }
 
+/* 사업자 대분류(4자리) 기본값 — AVRIL'S FARM 고유번호.
+   이 값이 정의되어 있지 않으면 저장/출력 시 ReferenceError로
+   collectBarcodeFormData 이후의 모든 저장·인쇄가 실패한다. */
+function bizPrefix() { return '8739'; }
+
 /* ════ 탭 렌더링 ════ */
 async function renderBarcodeTab(el) {
   await loadBarcodesFromDB();
@@ -281,11 +286,11 @@ function openBarcodeForm(no) {
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
       <label>기획 월 (2자리)
         <input id="bc8" maxlength="2" style="font-family:monospace"
-          value="${item?item.mfgNo?.match(/\\d{2}(?=\\d{3})/)?.[0]||'':''}" placeholder="예: 06" oninput="updateMfgPreview()">
+          value="${item?item.mfgNo?.match(/\d{2}(?=\d{3})/)?.[0]||'':''}" placeholder="예: 06" oninput="updateMfgPreview()">
       </label>
       <label>비누번호 (3자리)
         <input id="bc9" maxlength="3" style="font-family:monospace"
-          value="${item?item.mfgNo?.match(/\\d{3}$/)?.[0]||'':''}" placeholder="${ns}" oninput="updateMfgPreview()">
+          value="${item?item.mfgNo?.match(/\d{3}$/)?.[0]||'':''}" placeholder="${ns}" oninput="updateMfgPreview()">
       </label>
     </div>
     </div>
@@ -645,3 +650,4 @@ window.saveBarcodeRecord = saveBarcodeRecord;
 window.printAllBarcodes = printAllBarcodes;
 window.toggleBcCat = toggleBcCat;
 window.calcCheckDigit = calcCheckDigit;
+window.bizPrefix = bizPrefix;
