@@ -405,8 +405,18 @@ window.confirmReset = confirmReset;
 
 function saveGhToken() {
   const val = document.getElementById('gh-token-input')?.value.trim();
-  if(val) { localStorage.setItem('gh_token', val); alert('저장됐습니다.'); }
-  else { localStorage.removeItem('gh_token'); alert('토큰이 삭제됐습니다.'); }
+  if (!val) { localStorage.removeItem('gh_token'); alert('토큰이 삭제됐습니다.'); return; }
+  /* GitHub 토큰은 영문/숫자/일부 기호(ASCII)만 사용한다.
+     한글 입력기(IME)가 켜진 상태로 붙여넣으면 생김새가 비슷한 다른 문자
+     (키릴 문자 등)로 바뀌어 저장되는 경우가 있고, 그 상태로 저장되면
+     나중에 동기화 시 "String contains non ISO-8859-1 code point" 같은
+     알아보기 힘든 브라우저 오류로 실패한다 — 저장 시점에 미리 검증한다. */
+  if (!/^[\x21-\x7E]+$/.test(val)) {
+    alert('토큰에 올바르지 않은 문자가 포함되어 있습니다.\n한글 입력기가 켜진 상태로 붙여넣으면 비슷하게 생긴 다른 문자로 바뀌는 경우가 있습니다.\n키보드를 영문으로 바꾼 뒤 GitHub 토큰 페이지에서 다시 복사해 붙여넣어 주세요.');
+    return;
+  }
+  localStorage.setItem('gh_token', val);
+  alert('저장됐습니다.');
 }
 window.saveGhToken = saveGhToken;
 

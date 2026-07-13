@@ -1,4 +1,4 @@
-const CACHE_NAME = 'avrilfarm-v14';
+const CACHE_NAME = 'avrilfarm-v15';
 const ASSETS = [
   './',
   './index.html',

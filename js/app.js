@@ -1360,7 +1360,18 @@ function openSelectedStandardDoc() {
   openStandardDocByProdId(Number(sel.value));
 }
 
-/* ── 클라우드 동기화 (GitHub API) ── */
+/* ── 클라우드 동기화 (GitHub API) ──
+   토큰에 한글 입력기로 인해 비ASCII 문자가 섞여 저장된 경우, fetch()가
+   "String contains non ISO-8859-1 code point" 같은 알아보기 힘든 오류를
+   던진다. 이 경우 원인을 바로 알 수 있도록 메시지를 바꿔준다. ── */
+function friendlySyncError(e) {
+  const msg = e && e.message || String(e);
+  if (msg.includes('ISO-8859-1') || msg.includes('non ISO')) {
+    return '저장된 GitHub 토큰에 잘못된 문자가 섞여 있습니다. 알림·설정 탭에서 토큰을 다시 입력해주세요 (한글 입력기를 끄고 붙여넣기).';
+  }
+  return '오류: ' + msg;
+}
+
 async function cloudSave() {
   const st = document.getElementById('sync-status');
   const token = localStorage.getItem('gh_token');
@@ -1427,7 +1438,7 @@ async function cloudSave() {
       if(st) st.innerHTML = `<span style="color:var(--red-text)">❌ 저장 실패: ${err.message}</span>`;
     }
   } catch(e) {
-    if(st) st.innerHTML = `<span style="color:var(--red-text)">❌ 오류: ${e.message}</span>`;
+    if(st) st.innerHTML = `<span style="color:var(--red-text)">❌ ${friendlySyncError(e)}</span>`;
   }
 }
 
@@ -1449,7 +1460,7 @@ async function cloudLoad() {
     if(st) st.innerHTML = '<span style="color:var(--teal-dark)">✅ 동기화 완료! 앱을 새로고침하세요.</span>';
     setTimeout(()=>location.reload(), 1500);
   } catch(e) {
-    if(st) st.innerHTML = `<span style="color:var(--red-text)">❌ 불러오기 실패: ${e.message}</span>`;
+    if(st) st.innerHTML = `<span style="color:var(--red-text)">❌ 불러오기 실패: ${friendlySyncError(e)}</span>`;
   }
 }
 
