@@ -206,6 +206,10 @@ function openBarcodeForm(no) {
   const itemBiz = item ? (item.biz || '8739') : '8739';
   const bizIsCustom = itemBiz !== '8739';
 
+  // 기존 항목의 색상코드 — mfgNo("APB"+색상+월2+번호3)에서 정확히 추출 (부분일치 금지)
+  const itemColorRaw = item ? (item.mfgNo||'').replace(/^APB/,'').replace(/\d{5}$/,'') : '';
+  const itemColorIsCustom = !!(item && item.bc7c);
+
   showSheet(`
     <div class="sheet-handle"></div>
     <div class="sheet-inner">
@@ -274,7 +278,10 @@ function openBarcodeForm(no) {
 
     <label>색상 코드
       <select id="bc7" onchange="updateMfgPreview(); toggleBc7Custom()">
-        ${COLOR_CODES.map(c=>`<option value="${c.code}" ${item&&(item.mfgNo||'').includes(c.code)?'selected':''}>${c.label}</option>`).join('')}
+        ${COLOR_CODES.map(c=>{
+          const sel = item ? (c.code==='직접입력' ? itemColorIsCustom : (!itemColorIsCustom && c.code===itemColorRaw)) : false;
+          return `<option value="${c.code}" ${sel?'selected':''}>${c.label}</option>`;
+        }).join('')}
       </select>
     </label>
     <div id="bc7-custom" style="${item&&item.bc7c?'':'display:none'}">
@@ -284,11 +291,11 @@ function openBarcodeForm(no) {
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
       <label>기획 월 (2자리)
         <input id="bc8" maxlength="2" style="font-family:monospace"
-          value="${item?item.mfgNo?.match(/\\d{2}(?=\\d{3})/)?.[0]||'':''}" placeholder="예: 06" oninput="updateMfgPreview()">
+          value="${item?item.mfgNo?.match(/\d{2}(?=\d{3})/)?.[0]||'':''}" placeholder="예: 06" oninput="updateMfgPreview()">
       </label>
       <label>비누번호 (3자리)
         <input id="bc9" maxlength="3" style="font-family:monospace"
-          value="${item?item.mfgNo?.match(/\\d{3}$/)?.[0]||'':''}" placeholder="${ns}" oninput="updateMfgPreview()">
+          value="${item?item.mfgNo?.match(/\d{3}$/)?.[0]||'':''}" placeholder="${ns}" oninput="updateMfgPreview()">
       </label>
     </div>
     </div>
