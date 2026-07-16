@@ -1,5 +1,5 @@
 {
-  "_exportedAt": "2026-07-13T04:41:30.260Z",
+  "_exportedAt": "2026-07-16T06:09:12.989Z",
   "_version": 11,
   "products": [],
   "ingredients": [],
@@ -20,10 +20,27 @@
       "mfgDate": "260708",
       "expiry": "제조일로부터 1년",
       "status": "현행",
-      "notes": "해로20개, 토로 20개 생산",
+      "notes": "해로20개, 토로 20개 생산 총 40개",
       "no": 1,
       "id": 1,
-      "updatedAt": "2026-07-13T02:58:15.797Z"
+      "updatedAt": "2026-07-16T00:34:52.621Z"
+    },
+    {
+      "name": "선인장 쿨비누",
+      "sub": "071",
+      "seq": "532",
+      "qty": "27",
+      "chk": 2,
+      "bc7c": "",
+      "mfgNo": "APBSF07007",
+      "mfgDirect": false,
+      "mfgDate": "260715",
+      "expiry": "제조일로부터 1년",
+      "status": "예정",
+      "notes": "품목검사 샘플용 4개",
+      "no": 3,
+      "id": 4,
+      "updatedAt": "2026-07-16T02:08:11.072Z"
     }
   ],
   "fragrances": []
