@@ -2064,13 +2064,13 @@ async function processUploadedFile(file) {
       }
       // 헤더 확인 — 바코드 관련 컬럼이 있으면 바코드 등록
       const header = lines[0].toLowerCase();
-      if (/바코드|barcode|제품명.*소분류|소분류.*비번호|ean/.test(header)) {
+      if (/바코드|barcode|제품명.*소분류|소분류.*비번호|기획날짜|비누번호|ean/.test(header)) {
         const cols = lines[0].split(',').map(c => c.trim());
         const ci = (keyword) => cols.findIndex(c => c.includes(keyword));
         const iName = Math.max(ci('제품명'), ci('name'));
-        const iSub = Math.max(ci('소분류'), ci('sub'));
-        const iSeq = Math.max(ci('비번호'), ci('seq'));
-        const iQty = Math.max(ci('개수'), ci('qty'));
+        const iSub = Math.max(ci('기획날짜'), ci('소분류'), ci('sub'));
+        const iSeq = Math.max(ci('비누번호'), ci('비번호'), ci('seq'));
+        const iQty = Math.max(ci('비누개수'), ci('개수'), ci('qty'));
         const iStatus = Math.max(ci('상태'), ci('status'));
         const iMfg = Math.max(ci('제조번호'), ci('mfgNo'));
         const iMfgDate = Math.max(ci('제조일'), ci('mfgDate'));
@@ -2094,9 +2094,9 @@ async function processUploadedFile(file) {
           const record = {
             no: maxNo + i,
             name: pname,
-            sub: iSub >= 0 ? (vals[iSub]||'').padStart(3,'0') : '000',
-            seq: iSeq >= 0 ? (vals[iSeq]||'').padStart(3,'0') : String(maxNo+i).padStart(3,'0'),
-            qty: iQty >= 0 ? (vals[iQty]||'09').padStart(2,'0') : '09',
+            sub: iSub >= 0 ? (window.normSub ? normSub(vals[iSub]||'') : (vals[iSub]||'').padEnd(4,'0').slice(0,4)) : '0000',
+            seq: iSeq >= 0 ? (window.normSeq ? normSeq(vals[iSeq]||'') : String(vals[iSeq]||'').replace(/\D/g,'').slice(-2).padStart(2,'0')) : String(maxNo+i).slice(-2).padStart(2,'0'),
+            qty: iQty >= 0 ? (window.normQty ? normQty(vals[iQty]||'09') : (vals[iQty]||'09').padStart(2,'0')) : '09',
             chk: 0,
             mfgNo: iMfg >= 0 ? vals[iMfg]||'' : '',
             mfgDate: iMfgDate >= 0 ? vals[iMfgDate]||'' : '',
