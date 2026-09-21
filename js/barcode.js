@@ -318,7 +318,7 @@ function openBarcodeForm(no) {
     <div style="font-size:13px;font-weight:700;color:var(--text);margin:14px 0 8px">제조번호</div>
     <label>입력 방식
       <select id="bc-mfg-mode" onchange="toggleMfgMode()">
-        <option value="auto" ${item&&item.mfgDirect?'':'selected'}>자동 생성 (AP+B+색상코드+월+번호)</option>
+        <option value="auto" ${item&&item.mfgDirect?'':'selected'}>자동 생성 (${mfgPrefix()}+색상코드+월+번호)</option>
         <option value="direct" ${item&&item.mfgDirect?'selected':''}>직접 입력</option>
       </select>
     </label>

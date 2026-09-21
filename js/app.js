@@ -594,7 +594,7 @@ async function openProductMasterForm(id) {
     <label>전성분<textarea id="pm12" rows="4">${item?.전성분||''}</textarea></label>
 
     <label>바코드<input id="pm13" value="${item?.바코드||''}"></label>
-    <label>제조번호 형식<input id="pm14" value="${item?.제조번호형식||'APBO'}" placeholder="예: APBO"></label>
+    <label>제조번호 형식<input id="pm14" value="${item?.제조번호형식||((typeof mfgPrefix==='function'?mfgPrefix():'AFB')+'O')}" placeholder="예: ${(typeof mfgPrefix==='function'?mfgPrefix():'AFB')}O"></label>
 
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
       <label>제정일자<input type="date" id="pm-estdate" value="${item?.제정일자||''}"></label>
