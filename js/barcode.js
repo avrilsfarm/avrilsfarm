@@ -8,7 +8,7 @@ function bizPrefix() { return '8739'; }
 function brandLabel() { return '에이브릴팜'; }
 
 const MFG_PREFIX_KEY = 'afMfgPrefix';
-const MFG_PREFIX_DEFAULT = 'AFB';
+const MFG_PREFIX_DEFAULT = 'APB';
 function mfgPrefix() {
   try { return (localStorage.getItem(MFG_PREFIX_KEY) || MFG_PREFIX_DEFAULT).toUpperCase(); }
   catch(e) { return MFG_PREFIX_DEFAULT; }
