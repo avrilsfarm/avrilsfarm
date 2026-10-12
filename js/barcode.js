@@ -210,7 +210,6 @@ async function renderBarcodeTab(el) {
       </button>
     </div>
     <div style="display:flex;gap:6px;align-items:center;padding:0 16px 8px;flex-wrap:wrap">
-      <span style="font-size:11px;color:var(--text3);margin-right:2px"><i class="ti ti-arrows-sort"></i> 정렬</span>
       ${BC_SORTS.map(o=>`
         <button class="btn-sm ${bcSort===o.key?'solid':''}" onclick="setBcSort('${o.key}')">${o.label}</button>`).join('')}
     </div>
