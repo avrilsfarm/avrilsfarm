@@ -2,6 +2,36 @@
 let bcSearchQ = '';
 let bcCollapsed = {};
 
+/* ── 목록 정렬 — 선택값은 이 기기에 기억 ── */
+const BC_SORTS = [
+  { key: 'newest', label: '최신순' },
+  { key: 'oldest', label: '등록순' },
+  { key: 'mfg',    label: '제조일순' },
+  { key: 'name',   label: '이름순' },
+];
+let bcSort = (() => { try { return localStorage.getItem('bcSort') || 'newest'; } catch (e) { return 'newest'; } })();
+
+/* 제조일자 → 비교용 숫자(YYMMDD). 26.07.08 · 260708 · 2026-07-08 모두 허용, 비어 있으면 -1 */
+function bcMfgKey(p) {
+  const d = String(p.mfgDate || '').replace(/\D/g, '');
+  if (d.length === 8) return parseInt(d.slice(2), 10);
+  if (d.length === 6) return parseInt(d, 10);
+  return -1;
+}
+function sortBarcodes(list) {
+  const arr = list.slice();
+  const byNo = (a, b) => (a.no || 0) - (b.no || 0);
+  if (bcSort === 'oldest') return arr.sort(byNo);
+  if (bcSort === 'mfg')    return arr.sort((a, b) => (bcMfgKey(b) - bcMfgKey(a)) || (b.no || 0) - (a.no || 0));
+  if (bcSort === 'name')   return arr.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ko') || byNo(a, b));
+  return arr.sort((a, b) => byNo(b, a));   // newest
+}
+function setBcSort(k) {
+  bcSort = k;
+  try { localStorage.setItem('bcSort', k); } catch (e) {}
+  renderBarcodeTab(document.getElementById('page-content'));
+}
+
 /* ── 에이브릴팜 전용 고정 설정 ──
    대분류는 8739 고정. 제조번호 접두어는 최초 1회 정하면 이후 자동 생성에 계속 쓰인다 */
 function bizPrefix() { return '8739'; }
@@ -116,7 +146,7 @@ async function renderBarcodeTab(el) {
   const filter = window._bcFilter || '전체';
   const bq = bcSearchQ.trim().toLowerCase();
   const preFiltered = filter === '전체' ? _barcodeData : _barcodeData.filter(p => p.status === filter);
-  const filtered = bq ? preFiltered.filter(p => (p.name||'').toLowerCase().includes(bq) || (p.mfgNo||'').toLowerCase().includes(bq) || (p.notes||'').toLowerCase().includes(bq)) : preFiltered;
+  const filtered = sortBarcodes(bq ? preFiltered.filter(p => (p.name||'').toLowerCase().includes(bq) || (p.mfgNo||'').toLowerCase().includes(bq) || (p.notes||'').toLowerCase().includes(bq)) : preFiltered);
   const active = _barcodeData.filter(p => p.status === '현행').length;
 
   el.innerHTML = `
@@ -178,6 +208,11 @@ async function renderBarcodeTab(el) {
       <button class="btn-sm" onclick="printAllBarcodes()" style="margin-left:auto">
         <i class="ti ti-printer"></i> 전체 출력
       </button>
+    </div>
+    <div style="display:flex;gap:6px;align-items:center;padding:0 16px 8px;flex-wrap:wrap">
+      <span style="font-size:11px;color:var(--text3);margin-right:2px"><i class="ti ti-arrows-sort"></i> 정렬</span>
+      ${BC_SORTS.map(o=>`
+        <button class="btn-sm ${bcSort===o.key?'solid':''}" onclick="setBcSort('${o.key}')">${o.label}</button>`).join('')}
     </div>
 
     ${(() => {
@@ -661,7 +696,7 @@ function printBarcodeLabelFromRecord(r) {
 
 /* ── 전체 출력 ── */
 function printAllBarcodes() {
-  const items = _barcodeData.filter(p => p.status === '현행');
+  const items = sortBarcodes(_barcodeData.filter(p => p.status === '현행'));
   const win = window.open('','_blank');
   win.document.write(`<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8">
   <title>${(typeof getBiz==='function'?getBiz().name:'')||'공방비서'} 바코드 목록</title>
@@ -719,6 +754,7 @@ function printAllBarcodes() {
 window.loadBarcodesFromDB = loadBarcodesFromDB;
 window.renderBarcodeTab = renderBarcodeTab;
 window.setBcFilter = setBcFilter;
+window.setBcSort = setBcSort;
 window.openBarcodeForm = openBarcodeForm;
 window.updateBcPreview = updateBcPreview;
 window.updateMfgPreview = updateMfgPreview;
