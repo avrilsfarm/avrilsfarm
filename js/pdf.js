@@ -426,80 +426,115 @@ function buildQCM(batches, products){
 }
 
 /* ─────────────────────────────────────
-   제조지시서 (AF-MI)
+   제조지시서·제조기록서 통합양식 (AF-MI) — 시제품·본생산 공통
+   데스크탑 양식(03_제조·인증/09_양식·기타/…AF-MI…docx)과 같은 구조
+   PDF(buildMI)와 워드(createDocx)가 모두 miModel()을 쓴다
 ───────────────────────────────────── */
+function miModel(batch, prod){
+  batch = batch||{}; prod = prod||{};
+  const recipe = prod.레시피?.length ? prod.레시피 : (batch.레시피||[]);
+  const mfgNo = batch.제조번호||'';
+  const isTrial = /^APB-T/i.test(mfgNo) || batch.구분==='시제품';
+  const isMain = !!mfgNo && !isTrial;
+  const method = prod.제조방법||batch.제조방법||'';
+  const ck = (on)=> on?'■':'☐';
+  const input = batch.투입량 ? Number(batch.투입량) : 0;
+  const theory = prod.이론수량 || batch.이론수량 || '';
+  const yieldPct = (batch.실제수량 && theory) ? Math.round(batch.실제수량/theory*100) : '';
+  const steps = (batch.공정?.length ? batch.공정 : (prod.공정||[])).map(s=>[String(s.단계||''), [s.공정명,s.작업내용].filter(Boolean).join(' — '), s.관리기준||'']);
+  const isMP = /MP/i.test(method);
+  const defCP = [
+    ['1','가성소다액 제조 (물에 가성소다 투입)','완전 용해 / 레시피 기준 ____℃'],
+    ['2','오일 용해·혼합','레시피 기준 ____℃'],
+    ['3','가성소다액 + 오일 혼합','레시피 기준 ____℃ (팜 배합 시 융점 아래 금지)'],
+    ['4','블렌더 교반','레시피 기준 ____초 후 주걱 교반'],
+    ['5','트레이스 판정 ① (색소 투입 직전)','라이트 / 미디엄 / 헤비'],
+    ['6','색상별 비커 분할 → 비커에서 색소 분산','벌크에서 색소 혼합 금지'],
+    ['7','후첨 오일·향 투입','배합표 지시량'],
+    ['8','트레이스 판정 ② (몰드 투입 직전)','라이트 / 미디엄 / 헤비'],
+    ['9','분주 (붓기 직전 블렌더 3~5초)','컬러 구간 8분 이내, 마지막 몰드까지 부어서 퍼질 것'],
+    ['10','잔량 처리','긁은 잔량은 소형 몰드로 분리 (출고 제외)'],
+    ['11','보온','24시간'],
+    ['12','탈형·절단','일자 기록'],
+    ['13','건조','최소 2주 / 완료 예정일'],
+  ];
+  const defMP = [
+    ['1','베이스 계량·용해','레시피 기준 ____℃'],
+    ['2','첨가물·색소·향 투입','배합표 지시량 / 레시피 기준 ____℃'],
+    ['3','몰드 투입','기포 제거'],
+    ['4','냉각·탈형','일자 기록'],
+    ['5','포장','밀봉 (수분 맺힘 방지)'],
+  ];
+  return {
+    isTrial, isMain,
+    docNo: batch.문서번호||'AF-MI-____',
+    rev: batch.개정번호||'Rev.00',
+    kindLine: `${ck(isTrial)} 시제품 (TEST)     ${ck(isMain)} 본생산`,
+    methodLine: `${ck(/CP/i.test(method))} CP   ${ck(isMP)} MP   ${ck(/HP/i.test(method))} HP`,
+    info: [
+      ['제 품 명', batch.제품명||prod.제품명||'', '제조번호', mfgNo],
+      ['바코드', prod.바코드||batch.바코드||'', '제조지시자', CO.owner+' (인)'],
+      ['제품표준서 번호', isTrial?'해당 없음 (시제품)':(prod.문서번호||'AF-PS-____'), '배합표 버전', prod.개정번호||'Rev.__'],
+      ['제조연월일', batch.date||'     .    .', '작업 시간', '  :   ~   :  '],
+      ['제조단위', input?`${input.toLocaleString()}g${theory?` (목표 ${theory}개)`:''}`:'          g (목표     개)', '몰드 규격 × 수', '          g ×     개'],
+      ['배치 설계량', '몰드 정량 합계 × (1 + 여유분 __%) =          g', '이론수량', theory?`${theory}개 (1kg 몰드당 9개)`:'몰드 kg × 9개 =       개'],
+      ['작업장 온도/습도', '        ℃  /       %', '사용기한', prod.유통기한||'제조일로부터 2년'],
+    ],
+    infoNote: '※ 제조번호: 본생산 APB+색상코드+월(2)+번호(3) 예 APBO10001 / 시제품 APB-T+색상코드+월(2)+순번(3) 예 APB-TP11001  ※ 수율 기준 1kg당 9개  ※ 여유분 증량 시 전 원료에 같은 계수 (가성소다 누락 금지)',
+    recipeHead: ['No','원 료 명','INCI 명칭','이론량(g)','비율(%)','로트·시험번호','실사용량(g)','확인'],
+    recipe: recipe.length
+      ? recipe.map((r,i)=>[String(i+1), r.원료명||'', r.INCI||'', String(r.이론량??''), String(r.비율??''), r.로트||'', r.실사용량!=null?String(r.실사용량):'', '☐'])
+      : Array.from({length:12},(_,i)=>[String(i+1),'','','','','','','☐']),
+    recipeTotal: input?`${input.toLocaleString()}g`:'',
+    allergy: prod.알레르기||batch.알레르기||'',
+    summary: [['총 오일','          g','W : L','     :  1','가성소다 농도','        %'],['Super Fat','        %','후첨 오일 비율','        %','계산 근거','SoapCalc']],
+    recipeNote: '※ 원료명은 원료목록보고 등록명  ※ 칭량 허용오차 ±1% 이내  ※ CP Super Fat −1%는 가성소다 순도 99% 보정값  ※ MP는 베이스명·로트를 원료 칸에 기입',
+    equip: [['전자저울',''],['스틱블렌더',''],['실리콘몰드',''],['스테인리스 용기',''],['온도계',''],['보호구 (장갑·고글·마스크)','']],
+    equipNote: '※ 설비 점검 기록은 R-MMS-02 (분기 점검)',
+    checks: [['작업장·기구 위생 처리 (AF-HMS-001)','저울 영점 확인'],['보호구 착용 (장갑·보안경·마스크)','원료 외관·사용기한 확인'],['팜오일 녹여 균질화 후 계량 (소분분 포함)','잔량용 소형 몰드(150~200g) 비치'],['빈 벌크 용기 무게 측정:          g','몰드 수평·라벨(제조번호) 부착']],
+    stepHead: ['No','작업','기준','실측','시각','확인'],
+    steps: (steps.length ? steps : (isMP?defMP:defCP)).map(s=>[s[0],s[1],s[2],'','','☐']).concat([['','','','','',''],['','','','','','']]),
+    stepNote: '※ 공정 기준값(온도·시간)은 레시피마다 다름 — 해당 배합표 값 기입  ※ 트레이스: 라이트 = 자국 1~2초 소멸 / 미디엄 = 3~5초 유지 / 헤비 = 자국 유지  ※ 마지막 몰드를 떠 넣었으면 7항에 공정 이탈로 기록',
+    result: [
+      ['이론수량', theory?`${theory}개`:'          개', '생산 수량', batch.실제수량?`${batch.실제수량}개`:'          개'],
+      ['수율', yieldPct!==''?`${yieldPct}%`:'생산 ÷ 이론 × 100 =       %', '출고 가능 수량', '          개'],
+      ['불량 수량', '          개', '잔량 몰드(출고 제외)', '          개 /        g'],
+    ],
+    defectLine: '☐ 미혼합 자국  ☐ 글리세린강  ☐ 부분젤  ☐ 팜꽃  ☐ 기타(          )',
+    faultLine: batch.이상==='이상있음' ? '☐ 이상 없음     ■ 이상 있음' : (batch.이상==='이상없음' ? '■ 이상 없음     ☐ 이상 있음' : '☐ 이상 없음     ☐ 이상 있음'),
+    faultHead: ['발생 단계','내용','원인 (추정)','조치','다음 배치 반영'],
+    faults: [['', batch.이상==='이상있음'?(batch.비고||''):'', '', '', ''],['','','','',''],['','','','','']],
+    trialHead: ['항목','탈형 시','2주','4주','메모'],
+    trial: ['외관·색','향','경도·무름','거품·사용감','pH','땀(발한)·변색'].map(x=>[x,'','','','']),
+    judge: [['판정','☐ 본생산 승격     ☐ 수정 후 재시험 (Rev.__ 로)     ☐ 폐기'],['승격 시 후속','☐ 배합표 버전 확정   ☐ 제품표준서 작성·개정 (AF-PS-____)   ☐ KCL 시험 의뢰 검토']],
+    links: [['제조번호 공방비서 등록','신규 원료 입고 시 R-MMS-01 기록'],['완제품 출하검사 R-QCM-01','보관 검체 R-QCM-02 (수량·위치·기한)'],['라벨 데이터 전달 (전성분·제조번호·사용기한)','재고 반영 (페이히어)']],
+  };
+}
+
 function buildMI(batch, products){
   const prod = (products||[]).find(p=>p.id===batch.productId) || {};
-  const recipe = prod.레시피?.length ? prod.레시피 : (batch.레시피||[]);
-  const iTheory = prod.이론수량 || batch.이론수량 || 9;
-  const mw = prod.목표중량 || batch.목표중량 || '90g ±5g';
-  const allergy = prod.알레르기 || batch.알레르기 || '';
+  const M = miModel(batch, prod);
+  const esc = t => String(t??'').replace(/&/g,'&amp;').replace(/</g,'&lt;');
+  const kv = rows => `<table>${rows.map(r=>`<tr>${r.map((c,i)=>i%2===0?`<td class="h" style="width:16%">${esc(c)}</td>`:`<td>${esc(c)}</td>`).join('')}</tr>`).join('')}</table>`;
+  const grid = (head, rows, c) => `<table><thead><tr>${head.map(h=>`<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${rows.map(r=>`<tr>${r.map((x,i)=>`<td${(c||[]).includes(i)?' class="c"':''}>${esc(x)}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+  const chk = rows => `<table>${rows.map(r=>`<tr>${r.map(x=>`<td class="c" style="width:4%">☐</td><td>${esc(x)}</td>`).join('')}</tr>`).join('')}</table>`;
+  const sec = t => `<div class="sec">▶ ${t}</div>`;
+  const note = t => `<p class="note" style="margin-top:-6px">${esc(t)}</p>`;
 
-  const revNo = batch.개정번호 || prod.개정번호 || 'Rev.01';
-  const estDate = batch.제정일자 || prod.제정일자 || batch.date || '';
-  const processSteps = batch.공정?.length ? batch.공정 : (prod.공정||[]);
-
-  return hd('제조지시서','Manufacturing Instruction · '+batch.제품명, batch.문서번호||'AF-MI-00X',revNo,estDate) + `
-  <div class="sign"><div class="sign-box"><div class="sign-lbl">총괄책임자(제조관리담당자)</div>${CO.owner} (인)</div></div>
-
-  <div class="sec">▶ 가. 기본 정보</div>
-  <table>
-    <tr><td class="h">제 품 명</td><td><b>${batch.제품명}</b></td><td class="h">제조번호</td><td>${batch.제조번호||''}</td></tr>
-    <tr><td class="h">바코드 번호</td><td>${prod.바코드||batch.바코드||''}</td><td class="h">제조연월일</td><td>${batch.date||''}</td></tr>
-    <tr><td class="h">제조단위</td><td>${batch.투입량||''}g (800g 오일 배치)</td><td class="h">사용기한</td><td>제조일로부터 2년</td></tr>
-    <tr><td class="h">이론수량</td><td>1kg 몰드 기준 ${iTheory}개 / 배치 약 ${iTheory}ea</td><td class="h">제조지시자</td><td>${CO.owner} (인)</td></tr>
-  </table>
-
-  <div class="sec">▶ 마. 원료명·분량·시험번호·실사용량</div>
-  <p class="note">※ 시험번호: 원자재 시험성적서 번호 기입. 실사용량은 제조 후 실측값.</p>
-  <table>
-    <thead><tr><th>No</th><th>원 료 명</th><th>INCI 명칭</th><th>이론량(g)</th><th>비율(%)</th><th>실사용량(g)</th><th>확인</th></tr></thead>
-    <tbody>
-      ${recipe.map((r,i)=>`<tr>
-        <td class="c">${i+1}</td><td>${r.원료명}</td><td style="font-size:8px">${r.INCI||''}</td>
-        <td class="r">${r.이론량||''}</td><td class="r">${r.비율||''}</td>
-        <td class="r">${r.실사용량||r.이론량||''}</td><td class="c">□</td>
-      </tr>`).join('')}
-      ${!recipe.length?`<tr><td class="c">—</td><td colspan="6" style="color:#999;text-align:center">표준서에 레시피를 등록해주세요</td></tr>`:''}
-      <tr><td colspan="3" class="h" style="text-align:center">합 계</td><td class="r h">${batch.투입량||''}g</td><td></td><td></td><td></td></tr>
-    </tbody>
-  </table>
-  ${allergy?`<p class="note">※ 향료 유래 알레르기 유발성분: ${allergy}</p>`:''}
-
-  <div class="sec">▶ 바. 제조설비명</div>
-  <p style="padding:5px 8px;border:0.5px solid #ccc;font-size:9px;margin-bottom:12px">전자저울  |  스틱블렌더  |  실리콘몰드(1kg)  |  스테인리스 용기 2개  |  온도계  |  내화학성 장갑·고글·마스크</p>
-
-  <div class="sec">▶ 사. 공정별 작업내용</div>
-  <table>
-    <thead><tr><th>단계</th><th>공정명</th><th>작업 내용</th><th>관리기준</th><th>이론생산량</th><th>확인</th></tr></thead>
-    <tbody>
-      ${processSteps.length ? processSteps.map(s=>`<tr><td class="c">${s.단계}</td><td>${s.공정명}</td><td>${s.작업내용}</td><td>${s.관리기준||''}</td><td class="r">${s.이론생산량||''}</td><td class="c">□</td></tr>`).join('') : `
-      <tr><td class="c">1</td><td>칭량</td><td>원료를 제조지시서 기준량에 따라 전자저울로 계량 (±1% 이내)</td><td>±1% 이내</td><td class="r">800g</td><td class="c">□</td></tr>
-      <tr><td class="c">2</td><td>소다수</td><td>정제수에 소듐하이드록사이드 천천히 용해 → 실온 냉각</td><td>실온 25~35°C</td><td class="r">329g</td><td class="c">□</td></tr>
-      <tr><td class="c">3</td><td>혼합</td><td>오일류 계량 혼합 후 소다수와 27~30°C에서 혼합</td><td>27~30°C</td><td class="r">1,129g</td><td class="c">□</td></tr>
-      <tr><td class="c">4</td><td>첨가물</td><td>트레이스 이후 첨가물 후첨 교반</td><td>트레이스 이후</td><td class="r">52g</td><td class="c">□</td></tr>
-      <tr><td class="c">5</td><td>향료</td><td>향료 혼합 후 몰드 투입</td><td>—</td><td class="r">24g</td><td class="c">□</td></tr>
-      <tr><td class="c">6</td><td>보온·탈형</td><td>24시간 보온 후 탈형</td><td>24시간</td><td></td><td class="c">□</td></tr>
-      <tr><td class="c">7</td><td>건조</td><td>통풍이 잘 되는 곳에서 건조</td><td>최소 2주</td><td></td><td class="c">□</td></tr>
-      <tr><td class="c">8</td><td>커팅·포장</td><td>1kg 몰드 기준 ${iTheory}개 커팅 → 외관 검사 → 포장·출하</td><td>${mw}</td><td class="r">${iTheory}ea</td><td class="c">□</td></tr>`}
-    </tbody>
-  </table>
-
-  <div class="sec">▶ 아. 수율</div>
-  <table>
-    <thead><tr><th>공정명</th><th>투입량</th><th>이론 생산량</th><th>실제 생산량</th><th>수 율</th></tr></thead>
-    <tbody>
-      <tr><td>칭량 (제조)</td><td class="r">${batch.투입량||''}g</td><td class="c">${batch.투입량||''}g / ${iTheory}ea</td><td class="c">${batch.실제수량||''}ea</td><td class="c">${batch.실제수량&&iTheory?Math.round(batch.실제수량/iTheory*100)+'%':''}</td></tr>
-      <tr><td>포장 (완성)</td><td class="r">${batch.투입량?batch.투입량-10:''}g</td><td class="c">${batch.투입량?batch.투입량-10:''}g / ${iTheory}ea</td><td class="c">${batch.실제수량||''}ea</td><td class="c">${batch.실제수량&&iTheory?Math.round(batch.실제수량/iTheory*100)+'%':''}</td></tr>
-    </tbody>
-  </table>
-  <p class="note">※ 수율 = 실제 완성량 ÷ 투입량 × 100 / 1kg 몰드 기준 ${iTheory}개 커팅 기준 / 비누 제조시 loss 약 10g</p>
-
-  <div class="sec">▶ 이상 발생 기록</div>
-  <table>
-    <tr><td class="h" style="width:20%">이상 여부</td><td>${batch.이상==='이상없음'?'■ 이상 없음 &nbsp;&nbsp;&nbsp; □ 이상 있음':'□ 이상 없음 &nbsp;&nbsp;&nbsp; ■ 이상 있음'}</td></tr>
-    <tr><td class="h">이상 내용 및 조치</td><td style="min-height:22px">${batch.이상==='이상있음'?batch.비고||'':''}</td></tr>
-  </table>
+  return hd('제조지시서 · 제조기록서','시제품·본생산 공통 · '+(batch.제품명||''), M.docNo, M.rev, batch.date||'') + `
+  <table><tr><td class="h" style="width:16%">구분</td><td>${M.kindLine}</td><td class="h" style="width:16%">제법</td><td>${M.methodLine}</td></tr></table>
+  ${sec('1. 배치 정보')}${kv(M.info)}${note(M.infoNote)}
+  ${sec('2. 원료명·분량·시험번호·실사용량')}
+  ${grid(M.recipeHead, M.recipe.concat([['합 계','','',M.recipeTotal,'100','','','']]), [0,3,4,6,7])}
+  ${kv(M.summary)}${M.allergy?note('※ 향료 유래 알레르기 유발성분: '+M.allergy):''}${note(M.recipeNote)}
+  ${sec('3. 사용 설비')}${grid(['설비명','관리번호 / 점검 상태'], M.equip)}${note(M.equipNote)}
+  ${sec('4. 작업 전 점검')}${chk(M.checks)}
+  ${sec('5. 공정 기록')}${grid(M.stepHead, M.steps, [0,5])}${note(M.stepNote)}
+  ${sec('6. 결과 · 수율')}${kv(M.result)}<table style="margin-top:-12px"><tr><td class="h" style="width:16%">불량 유형</td><td>${M.defectLine}</td></tr></table>
+  ${sec('7. 이상 · 공정 이탈 기록')}<table><tr><td class="h" style="width:16%">이상 여부</td><td>${M.faultLine}</td></tr></table>${grid(M.faultHead, M.faults)}
+  ${sec('8. 시제품 평가 (시제품만)')}${grid(M.trialHead, M.trial)}${kv(M.judge)}
+  ${sec('9. 본생산 연계 (본생산만)')}${chk(M.links)}
+  ${sec('10. 서명')}<table><tr><td class="h" style="width:16%">작성자</td><td>(서명)    /    /</td><td class="h" style="width:16%">확인자</td><td>(서명)    /    /</td></tr></table>
   ` + ft();
 }
 

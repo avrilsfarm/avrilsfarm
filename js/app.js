@@ -1840,7 +1840,7 @@ async function generateWordDoc() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `에이브릴팜_제조지시서_${(batch.제품명||'').replace(/\s/g,'_')}_${batch.date||''}.docx`;
+    a.download = `제조지시서_${(batch.제품명||'').replace(/\s/g,'_')}_${batch.제조번호||batch.date||''}.docx`;
     a.click();
     setTimeout(()=>URL.revokeObjectURL(url), 5000);
     if(statusEl) statusEl.innerHTML='<span style="color:var(--teal-dark)">✅ 워드 파일 다운로드 완료</span>';
@@ -1874,62 +1874,51 @@ async function createDocx(batch, prod, recipe) {
     return `<w:tc><w:tcPr>${shade}<w:tcW w:w="${w}" w:type="dxa"/></w:tcPr><w:p><w:pPr>${align}<w:spacing w:before="40" w:after="40"/></w:pPr><w:r>${rpr({bold:opts.bold,sz:8})}<w:t xml:space="preserve">${esc(txt)}</w:t></w:r></w:p></w:tc>`;
   };
   const wr = (...cells) => `<w:tr>${cells.join('')}</w:tr>`;
-  const wtbl = rows => `<w:tbl><w:tblPr><w:tblW w:w="9000" w:type="dxa"/><w:tblBorders><w:top w:val="single" w:sz="4" w:color="888888"/><w:left w:val="single" w:sz="4" w:color="888888"/><w:bottom w:val="single" w:sz="4" w:color="888888"/><w:right w:val="single" w:sz="4" w:color="888888"/><w:insideH w:val="single" w:sz="4" w:color="888888"/><w:insideV w:val="single" w:sz="4" w:color="888888"/></w:tblBorders><w:tblCellMar><w:top w:w="80" w:type="dxa"/><w:left w:w="100" w:type="dxa"/><w:bottom w:w="80" w:type="dxa"/><w:right w:w="100" w:type="dxa"/></w:tblCellMar></w:tblPr>${rows.join('')}</w:tbl>`;
+  const wtbl = rows => `<w:tbl><w:tblPr><w:tblW w:w="9355" w:type="dxa"/><w:tblBorders><w:top w:val="single" w:sz="4" w:color="888888"/><w:left w:val="single" w:sz="4" w:color="888888"/><w:bottom w:val="single" w:sz="4" w:color="888888"/><w:right w:val="single" w:sz="4" w:color="888888"/><w:insideH w:val="single" w:sz="4" w:color="888888"/><w:insideV w:val="single" w:sz="4" w:color="888888"/></w:tblBorders><w:tblCellMar><w:top w:w="80" w:type="dxa"/><w:left w:w="100" w:type="dxa"/><w:bottom w:w="80" w:type="dxa"/><w:right w:w="100" w:type="dxa"/></w:tblCellMar></w:tblPr>${rows.join('')}</w:tbl>`;
+
+  // 데스크탑 통합양식(AF-MI)과 같은 구조 — miModel()은 pdf.js에 있음
+  const M = miModel(batch, prod);
+  const W = 9355; // 본문 폭 (dxa)
+  const kvT = rows => wtbl(rows.map(r=>wr(...r.map((c,i)=>i%2===0?wc(c,{bold:true,header:true,w:1500}):wc(c,{w:Math.round(W/2-1500)}))))) ;
+  const gridT = (head, rows, ws, cs=[]) => wtbl([
+    wr(...head.map((h,i)=>wc(h,{bold:true,header:true,w:ws[i],center:true}))),
+    ...rows.map(r=>wr(...r.map((x,i)=>wc(x,{w:ws[i],center:cs.includes(i)}))))
+  ]);
+  const chkT = rows => wtbl(rows.map(r=>wr(...r.flatMap(x=>[wc('☐',{w:400,center:true}),wc(x,{w:Math.round(W/2-400)})]))));
+  const note = t => wp(t,{sz:7.5,color:'595959',spb:20,spa:40});
 
   const body = [
-    wp('에이브릴팜', {bold:true, sz:14, spb:0, spa:40}),
-    wp(`제조지시서  ·  ${batch.문서번호||'AF-MI-00X'}  ·  Rev.01`, {sz:9}),
-    wp(''),
-    wsec('가. 기본 정보'),
+    wp(CO.name, {bold:true, sz:14, spb:0, spa:20}),
+    wp(`제조지시서 · 제조기록서  |  시제품·본생산 공통  |  배치 1회 = 1부`, {sz:9, spa:80}),
     wtbl([
-      wr(wc('제 품 명',{bold:true,header:true,w:1800}),wc(batch.제품명||'',{w:2700}),wc('제조번호',{bold:true,header:true,w:1500}),wc(batch.제조번호||'',{w:3000})),
-      wr(wc('바코드',{bold:true,header:true,w:1800}),wc(barcode,{w:2700}),wc('제조연월일',{bold:true,header:true,w:1500}),wc(batch.date||'',{w:3000})),
-      wr(wc('제조단위',{bold:true,header:true,w:1800}),wc(`${batch.투입량||''}g`,{w:2700}),wc('사용기한',{bold:true,header:true,w:1500}),wc('제조일로부터 2년',{w:3000})),
-      wr(wc('이론수량',{bold:true,header:true,w:1800}),wc(`${iTheory}개`,{w:2700}),wc('제조지시자',{bold:true,header:true,w:1500}),wc('변민정 (인)',{w:3000})),
+      wr(wc('문서번호',{bold:true,header:true,w:1500}),wc(M.docNo,{w:3178}),wc('개정',{bold:true,header:true,w:1500}),wc(M.rev,{w:3177})),
+      wr(wc('구분',{bold:true,header:true,w:1500}),wc(M.kindLine,{w:3178}),wc('제법',{bold:true,header:true,w:1500}),wc(M.methodLine,{w:3177})),
     ]),
+    wsec('1. 배치 정보'), kvT(M.info), note(M.infoNote),
+    wsec('2. 원료명·분량·시험번호·실사용량'),
+    gridT(M.recipeHead, M.recipe.concat([['합 계','','',M.recipeTotal,'100','','','']]), [450,2100,1900,950,800,1355,1100,700], [0,3,4,6,7]),
     wp(''),
-    wsec('마. 원료명·분량·시험번호·실사용량'),
-    wtbl([
-      wr(wc('No',{bold:true,header:true,w:400,center:true}),wc('원 료 명',{bold:true,header:true,w:2600}),wc('이론량(g)',{bold:true,header:true,w:1000,center:true}),wc('비율(%)',{bold:true,header:true,w:800,center:true}),wc('실사용량(g)',{bold:true,header:true,w:1000,center:true}),wc('확인',{bold:true,header:true,w:500,center:true})),
-      ...(recipe.length?recipe:['(레시피 없음)']).map((r,i)=>typeof r==='string'
-        ?wr(wc('—',{w:400,center:true}),wc(r,{w:6700}),wc('',{w:800}),wc('',{w:1000}),wc('',{w:500}))
-        :wr(wc(String(i+1),{w:400,center:true}),wc(r.원료명||'',{w:2600}),wc(String(r.이론량||''),{w:1000,center:true}),wc(String(r.비율||''),{w:800,center:true}),wc(String(r.이론량||''),{w:1000,center:true}),wc('□',{w:500,center:true}))),
-      wr(wc('합 계',{bold:true,header:true,w:3000}),wc(`${batch.투입량||''}g`,{bold:true,w:1000,center:true}),wc('',{w:800}),wc('',{w:1000}),wc('',{w:500})),
-    ]),
-    allergy?wp(`※ 향료 유래 알레르기 유발성분: ${allergy}`, {sz:8}):'',
+    wtbl(M.summary.map(r=>wr(...r.map((c,i)=>i%2===0?wc(c,{bold:true,header:true,w:1559}):wc(c,{w:1559}))))),
+    M.allergy?note(`※ 향료 유래 알레르기 유발성분: ${M.allergy}`):'',
+    note(M.recipeNote),
+    wsec('3. 사용 설비'), gridT(['설비명','관리번호 / 점검 상태'], M.equip, [3000,6355]), note(M.equipNote),
+    wsec('4. 작업 전 점검'), chkT(M.checks),
+    wsec('5. 공정 기록'), gridT(M.stepHead, M.steps, [450,3200,2905,1100,900,800], [0,5]), note(M.stepNote),
+    wsec('6. 결과 · 수율'), kvT(M.result),
+    wtbl([wr(wc('불량 유형',{bold:true,header:true,w:1500}),wc(M.defectLine,{w:7855}))]),
+    wsec('7. 이상 · 공정 이탈 기록'),
+    wtbl([wr(wc('이상 여부',{bold:true,header:true,w:1500}),wc(M.faultLine,{w:7855}))]),
+    gridT(M.faultHead, M.faults, [1400,2400,1900,1900,1755]),
+    wsec('8. 시제품 평가 (시제품만)'), gridT(M.trialHead, M.trial, [1800,1300,1300,1300,3655]), wp(''),
+    wtbl(M.judge.map(r=>wr(wc(r[0],{bold:true,header:true,w:1800}),wc(r[1],{w:7555})))),
+    wsec('9. 본생산 연계 (본생산만)'), chkT(M.links),
+    wsec('10. 서명'),
+    wtbl([wr(wc('작성자',{bold:true,header:true,w:1500}),wc('(서명)    /    /',{w:3178}),wc('확인자',{bold:true,header:true,w:1500}),wc('(서명)    /    /',{w:3177}))]),
     wp(''),
-    wsec('바. 제조설비명'),
-    wp('전자저울  |  스틱블렌더  |  실리콘몰드(1kg)  |  스테인리스 용기 2개  |  온도계  |  내화학성 장갑·고글·마스크'),
-    wp(''),
-    wsec('사. 공정별 작업내용'),
-    wtbl([
-      wr(wc('단',{bold:true,header:true,w:400,center:true}),wc('공정명',{bold:true,header:true,w:1200}),wc('작업 내용',{bold:true,header:true,w:5300}),wc('관리기준',{bold:true,header:true,w:1200}),wc('확인',{bold:true,header:true,w:500,center:true})),
-      wr(wc('1',{w:400,center:true}),wc('칭량',{w:1200}),wc('원료를 기준량에 따라 전자저울로 계량 (±1% 이내)',{w:5300}),wc('±1% 이내',{w:1200}),wc('□',{w:500,center:true})),
-      wr(wc('2',{w:400,center:true}),wc('소다수',{w:1200}),wc('정제수에 소듐하이드록사이드 천천히 용해 → 냉각 (내화학성 장갑·고글·마스크 필수)',{w:5300}),wc('25~35°C',{w:1200}),wc('□',{w:500,center:true})),
-      wr(wc('3',{w:400,center:true}),wc('혼합',{w:1200}),wc('오일류 혼합 후 소다수와 혼합 / 스틱블렌더 1분씩 2~3회',{w:5300}),wc('27~30°C',{w:1200}),wc('□',{w:500,center:true})),
-      wr(wc('4',{w:400,center:true}),wc('첨가물',{w:1200}),wc('트레이스 이후 첨가물 후첨 교반',{w:5300}),wc('트레이스 후',{w:1200}),wc('□',{w:500,center:true})),
-      wr(wc('5',{w:400,center:true}),wc('향료',{w:1200}),wc('향료 혼합 후 몰드 투입',{w:5300}),wc('—',{w:1200}),wc('□',{w:500,center:true})),
-      wr(wc('6',{w:400,center:true}),wc('보온·탈형',{w:1200}),wc('24시간 보온 후 탈형',{w:5300}),wc('24시간',{w:1200}),wc('□',{w:500,center:true})),
-      wr(wc('7',{w:400,center:true}),wc('건조',{w:1200}),wc('통풍이 잘 되는 곳에서 건조',{w:5300}),wc('최소 2주',{w:1200}),wc('□',{w:500,center:true})),
-      wr(wc('8',{w:400,center:true}),wc('커팅·포장',{w:1200}),wc(`1kg 몰드 기준 ${iTheory}개 커팅 → 외관검사 → 포장·출하`,{w:5300}),wc(mw,{w:1200}),wc('□',{w:500,center:true})),
-    ]),
-    wp(''),
-    wsec('아. 수율'),
-    wtbl([
-      wr(wc('공정명',{bold:true,header:true,w:2200}),wc('투입량',{bold:true,header:true,w:2000,center:true}),wc('이론 생산량',{bold:true,header:true,w:2000,center:true}),wc('실제 생산량',{bold:true,header:true,w:2000,center:true}),wc('수 율',{bold:true,header:true,w:800,center:true})),
-      wr(wc('칭량 (제조)',{w:2200}),wc(`${batch.투입량||''}g`,{w:2000,center:true}),wc(`${iTheory}ea`,{w:2000,center:true}),wc(`${batch.실제수량||''}ea`,{w:2000,center:true}),wc('',{w:800})),
-    ]),
-    wp(''),
-    wsec('이상 발생 기록'),
-    wtbl([
-      wr(wc('이상 여부',{bold:true,header:true,w:2200}),wc(batch.이상==='이상없음'?'■ 이상 없음   □ 이상 있음':'□ 이상 없음   ■ 이상 있음',{w:6800})),
-      wr(wc('이상 내용 및 조치',{bold:true,header:true,w:2200}),wc(' ',{w:6800})),
-    ]),
-    wp(''),
-    wp('에이브릴팜 · 경기도 시흥시 진말1로 18, 에스엠타워 303호 · TEL 0507-1346-8739 · 화장품제조업 등록번호 제6494호', {sz:7}),
+    wp(`${CO.name} · ${CO.addr} · TEL ${CO.tel} · 화장품제조업 등록번호 ${CO.mfg} · 책임판매업 등록번호 ${CO.sale}`, {sz:7}),
   ].filter(Boolean).join('\n');
 
-  const docXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><w:body>${body}<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1134" w:right="1134" w:bottom="1134" w:left="1417" w:header="709" w:footer="709" w:gutter="0"/></w:sectPr></w:body></w:document>`;
+  const docXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><w:body>${body}<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="850" w:right="850" w:bottom="850" w:left="850" w:header="709" w:footer="709" w:gutter="0"/></w:sectPr></w:body></w:document>`;
 
   const settingsXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:defaultTabStop w:val="720"/><w:compat><w:compatSetting w:name="compatibilityMode" w:uri="http://schemas.microsoft.com/office/word" w:val="15"/></w:compat></w:settings>';
   const stylesXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii="Malgun Gothic" w:hAnsi="Malgun Gothic" w:eastAsia="Malgun Gothic"/><w:sz w:val="20"/><w:szCs w:val="20"/></w:rPr></w:rPrDefault></w:docDefaults><w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/></w:style></w:styles>';
@@ -2182,7 +2171,8 @@ function valueAfterLabelLoose(lines, label, offset = 1) {
 // 원료 배합표(레시피) 테이블 추출
 // 우리 표준서/제조지시서 템플릿은 항상 No, 원료명, INCI명칭, 이론량(g), 비율(%) 순서로 시작함
 function parseRecipeFromLines(lines) {
-  const hdrIdx = lines.findIndex(l => /원\s*료\s*명/.test(l));
+  let hdrIdx = lines.findIndex(l => /원\s*료\s*명/.test(l) && l.includes('\t'));
+  if (hdrIdx === -1) hdrIdx = lines.findIndex(l => /원\s*료\s*명/.test(l));
   if (hdrIdx === -1) return [];
 
   const recipe = [];
